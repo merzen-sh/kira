@@ -1,0 +1,9 @@
+{
+  "name": "kira",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "npm run build -w @kira/dashboard",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  }
+}
