@@ -1,0 +1,19 @@
+[package]
+name = "kira-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+kira-core = { path = "../kira-core" }
+kira-protocol = { path = "../kira-protocol" }
+reqwest.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+futures-util.workspace = true
+tokio.workspace = true
