@@ -889,6 +889,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kira-api-docs"
+version = "0.1.0"
+dependencies = [
+ "kira-protocol",
+ "kira-server",
+ "utoipa",
+]
+
+[[package]]
 name = "kira-bot"
 version = "0.1.0"
 dependencies = [
@@ -952,6 +961,12 @@ name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
+
+[[package]]
+name = "libyaml-rs"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e126dda6f34391ab7b444f9922055facc83c07a910da3eb16f1e4d9c45dc777"
 
 [[package]]
 name = "linux-raw-sys"
@@ -2225,6 +2240,7 @@ dependencies = [
  "serde",
  "serde_json",
  "utoipa-gen",
+ "yaml_serde",
 ]
 
 [[package]]
@@ -2551,6 +2567,27 @@ name = "writeable"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+
+[[package]]
+name = "xtask"
+version = "0.1.0"
+dependencies = [
+ "kira-api-docs",
+ "tempfile",
+]
+
+[[package]]
+name = "yaml_serde"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33b729a08a9a6be689bbad3e2bf8015926db54b6622cc89c3a5f7dc174b9e918"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "libyaml-rs",
+ "ryu",
+ "serde",
+]
 
 [[package]]
 name = "yoke"

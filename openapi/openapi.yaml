@@ -1,0 +1,34 @@
+openapi: 3.1.0
+info:
+  title: Kira API
+  description: Kira service API
+  license:
+    name: ''
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      tags:
+      - health
+      operationId: health
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+      - status
+      - version
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+tags:
+- name: health
+  description: Service health
