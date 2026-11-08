@@ -12,29 +12,24 @@ and used to generate the TypeScript types consumed by the dashboard.
 
 ## 1. System at a glance
 
-```
-Discord Gateway
-      │
-      ▼
-┌─────────────────────────────────────────────┐
-│ kira (single process, one Tokio runtime)    │
-│                                             │
-│  kira-bot ── Serenity gateway + !ping        │
-│                                             │
-│  kira-server ── Axum on 127.0.0.1:3000      │
-│      GET /health                            │
-│      GET /ws        (echo scaffold)         │
-└──────────────────┬──────────────────────────┘
-                   │ HTTP + WebSocket
-                   ▼
-┌─────────────────────────────────────────────┐     ┌────────────────────┐
-│ kira-cli (local process)                    │◄───►│ Browser            │
-│                                             │     │ embedded dashboard │
-│  Axum on 127.0.0.1:3001                     │     └────────────────────┘
-│      GET /api/health  ──► remote /health    │
-│      GET /ws          ──► remote /ws        │
-│      GET /*           ──► embedded SPA      │
-└─────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    GW["Discord Gateway"]
+
+    subgraph KIRA["kira — single process, one Tokio runtime"]
+        BOT["kira-bot<br/>Serenity gateway + !ping"]
+        SERVER["kira-server<br/>Axum on 127.0.0.1:3000<br/>GET /health<br/>GET /ws (echo scaffold)"]
+    end
+
+    subgraph LOCAL["kira-cli — local process"]
+        CLI["Axum on 127.0.0.1:3001<br/>GET /api/health → remote /health<br/>GET /ws → remote /ws<br/>GET /* → embedded SPA"]
+    end
+
+    BROWSER["Browser<br/>embedded dashboard"]
+
+    GW <--> BOT
+    SERVER <-->|"HTTP + WebSocket"| CLI
+    CLI <--> BROWSER
 ```
 
 Ports are configurable; the defaults above are what the Makefile and Vite dev
@@ -77,22 +72,50 @@ npm workspaces and are excluded from Cargo.
 
 ## 3. Crate graph and boundaries
 
-```
-L0 leaves
-  kira-core        kira-config        kira-protocol
+```mermaid
+flowchart RL
+    subgraph L0["L0 · leaves"]
+        CORE["kira-core"]
+        CONFIG["kira-config"]
+        PROTOCOL["kira-protocol"]
+    end
 
-L1 libraries
-  kira-bot      -> kira-core, kira-config
-  kira-server   -> kira-core, kira-config, kira-protocol
-  kira-client   -> kira-core, kira-protocol
+    subgraph L1["L1 · libraries"]
+        BOT["kira-bot"]
+        SERVER["kira-server"]
+        CLIENT["kira-client"]
+    end
 
-L2 applications
-  kira          -> kira-bot, kira-server (optional), kira-config, kira-core
-  kira-cli      -> kira-client, kira-config, kira-core, kira-protocol
+    subgraph L2["L2 · applications"]
+        KIRA["kira"]
+        CLI["kira-cli"]
+    end
 
-Dev-only sidecars
-  kira-api-docs -> kira-server, kira-protocol
-  xtask         -> kira-api-docs
+    subgraph DEV["dev-only sidecars"]
+        DOCS["kira-api-docs"]
+        XTASK["xtask"]
+    end
+
+    BOT --> CORE
+    BOT --> CONFIG
+    SERVER --> CORE
+    SERVER --> CONFIG
+    SERVER --> PROTOCOL
+    CLIENT --> CORE
+    CLIENT --> PROTOCOL
+
+    KIRA --> BOT
+    KIRA --> SERVER
+    KIRA --> CONFIG
+    KIRA --> CORE
+    CLI --> CLIENT
+    CLI --> CONFIG
+    CLI --> CORE
+    CLI --> PROTOCOL
+
+    DOCS --> SERVER
+    DOCS --> PROTOCOL
+    XTASK --> DOCS
 ```
 
 Rules:
@@ -227,24 +250,16 @@ Rotation of any previously exposed Discord token is an operational follow-up.
 
 ## 7. OpenAPI and TypeScript contract
 
-```
-kira-server #[utoipa::path]  +  kira-protocol #[derive(ToSchema)]
-                    │
-                    ▼
-          kira-api-docs (dev-only)
-                    │
-        cargo xtask openapi generate
-                    │
-                    ▼
-          openapi/openapi.yaml  (committed)
-                    │
-             npm run gen:api-types
-                    │
-                    ▼
-   packages/api-types/src/schema.d.ts  (committed)
-                    │
-                    ▼
-          @kira/api-types → apps/dashboard
+```mermaid
+flowchart TD
+    SRV["kira-server<br/>#[utoipa::path]"] --> DOC
+    DTO["kira-protocol<br/>#[derive(ToSchema)]"] --> DOC
+    DOC["kira-api-docs<br/>(dev-only)"] --> XT
+    XT["cargo xtask openapi generate"] --> YAML
+    YAML["openapi/openapi.yaml<br/>(committed)"] --> GEN
+    GEN["npm run gen:api-types"] --> DTS
+    DTS["packages/api-types/src/schema.d.ts<br/>(committed)"] --> PKG
+    PKG["@kira/api-types"] --> DASH["apps/dashboard"]
 ```
 
 ### Ownership
