@@ -1,9 +1,17 @@
 {
   "name": "kira",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run build -w @kira/dashboard",
+    "gen:api-types": "npm run gen -w @kira/api-types",
+    "check:api-types": "npm run check -w @kira/api-types",
     "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
   }
 }

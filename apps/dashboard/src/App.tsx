@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import type { components } from "@kira/api-types";
+
+type Health = components["schemas"]["HealthResponse"];
 
 const HEALTH_URL = "/api/health";
 
@@ -13,7 +16,7 @@ export default function App() {
         if (!response.ok) {
           throw new Error(`health request failed: ${response.status}`);
         }
-        return response.json() as Promise<{ status?: string }>;
+        return response.json() as Promise<Health>;
       })
       .then((health) => {
         setStatus(health.status ?? "offline");

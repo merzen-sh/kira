@@ -1,0 +1,14 @@
+{
+  "name": "@kira/api-types",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.d.ts"
+  },
+  "scripts": {
+    "gen": "openapi-typescript ../../openapi/openapi.yaml -o src/schema.d.ts",
+    "check": "node scripts/check.mjs",
+    "typecheck": "tsc --noEmit"
+  }
+}
