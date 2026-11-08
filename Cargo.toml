@@ -1,0 +1,23 @@
+[package]
+name = "kira"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dotenvy = "0.15"
+serde = { version = "1.0", features = ["derive"] }
+envy = "0.4"
+serenity = "0.12"
+tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread","signal"] }
+thiserror = "2"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1 
+lto = "fat"
+panic = "abort"
+strip = true
+
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"

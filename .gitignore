@@ -1,0 +1,7 @@
+/target
+.worktrees/
+.env
+.env.*
+!.env.example
+node_modules/
+apps/dashboard/dist/
