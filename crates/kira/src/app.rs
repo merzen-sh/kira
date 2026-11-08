@@ -26,6 +26,7 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> kira_core:
 
     let mut bot_result = None;
     let mut http_result = None;
+    let mut signal_result = None;
 
     tokio::select! {
         result = &mut bot => {
@@ -35,7 +36,7 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> kira_core:
             http_result = Some(result);
         }
         signal = kira_core::shutdown::wait_for_signal() => {
-            signal?;
+            signal_result = Some(signal);
         }
     }
 
@@ -49,6 +50,10 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> kira_core:
         Some(result) => result,
         None => http.await,
     };
+
+    if let Some(signal) = signal_result {
+        signal?;
+    }
 
     bot_result?;
     http_result?;
@@ -64,20 +69,27 @@ pub async fn run_bot(discord: DiscordConfig) -> kira_core::Result<()> {
     tokio::pin!(bot);
 
     let mut bot_result = None;
+    let mut signal_result = None;
 
     tokio::select! {
         result = &mut bot => {
             bot_result = Some(result);
         }
         signal = kira_core::shutdown::wait_for_signal() => {
-            signal?;
+            signal_result = Some(signal);
         }
     }
 
     let _ = tx.send(true);
 
-    match bot_result {
+    let bot_result = match bot_result {
         Some(result) => result,
         None => bot.await,
+    };
+
+    if let Some(signal) = signal_result {
+        signal?;
     }
+
+    bot_result
 }
