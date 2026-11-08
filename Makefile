@@ -46,8 +46,8 @@ check: node_modules
 	@! $(CARGO) tree -p kira-cli | grep -q kira-server
 	@! $(CARGO) tree -p kira-cli | grep -q kira-bot
 	@! $(CARGO) tree -p kira-cli | grep -q serenity
-	@! $(CARGO) tree -p kira | grep -q kira-api-docs
-	@! $(CARGO) tree -p kira | grep -q xtask
+	@! $(CARGO) tree -p kira --all-features | grep -q kira-api-docs
+	@! $(CARGO) tree -p kira --all-features | grep -q xtask
 
 fmt:
 	$(CARGO) fmt
