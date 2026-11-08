@@ -14,10 +14,9 @@ fi
 
 echo "Running smoke test..."
 
-"$BINARY" --version >/dev/null 2>&1 && {
-    echo "PASS: Binary starts successfully"
-    exit 0
-}
-
-echo "FAIL: Binary execution failed"
-exit 1
+OUTPUT="$("$BINARY" --version)"
+if [[ "$OUTPUT" != kira\ * ]]; then
+    echo "FAIL: unexpected --version output: $OUTPUT"
+    exit 1
+fi
+echo "PASS: $OUTPUT"

@@ -1,35 +1,57 @@
-# Define variables
 CARGO := cargo
-TARGET := debug
 
-.PHONY: all build dev release test clean fmt clippy
+.PHONY: all build dev release build-cli build-all install dashboard openapi test check clean fmt clippy
 
-# Default target
 all: build
 
-dev:
-	$(CARGO) watch -w src -x run
-
-# Build the project in debug mode
 build:
-	$(CARGO) build
+	$(CARGO) build -p kira
 
-# Build optimized release version
+dev:
+	$(CARGO) watch -w crates -x "run -p kira"
+
 release:
-	$(CARGO) build --release
+	$(CARGO) build --release -p kira
 
-# Run unit tests
+node_modules: package.json package-lock.json
+	npm ci
+
+install: node_modules
+
+dashboard: node_modules
+	npm run build -w @kira/dashboard
+
+build-cli: dashboard
+	$(CARGO) build --release -p kira-cli
+
+build-all: dashboard
+	$(CARGO) build --release -p kira -p kira-cli
+
+openapi: node_modules
+	$(CARGO) xtask openapi generate
+	npm run gen:api-types
+
 test:
-	$(CARGO) test
+	$(CARGO) test --workspace
 
-# Run lints
-clippy:
-	$(CARGO) clippy
+check: node_modules
+	$(CARGO) fmt --check
+	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
+	$(CARGO) test --workspace
+	$(CARGO) xtask openapi check
+	npm run check:api-types
+	npm run typecheck
+	@! $(CARGO) tree -p kira-cli | grep -q kira-server
+	@! $(CARGO) tree -p kira-cli | grep -q serenity
+	@! $(CARGO) tree -p kira | grep -q kira-api-docs
+	@! $(CARGO) tree -p kira | grep -q xtask
 
-# Format code
 fmt:
 	$(CARGO) fmt
 
-# Clean workspace target directory
+clippy:
+	$(CARGO) clippy
+
 clean:
 	$(CARGO) clean
+	rm -rf node_modules apps/dashboard/dist
