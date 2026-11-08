@@ -1,0 +1,17 @@
+[package]
+name = "kira"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = ["server"]
+server = ["dep:kira-server"]
+
+[dependencies]
+kira-bot = { path = "../kira-bot" }
+kira-config = { path = "../kira-config" }
+kira-core = { path = "../kira-core" }
+kira-server = { path = "../kira-server", optional = true }
+tokio.workspace = true
