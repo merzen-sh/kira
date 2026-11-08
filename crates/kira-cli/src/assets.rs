@@ -1,0 +1,110 @@
+//! Embedded dashboard asset lookup and response headers.
+
+use axum::{
+    body::Body,
+    http::{StatusCode, Uri, header},
+    response::{IntoResponse, Response},
+};
+use rust_embed::RustEmbed;
+
+#[derive(RustEmbed)]
+#[folder = "../../apps/dashboard/dist/"]
+struct Dashboard;
+
+/// Look up an embedded dashboard file by its exact relative path.
+pub fn get(path: &str) -> Option<rust_embed::EmbeddedFile> {
+    Dashboard::get(path)
+}
+
+/// Pick a `Content-Type` from the file extension.
+pub fn content_type_for(path: &str) -> String {
+    mime_guess::from_path(path)
+        .first_or_octet_stream()
+        .to_string()
+}
+
+/// Pick a `Cache-Control` policy for a dashboard file.
+pub fn cache_control_for(path: &str) -> &'static str {
+    if path.starts_with("assets/") {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    }
+}
+
+/// Build a response for an embedded asset, or 404 when it does not exist.
+pub(crate) fn serve(path: &str) -> Response {
+    let Some(file) = get(path) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let content_type = header::HeaderValue::from_str(&content_type_for(path))
+        .unwrap_or_else(|_| header::HeaderValue::from_static("application/octet-stream"));
+
+    (
+        [
+            (header::CONTENT_TYPE, content_type),
+            (
+                header::CACHE_CONTROL,
+                header::HeaderValue::from_static(cache_control_for(path)),
+            ),
+        ],
+        Body::from(file.data.into_owned()),
+    )
+        .into_response()
+}
+
+/// Serve the SPA for non-API paths and never fall back to `index.html` for
+/// API routes.
+pub(crate) async fn fallback(uri: Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
+
+    if path == "api" || path.starts_with("api/") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    if path.starts_with("assets/") {
+        if !is_safe_path(path) {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+        return serve(path);
+    }
+
+    serve("index.html")
+}
+
+fn is_safe_path(path: &str) -> bool {
+    !path
+        .split(['/', '\\'])
+        .any(|segment| segment == "." || segment == "..")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn javascript_content_type() {
+        assert!(content_type_for("app.js").contains("javascript"));
+    }
+
+    #[test]
+    fn asset_cache_control_is_immutable() {
+        assert_eq!(
+            cache_control_for("assets/app.js"),
+            "public, max-age=31536000, immutable"
+        );
+    }
+
+    #[test]
+    fn index_is_not_immutable() {
+        assert_eq!(cache_control_for("index.html"), "no-cache");
+    }
+
+    #[test]
+    fn traversal_paths_are_rejected() {
+        assert!(!is_safe_path("assets/../../etc/passwd"));
+        assert!(!is_safe_path("assets/./secret"));
+        assert!(is_safe_path("assets/index-BV3wEoCd.js"));
+    }
+}
