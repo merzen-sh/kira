@@ -41,7 +41,10 @@ check: node_modules
 	$(CARGO) xtask openapi check
 	npm run check:api-types
 	npm run typecheck
+	@$(CARGO) tree -p kira-cli >/dev/null
+	@$(CARGO) tree -p kira --all-features >/dev/null
 	@! $(CARGO) tree -p kira-cli | grep -q kira-server
+	@! $(CARGO) tree -p kira-cli | grep -q kira-bot
 	@! $(CARGO) tree -p kira-cli | grep -q serenity
 	@! $(CARGO) tree -p kira | grep -q kira-api-docs
 	@! $(CARGO) tree -p kira | grep -q xtask
