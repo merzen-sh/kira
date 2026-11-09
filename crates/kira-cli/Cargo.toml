@@ -14,6 +14,7 @@ kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
 kira-protocol = { path = "../kira-protocol" }
 mime_guess.workspace = true
+reqwest.workspace = true
 rust-embed.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true

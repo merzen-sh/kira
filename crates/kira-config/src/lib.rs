@@ -59,15 +59,15 @@ pub struct CliConfig {
 }
 
 fn default_bind() -> SocketAddr {
-    SocketAddr::from(([127, 0, 0, 1], 3000))
+    SocketAddr::from(([127, 0, 0, 1], 8080))
 }
 
 fn default_cli_bind() -> SocketAddr {
-    SocketAddr::from(([127, 0, 0, 1], 3001))
+    SocketAddr::from(([127, 0, 0, 1], 3000))
 }
 
 fn default_remote_url() -> String {
-    "http://127.0.0.1:3000".to_owned()
+    "http://127.0.0.1:8080".to_owned()
 }
 
 impl DiscordConfig {
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn server_config_defaults_bind() -> Result<(), ConfigError> {
         let c = ServerConfig::from_iter(std::iter::empty::<(&str, &str)>())?;
-        assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
+        assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 8080)));
         Ok(())
     }
 
@@ -183,8 +183,8 @@ mod tests {
     #[test]
     fn cli_config_defaults() -> Result<(), ConfigError> {
         let c = CliConfig::from_iter(std::iter::empty::<(&str, &str)>())?;
-        assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3001)));
-        assert_eq!(c.remote_url, "http://127.0.0.1:3000");
+        assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
+        assert_eq!(c.remote_url, "http://127.0.0.1:8080");
         Ok(())
     }
 

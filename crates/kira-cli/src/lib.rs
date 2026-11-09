@@ -3,6 +3,7 @@
 
 pub mod assets;
 
+mod dev_proxy;
 mod proxy;
 
 use axum::Router;
@@ -11,6 +12,9 @@ use axum::Router;
 #[derive(Clone)]
 pub struct AppState {
     pub client: kira_client::Client,
+    /// When set, non-API requests are proxied to this Vite dev server instead of
+    /// serving the embedded dashboard assets.
+    pub dev_server_url: Option<String>,
 }
 
 /// Build the local router.

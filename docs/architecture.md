@@ -18,11 +18,11 @@ flowchart TB
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
         BOT["kira-bot<br/>Serenity gateway + !ping"]
-        SERVER["kira-server<br/>Axum on 127.0.0.1:3000<br/>GET /health<br/>GET /ws (echo scaffold)"]
+        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>GET /health<br/>GET /ws (echo scaffold)"]
     end
 
     subgraph LOCAL["kira-cli — local process"]
-        CLI["Axum on 127.0.0.1:3001<br/>GET /api/health → remote /health<br/>GET /ws → remote /ws<br/>GET /* → embedded SPA"]
+        CLI["Axum on 127.0.0.1:3000<br/>GET /api/health → remote /health<br/>GET /ws → remote /ws<br/>GET /* → Vite dev server (debug) / embedded SPA (release)"]
     end
 
     BROWSER["Browser<br/>embedded dashboard"]
@@ -42,7 +42,7 @@ kira/
 ├── Cargo.toml                    Cargo workspace (virtual manifest)
 ├── Cargo.lock                    committed; the two binaries are applications
 ├── .cargo/config.toml            `cargo xtask` alias
-├── Makefile                      build, dashboard, OpenAPI, check workflow
+├── Makefile                      build, dashboard, OpenAPI, check workflow, dev runner
 ├── package.json                  npm workspace root
 ├── package-lock.json             committed for reproducible installs
 ├── openapi/
@@ -147,7 +147,7 @@ assertions.
 and waits for Ctrl-C/SIGTERM.
 
 - `kira-config::DiscordConfig` requires `DISCORD_TOKEN`.
-- `kira-config::ServerConfig` supplies `KIRA_BIND` (default `127.0.0.1:3000`).
+- `kira-config::ServerConfig` supplies `KIRA_BIND` (default `127.0.0.1:8080`).
 - `kira-bot::run` builds the Serenity client with the
   `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents, registers the
   config in Serenity's type map, and starts the gateway.
@@ -180,8 +180,8 @@ test cannot accidentally start the gateway.
 
 `kira-cli` is a local dashboard host and reverse proxy.
 
-- `kira-config::CliConfig` reads `KIRA_CLI_BIND` (default `127.0.0.1:3001`) and
-  `KIRA_REMOTE_URL` (default `http://127.0.0.1:3000`).
+- `kira-config::CliConfig` reads `KIRA_CLI_BIND` (default `127.0.0.1:3000`) and
+  `KIRA_REMOTE_URL` (default `http://127.0.0.1:8080`).
 - `kira-client::Client` talks to the remote server over `reqwest` (HTTP) and
   `tokio-tungstenite` (WebSocket). WebSocket URLs are derived from the remote
   base: `http` → `ws`, `https` → `wss`.
@@ -191,7 +191,10 @@ test cannot accidentally start the gateway.
   - `GET /ws` — upgrades and bridges frames to the remote `/ws`. Axum and
     tungstenite message types are converted explicitly; payloads are not
     interpreted.
-  - Everything else — served from the embedded dashboard with SPA fallback.
+  - Everything else — served from the embedded dashboard with SPA fallback in
+    release builds. Debug builds proxy these requests to Vite on
+    `127.0.0.1:5173` instead, so frontend changes are visible without a Rust
+    rebuild.
 - The process shuts down gracefully on Ctrl-C/SIGTERM.
 
 ### 4.3 Dashboard
@@ -220,10 +223,12 @@ The API layer lives in `src/data/`:
 - `__templates/` holds copyable conventions for new domains.
 
 In development, Vite runs on its own port and proxies `/api` and `/ws` to
-`kira-cli` on `127.0.0.1:3001`. The full dev path is:
+`kira-cli` on `127.0.0.1:3000`. A debug `kira-cli` also proxies non-API
+requests back to Vite on `127.0.0.1:5173`, so either entrypoint works. The full
+dev path is:
 
 ```
-Browser → Vite dev server → kira-cli :3001 → remote kira :3000
+Browser → Vite dev server :5173 → kira-cli :3000 → remote kira :8080
 ```
 
 In production, `kira-cli` serves the built assets itself.
@@ -249,14 +254,15 @@ representable in OpenAPI and are intentionally undocumented.
 |---|---|---|
 | `GET` | `/api/health` | Proxy to remote `/health`; `502` JSON on failure |
 | `GET` | `/ws` | Frame-by-frame proxy to remote `/ws` |
-| `GET` | `/` and other non-API paths | Embedded `index.html` (SPA fallback) |
-| `GET` | `/assets/*` | Embedded asset, or `404` if missing |
+| `GET` | `/` and other non-API paths | Vite dev server in debug; embedded `index.html` (SPA fallback) in release |
+| `GET` | `/assets/*` | Vite dev server in debug; embedded asset or `404` in release |
 | any | `/api/*` miss | `404`, never the SPA fallback |
 
-Static responses set `Content-Type` from the file extension. Hashed
+In release, static responses set `Content-Type` from the file extension. Hashed
 `/assets/*` responses use `Cache-Control: public, max-age=31536000, immutable`;
 the SPA shell uses `no-cache`. Embedded lookups use exact relative paths, and
-asset paths containing `.` or `..` segments are rejected.
+asset paths containing `.` or `..` segments are rejected. Debug builds forward
+non-API requests to Vite instead of serving embedded files.
 
 ## 6. Configuration
 
@@ -267,9 +273,9 @@ environment variables are authoritative.
 | Variable | Used by | Default | Required |
 |---|---|---|---|
 | `DISCORD_TOKEN` | `kira` | — | yes |
-| `KIRA_BIND` | `kira` server | `127.0.0.1:3000` | no |
-| `KIRA_CLI_BIND` | `kira-cli` | `127.0.0.1:3001` | no |
-| `KIRA_REMOTE_URL` | `kira-cli` | `http://127.0.0.1:3000` | no |
+| `KIRA_BIND` | `kira` server | `127.0.0.1:8080` | no |
+| `KIRA_CLI_BIND` | `kira-cli` | `127.0.0.1:3000` | no |
+| `KIRA_REMOTE_URL` | `kira-cli` | `http://127.0.0.1:8080` | no |
 
 `.env` is gitignored. `.env.example` documents the variables without secrets.
 Rotation of any previously exposed Discord token is an operational follow-up.
@@ -326,9 +332,12 @@ route change cannot silently leave either contract stale.
 - `npm run build -w @kira/dashboard` runs `tsc --noEmit` and Vite, producing
   `apps/dashboard/dist/` with `emptyOutDir: true`.
 - `kira-cli` embeds that directory with `rust-embed`.
-  - **Release:** files are embedded into the binary at compile time.
-  - **Debug:** files are read from disk at runtime, so rebuilding the dashboard
-    does not require a Rust rebuild.
+  - **Release:** files are embedded into the binary at compile time and served.
+  - **Debug:** non-API HTTP requests are proxied to the Vite dev server on
+    `127.0.0.1:5173`; the embedded set is not used while that proxy is active.
+- If the dev server URL is unset in a debug build (as in tests), rust-embed
+  reads the embedded files from disk at runtime, so rebuilding the dashboard
+  does not require a Rust rebuild.
 - `crates/kira-cli/build.rs` enforces the build order:
   - A release build fails with `dashboard assets missing; run make dashboard`
     when `index.html` is missing or the `.kira-placeholder` marker exists.
@@ -350,7 +359,7 @@ both steps.
 |---|---|
 | `make build` | `cargo build -p kira` |
 | `make release` | `cargo build --release -p kira` |
-| `make dev` | `cargo watch` loop for `kira` |
+| `make dev` | `mprocs` for Vite, `kira`, and `kira-cli` |
 | `make install` | `npm ci` (via the `node_modules` prerequisite) |
 | `make dashboard` | Build the Vite dashboard into `dist/` |
 | `make build-cli` | Build dashboard, then release `kira-cli` |
@@ -446,14 +455,17 @@ Not implemented yet:
 npm ci
 cp .env.example .env        # then fill DISCORD_TOKEN
 
-# Run the main service (bot + API on :3000)
+# Run everything in development (Vite, kira, kira-cli)
+make dev
+
+# Run the main service (bot + API on :8080)
 cargo run -p kira
 
-# Run the local dashboard host (API on :3001)
+# Run the local dashboard host (API on :3000)
 make build-cli
 target/release/kira-cli
 
-# Frontend development (Vite proxies to :3001)
+# Frontend development (Vite on :5173 proxies to kira-cli :3000)
 npm run dev -w @kira/dashboard
 
 # Contract update after changing a route

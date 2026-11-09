@@ -76,9 +76,12 @@ async fn echo(mut socket: WebSocket) {
 }
 
 async fn cli_get(client: Client, path: &str) -> Result<axum::response::Response> {
-    Ok(router(AppState { client })
-        .oneshot(Request::builder().uri(path).body(Body::empty())?)
-        .await?)
+    Ok(router(AppState {
+        client,
+        dev_server_url: None,
+    })
+    .oneshot(Request::builder().uri(path).body(Body::empty())?)
+    .await?)
 }
 
 #[tokio::test]
@@ -117,7 +120,15 @@ async fn websocket_frames_are_proxied() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     let server = tokio::spawn(async move {
-        if let Err(error) = axum::serve(listener, router(AppState { client })).await {
+        if let Err(error) = axum::serve(
+            listener,
+            router(AppState {
+                client,
+                dev_server_url: None,
+            }),
+        )
+        .await
+        {
             eprintln!("test server failed: {error}");
         }
     });

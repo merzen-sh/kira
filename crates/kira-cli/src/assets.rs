@@ -2,10 +2,13 @@
 
 use axum::{
     body::Body,
+    extract::{Request, State},
     http::{StatusCode, Uri, header},
     response::{IntoResponse, Response},
 };
 use rust_embed::RustEmbed;
+
+use crate::AppState;
 
 #[derive(RustEmbed)]
 #[folder = "../../apps/dashboard/dist/"]
@@ -60,13 +63,23 @@ pub(crate) fn serve(path: &str) -> Response {
 }
 
 /// Serve the SPA for non-API paths and never fall back to `index.html` for
-/// API routes.
-pub(crate) async fn fallback(uri: Uri) -> Response {
-    let path = uri.path().trim_start_matches('/');
+/// API routes. In development, non-API paths are proxied to Vite instead.
+pub(crate) async fn fallback(State(state): State<AppState>, request: Request) -> Response {
+    let path = request.uri().path().trim_start_matches('/');
 
     if path == "api" || path.starts_with("api/") {
         return StatusCode::NOT_FOUND.into_response();
     }
+
+    if let Some(base_url) = state.dev_server_url.as_deref() {
+        return crate::dev_proxy::forward(base_url, request).await;
+    }
+
+    embedded(request.uri())
+}
+
+fn embedded(uri: &Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
 
     if path.starts_with("assets/") {
         if !is_safe_path(path) {

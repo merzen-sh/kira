@@ -1113,6 +1113,7 @@ dependencies = [
  "kira-core",
  "kira-protocol",
  "mime_guess",
+ "reqwest 0.13.5",
  "rust-embed",
  "serde_json",
  "tokio",

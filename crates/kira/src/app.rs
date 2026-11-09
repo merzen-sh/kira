@@ -113,13 +113,13 @@ mod tests {
     #[test]
     fn bind_error_context_names_the_address_and_renders_once() {
         let error = anyhow::Error::new(ServerError::Bind {
-            addr: std::net::SocketAddr::from(([127, 0, 0, 1], 3000)),
+            addr: std::net::SocketAddr::from(([127, 0, 0, 1], 8080)),
             source: std::io::Error::other("address already in use"),
         })
         .context("HTTP server failed");
 
         let rendered = format!("{error:#}");
-        assert!(rendered.contains("127.0.0.1:3000"));
+        assert!(rendered.contains("127.0.0.1:8080"));
         assert_eq!(rendered.matches("address already in use").count(), 1);
     }
 }

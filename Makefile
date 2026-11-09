@@ -7,8 +7,11 @@ all: build
 build:
 	$(CARGO) build -p kira
 
-dev:
-	$(CARGO) watch -w crates -x "run -p kira"
+dev: node_modules
+	mprocs --names vite,kira,kira-cli \
+		"npm run dev -w @kira/dashboard" \
+		"cargo watch -w crates -x 'run -p kira'" \
+		"cargo watch -w crates -x 'run -p kira-cli'"
 
 release:
 	$(CARGO) build --release -p kira
