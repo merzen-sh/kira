@@ -1,6 +1,6 @@
 import { mutationOptions } from "@tanstack/react-query";
 
-import { POST, unwrap } from "../fetcher";
+import { POST, toResourceError, unwrap } from "../fetcher";
 import { exampleKeys } from "./keys";
 
 export interface ExampleMutationInput {
@@ -10,12 +10,17 @@ export interface ExampleMutationInput {
 export function createExampleMutationOptions() {
   return mutationOptions({
     mutationKey: exampleKeys.mutations(),
-    mutationFn: async (input: ExampleMutationInput) =>
-      unwrap(
-        POST("/example", {
-          body: input,
-        }),
-      ),
+    mutationFn: async (input: ExampleMutationInput) => {
+      try {
+        return await unwrap(
+          POST("/example", {
+            body: input,
+          }),
+        );
+      } catch (error) {
+        throw toResourceError(error);
+      }
+    },
     // onSuccess: (data, variables, _onMutateResult, context) => {
     //   context.client.invalidateQueries({ queryKey: exampleKeys.lists() });
     // },

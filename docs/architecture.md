@@ -206,7 +206,7 @@ The API layer lives in `src/data/`:
   from `@kira/api-types`.
 - Each API domain owns `keys.ts` and `query.ts` (plus `mutation.ts` when
   needed). `health/` is the first domain.
-- TanStack Query owns server state. Components consume exported query options;
+- TanStack Query owns server state. Components consume exported query hooks;
   they do not call `fetch` directly.
 - `__templates/` holds copyable conventions for new domains.
 

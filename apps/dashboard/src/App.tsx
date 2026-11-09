@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-
-import { healthQueryOptions } from "./data/health/query";
+import { useHealthQuery } from "./data/health/query";
 
 export default function App() {
-  const { data } = useQuery(healthQueryOptions());
+  const { data } = useHealthQuery();
   const status = data?.status ?? "offline";
 
   return (

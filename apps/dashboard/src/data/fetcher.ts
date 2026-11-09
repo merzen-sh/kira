@@ -1,6 +1,8 @@
 import type { paths } from "@kira/api-types";
 import createClient from "openapi-fetch";
 
+import type { ResourceError } from "./types";
+
 const DEFAULT_BASE_URL = "/api";
 
 export interface ApiErrorOptions {
@@ -101,4 +103,29 @@ export async function unwrap<T>(request: Promise<ApiResponse<T>>): Promise<T> {
   }
 
   return result.data;
+}
+
+/** Convert any thrown value into the dashboard's shared error shape. */
+export function toResourceError(error: unknown): ResourceError {
+  if (error instanceof ApiError) {
+    const payload = error.payload;
+
+    if (typeof payload === "object" && payload !== null) {
+      if ("message" in payload && typeof payload.message === "string") {
+        return { message: payload.message };
+      }
+
+      if ("error" in payload && typeof payload.error === "string") {
+        return { message: payload.error };
+      }
+    }
+
+    return { message: error.message };
+  }
+
+  if (error instanceof Error) {
+    return { message: error.message };
+  }
+
+  return { message: "unknown API error" };
 }

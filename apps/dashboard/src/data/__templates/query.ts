@@ -1,17 +1,35 @@
-import { queryOptions } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
-import { GET, unwrap } from "../fetcher";
+import { GET, toResourceError, unwrap } from "../fetcher";
+import type { UseCustomQueryOptions } from "../types";
 import { exampleKeys } from "./keys";
 
-export function exampleQueryOptions(id: string) {
-  return queryOptions({
-    queryKey: exampleKeys.detail(id),
-    queryFn: async ({ signal }) =>
-      unwrap(
-        GET("/example/{id}", {
-          params: { path: { id } },
-          signal,
-        }),
-      ),
-  });
+export async function getExample(id: string, signal?: AbortSignal) {
+  try {
+    return await unwrap(
+      GET("/example/{id}", {
+        params: { path: { id } },
+        signal,
+      }),
+    );
+  } catch (error) {
+    throw toResourceError(error);
+  }
 }
+
+export type ResourceData = Awaited<ReturnType<typeof getExample>>;
+export type ResourceError = { message: string };
+
+export const useExampleQuery = <TData = ResourceData>(
+  id: string,
+  {
+    enabled = true,
+    ...options
+  }: UseCustomQueryOptions<ResourceData, ResourceError, TData> = {},
+) =>
+  useQuery<ResourceData, ResourceError, TData>({
+    queryKey: exampleKeys.detail(id),
+    queryFn: ({ signal }) => getExample(id, signal),
+    enabled,
+    ...options,
+  });
