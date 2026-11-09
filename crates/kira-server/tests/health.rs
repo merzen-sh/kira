@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -8,27 +10,22 @@ use kira_server::router;
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn health_returns_ok() {
+async fn health_returns_ok() -> Result<(), Box<dyn Error>> {
     let res = router()
-        .oneshot(
-            Request::builder()
-                .uri("/health")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        .oneshot(Request::builder().uri("/health").body(Body::empty())?)
+        .await?;
     assert_eq!(res.status(), StatusCode::OK);
-    let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    let health: HealthResponse = serde_json::from_slice(&bytes).unwrap();
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let health: HealthResponse = serde_json::from_slice(&bytes)?;
     assert_eq!(health.status, "ok");
+    Ok(())
 }
 
 #[tokio::test]
-async fn unknown_path_is_404() {
+async fn unknown_path_is_404() -> Result<(), Box<dyn Error>> {
     let res = router()
-        .oneshot(Request::builder().uri("/nope").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+        .oneshot(Request::builder().uri("/nope").body(Body::empty())?)
+        .await?;
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    Ok(())
 }

@@ -38,8 +38,13 @@ pub(crate) fn serve(path: &str) -> Response {
         return StatusCode::NOT_FOUND.into_response();
     };
 
-    let content_type = header::HeaderValue::from_str(&content_type_for(path))
-        .unwrap_or_else(|_| header::HeaderValue::from_static("application/octet-stream"));
+    let content_type = match header::HeaderValue::from_str(&content_type_for(path)) {
+        Ok(value) => value,
+        Err(error) => {
+            eprintln!("invalid content type for {path}: {error}");
+            header::HeaderValue::from_static("application/octet-stream")
+        }
+    };
 
     (
         [

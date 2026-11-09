@@ -50,7 +50,7 @@ kira/
 ├── crates/
 │   ├── kira/                     binary: bot + server composition
 │   ├── kira-cli/                 binary: local dashboard host + proxy
-│   ├── kira-core/                error aliases + signal handling
+│   ├── kira-core/                signal handling
 │   ├── kira-config/              environment configuration
 │   ├── kira-protocol/            shared HTTP/WS DTOs
 │   ├── kira-bot/                 Serenity client and event handler
@@ -96,12 +96,9 @@ flowchart RL
         XTASK["xtask"]
     end
 
-    BOT --> CORE
     BOT --> CONFIG
-    SERVER --> CORE
     SERVER --> CONFIG
     SERVER --> PROTOCOL
-    CLIENT --> CORE
     CLIENT --> PROTOCOL
 
     KIRA --> BOT
@@ -131,6 +128,16 @@ Rules:
 
 `make check` enforces the most important boundaries with `cargo tree`
 assertions.
+
+### Error handling boundaries
+
+- **Applications** (`kira`, `kira-cli`, `xtask`) use `anyhow::Result` and add
+  context at each operational boundary: configuration, binding, serving, and
+  the bot/server join.
+- **Reusable crates** expose typed `thiserror` errors: `ConfigError`,
+  `BotError`, `ServerError`, `ClientError`, and `ApiDocsError`.
+- The CLI's HTTP proxy logs upstream failures locally and returns a generic
+  `502` JSON body. Upstream error details do not cross the HTTP boundary.
 
 ## 4. Runtime architecture
 
@@ -382,6 +389,9 @@ Development builds use line-table debug info with split debuginfo.
   with no runtime dependency.
 - **Exact embedded lookups.** Serving from the embedded file set instead of
   joining a filesystem root makes path traversal impossible.
+- **`anyhow` at the edges, `thiserror` in libraries.** Binaries own
+  operational context; reusable crates keep typed errors so callers can react
+  to failure modes without parsing strings.
 
 ## 11. Current scope and limitations
 

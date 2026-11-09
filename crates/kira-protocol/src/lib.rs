@@ -26,18 +26,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn health_ok_serializes_expected_fields() {
-        let v = serde_json::to_value(HealthResponse::ok()).unwrap();
+    fn health_ok_serializes_expected_fields() -> Result<(), Box<dyn std::error::Error>> {
+        let v = serde_json::to_value(HealthResponse::ok())?;
         assert_eq!(v["status"], "ok");
         assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
+        Ok(())
     }
 
     #[test]
-    fn error_response_serializes() {
+    fn error_response_serializes() -> Result<(), Box<dyn std::error::Error>> {
         let v = serde_json::to_value(ErrorResponse {
             error: "boom".into(),
-        })
-        .unwrap();
+        })?;
         assert_eq!(v["error"], "boom");
+        Ok(())
     }
 }

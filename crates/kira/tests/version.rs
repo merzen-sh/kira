@@ -1,49 +1,49 @@
 use std::{
-    env, fs,
+    env,
+    error::Error,
+    fs,
     path::PathBuf,
-    process::Command,
+    process::{Command, Output},
     time::{SystemTime, UNIX_EPOCH},
 };
 
-fn temp_cwd() -> PathBuf {
+fn temp_cwd() -> Result<PathBuf, Box<dyn Error>> {
     let unique = format!(
         "kira-version-test-{}-{}",
         std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     );
     let dir = env::temp_dir().join(unique);
-    fs::create_dir_all(&dir).unwrap();
-    dir
+    fs::create_dir_all(&dir)?;
+    Ok(dir)
 }
 
-fn run_flag(flag: &str) -> std::process::Output {
-    let cwd = temp_cwd();
+fn run_flag(flag: &str) -> Result<Output, Box<dyn Error>> {
+    let cwd = temp_cwd()?;
     let out = Command::new(env!("CARGO_BIN_EXE_kira"))
         .arg(flag)
         .current_dir(&cwd)
         .env_remove("DISCORD_TOKEN")
         .env_remove("KIRA_BIND")
-        .output()
-        .unwrap();
-    fs::remove_dir_all(&cwd).unwrap();
-    out
+        .output()?;
+    fs::remove_dir_all(&cwd)?;
+    Ok(out)
 }
 
 #[test]
-fn version_flag_prints_name_and_version() {
-    let out = run_flag("--version");
+fn version_flag_prints_name_and_version() -> Result<(), Box<dyn Error>> {
+    let out = run_flag("--version")?;
     assert!(out.status.success());
-    let stdout = String::from_utf8(out.stdout).unwrap();
+    let stdout = String::from_utf8(out.stdout)?;
     assert_eq!(stdout.trim(), format!("kira {}", env!("CARGO_PKG_VERSION")));
+    Ok(())
 }
 
 #[test]
-fn help_flag_exits_successfully() {
-    let out = run_flag("--help");
+fn help_flag_exits_successfully() -> Result<(), Box<dyn Error>> {
+    let out = run_flag("--help")?;
     assert!(out.status.success());
-    let stdout = String::from_utf8(out.stdout).unwrap();
+    let stdout = String::from_utf8(out.stdout)?;
     assert!(stdout.contains("Usage: kira"));
+    Ok(())
 }

@@ -80,18 +80,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ws_url_maps_http_to_ws() {
-        assert_eq!(ws_url("http://x:1", "/ws").unwrap(), "ws://x:1/ws");
+    fn ws_url_maps_http_to_ws() -> Result<(), ClientError> {
+        assert_eq!(ws_url("http://x:1", "/ws")?, "ws://x:1/ws");
+        Ok(())
     }
 
     #[test]
-    fn ws_url_maps_https_to_wss() {
-        assert_eq!(ws_url("https://x", "/ws").unwrap(), "wss://x/ws");
+    fn ws_url_maps_https_to_wss() -> Result<(), ClientError> {
+        assert_eq!(ws_url("https://x", "/ws")?, "wss://x/ws");
+        Ok(())
     }
 
     #[test]
-    fn ws_url_adds_a_leading_slash() {
-        assert_eq!(ws_url("http://x:1/", "ws").unwrap(), "ws://x:1/ws");
+    fn ws_url_adds_a_leading_slash() -> Result<(), ClientError> {
+        assert_eq!(ws_url("http://x:1/", "ws")?, "ws://x:1/ws");
+        Ok(())
     }
 
     #[test]

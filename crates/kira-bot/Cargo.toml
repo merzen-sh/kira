@@ -7,6 +7,6 @@ publish.workspace = true
 
 [dependencies]
 kira-config = { path = "../kira-config" }
-kira-core = { path = "../kira-core" }
 serenity.workspace = true
+thiserror.workspace = true
 tokio.workspace = true

@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use kira_config::DiscordConfig;
 #[cfg(feature = "server")]
 use kira_config::ServerConfig;
@@ -16,7 +17,7 @@ async fn wait_flag(mut rx: watch::Receiver<bool>) {
 }
 
 #[cfg(feature = "server")]
-pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> kira_core::Result<()> {
+pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()> {
     let (tx, rx) = watch::channel(false);
 
     let bot = kira_bot::run(discord, wait_flag(rx.clone()));
@@ -40,7 +41,7 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> kira_core:
         }
     }
 
-    let _ = tx.send(true);
+    tx.send_replace(true);
 
     let bot_result = match bot_result {
         Some(result) => result,
@@ -52,17 +53,17 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> kira_core:
     };
 
     if let Some(signal) = signal_result {
-        signal?;
+        signal.context("waiting for shutdown signal")?;
     }
 
-    bot_result?;
-    http_result?;
+    bot_result.context("Discord bot failed")?;
+    http_result.context("HTTP server failed")?;
 
     Ok(())
 }
 
 #[cfg(not(feature = "server"))]
-pub async fn run_bot(discord: DiscordConfig) -> kira_core::Result<()> {
+pub async fn run_bot(discord: DiscordConfig) -> Result<()> {
     let (tx, rx) = watch::channel(false);
 
     let bot = kira_bot::run(discord, wait_flag(rx.clone()));
@@ -80,7 +81,7 @@ pub async fn run_bot(discord: DiscordConfig) -> kira_core::Result<()> {
         }
     }
 
-    let _ = tx.send(true);
+    tx.send_replace(true);
 
     let bot_result = match bot_result {
         Some(result) => result,
@@ -88,8 +89,37 @@ pub async fn run_bot(discord: DiscordConfig) -> kira_core::Result<()> {
     };
 
     if let Some(signal) = signal_result {
-        signal?;
+        signal.context("waiting for shutdown signal")?;
     }
 
-    bot_result
+    bot_result.context("Discord bot failed")
+}
+
+#[cfg(all(test, feature = "server"))]
+mod tests {
+    use kira_server::ServerError;
+
+    #[test]
+    fn error_context_is_not_duplicated() {
+        let error = anyhow::Error::new(ServerError::Io(std::io::Error::other(
+            "address already in use",
+        )))
+        .context("HTTP server failed");
+
+        let rendered = format!("{error:#}");
+        assert_eq!(rendered.matches("address already in use").count(), 1);
+    }
+
+    #[test]
+    fn bind_error_context_names_the_address_and_renders_once() {
+        let error = anyhow::Error::new(ServerError::Bind {
+            addr: std::net::SocketAddr::from(([127, 0, 0, 1], 3000)),
+            source: std::io::Error::other("address already in use"),
+        })
+        .context("HTTP server failed");
+
+        let rendered = format!("{error:#}");
+        assert!(rendered.contains("127.0.0.1:3000"));
+        assert_eq!(rendered.matches("address already in use").count(), 1);
+    }
 }

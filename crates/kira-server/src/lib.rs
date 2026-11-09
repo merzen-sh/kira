@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{future::Future, net::SocketAddr};
 
 use axum::{
     Json, Router,
@@ -8,7 +8,22 @@ use axum::{
 };
 use kira_config::ServerConfig;
 use kira_protocol::HealthResponse;
+use thiserror::Error;
 use tokio::net::TcpListener;
+
+/// Errors produced while binding or serving the HTTP server.
+#[derive(Debug, Error)]
+pub enum ServerError {
+    #[error("failed to bind server to {addr}")]
+    Bind {
+        addr: SocketAddr,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("server I/O error")]
+    Io(#[from] std::io::Error),
+}
 
 #[utoipa::path(
     get,
@@ -29,8 +44,13 @@ pub fn router() -> Router {
 pub async fn serve(
     config: &ServerConfig,
     shutdown: impl Future<Output = ()> + Send + 'static,
-) -> kira_core::Result<()> {
-    let listener = TcpListener::bind(config.bind).await?;
+) -> Result<(), ServerError> {
+    let listener = TcpListener::bind(config.bind)
+        .await
+        .map_err(|source| ServerError::Bind {
+            addr: config.bind,
+            source,
+        })?;
     println!("Listening on http://{}", listener.local_addr()?);
     serve_with_listener(listener, shutdown).await
 }
@@ -38,7 +58,7 @@ pub async fn serve(
 pub async fn serve_with_listener(
     listener: TcpListener,
     shutdown: impl Future<Output = ()> + Send + 'static,
-) -> kira_core::Result<()> {
+) -> Result<(), ServerError> {
     axum::serve(listener, router())
         .with_graceful_shutdown(shutdown)
         .await?;
@@ -50,15 +70,25 @@ async fn ws_upgrade(upgrade: WebSocketUpgrade) -> Response {
 }
 
 async fn handle_socket(mut socket: WebSocket) {
-    while let Some(Ok(message)) = socket.recv().await {
+    while let Some(result) = socket.recv().await {
+        let message = match result {
+            Ok(message) => message,
+            Err(error) => {
+                eprintln!("websocket receive failed: {error}");
+                break;
+            }
+        };
+
         match message {
             Message::Text(text) => {
-                if socket.send(Message::Text(text)).await.is_err() {
+                if let Err(error) = socket.send(Message::Text(text)).await {
+                    eprintln!("websocket send failed: {error}");
                     break;
                 }
             }
             Message::Binary(bytes) => {
-                if socket.send(Message::Binary(bytes)).await.is_err() {
+                if let Err(error) = socket.send(Message::Binary(bytes)).await {
+                    eprintln!("websocket send failed: {error}");
                     break;
                 }
             }

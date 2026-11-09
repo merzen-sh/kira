@@ -10,8 +10,12 @@ default = ["server"]
 server = ["dep:kira-server"]
 
 [dependencies]
+anyhow.workspace = true
 kira-bot = { path = "../kira-bot" }
 kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
 kira-server = { path = "../kira-server", optional = true }
 tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

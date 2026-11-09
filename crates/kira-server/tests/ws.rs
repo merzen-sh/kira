@@ -1,52 +1,73 @@
+use std::{error::Error, net::SocketAddr, time::Duration};
+
 use futures_util::{SinkExt, StreamExt};
-use kira_server::serve_with_listener;
-use tokio::sync::oneshot;
+use kira_server::{ServerError, serve_with_listener};
+use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle, time::timeout};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-#[tokio::test]
-async fn ws_echoes_text_frames() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-    let server = tokio::spawn(async move {
+struct TestServer {
+    addr: SocketAddr,
+    shutdown: oneshot::Sender<()>,
+    task: JoinHandle<Result<(), ServerError>>,
+}
+
+async fn spawn_server() -> Result<TestServer, Box<dyn Error>> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let addr = listener.local_addr()?;
+    let (shutdown, shutdown_rx) = oneshot::channel::<()>();
+    let task = tokio::spawn(async move {
         serve_with_listener(listener, async {
-            let _ = shutdown_rx.await;
+            if let Err(error) = shutdown_rx.await {
+                eprintln!("test shutdown channel closed: {error}");
+            }
         })
         .await
     });
 
-    let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
-    socket.send(Message::Text("hello".into())).await.unwrap();
-    let echoed = socket.next().await.unwrap().unwrap();
-    assert_eq!(echoed, Message::Text("hello".into()));
+    Ok(TestServer {
+        addr,
+        shutdown,
+        task,
+    })
+}
 
-    socket.close(None).await.unwrap();
-    let _ = shutdown_tx.send(());
-    server.await.unwrap().unwrap();
+async fn stop(server: TestServer) -> Result<(), Box<dyn Error>> {
+    server
+        .shutdown
+        .send(())
+        .map_err(|()| "shutdown receiver dropped")?;
+    let result = timeout(Duration::from_secs(5), server.task).await??;
+    result?;
+    Ok(())
 }
 
 #[tokio::test]
-async fn ws_echoes_binary_frames() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-    let server = tokio::spawn(async move {
-        serve_with_listener(listener, async {
-            let _ = shutdown_rx.await;
-        })
-        .await
-    });
+async fn ws_echoes_text_frames() -> Result<(), Box<dyn Error>> {
+    let server = spawn_server().await?;
+    let (mut socket, _response) = connect_async(format!("ws://{}/ws", server.addr)).await?;
+    socket.send(Message::Text("hello".into())).await?;
+    let echoed = timeout(Duration::from_secs(5), socket.next())
+        .await?
+        .ok_or("the websocket stream ended")??;
+    assert_eq!(echoed, Message::Text("hello".into()));
 
-    let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+    socket.close(None).await?;
+    stop(server).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn ws_echoes_binary_frames() -> Result<(), Box<dyn Error>> {
+    let server = spawn_server().await?;
+    let (mut socket, _response) = connect_async(format!("ws://{}/ws", server.addr)).await?;
     let payload = vec![0x01, 0x02, 0x03];
-    socket
-        .send(Message::Binary(payload.clone().into()))
-        .await
-        .unwrap();
-    let echoed = socket.next().await.unwrap().unwrap();
+    socket.send(Message::Binary(payload.clone().into())).await?;
+    let echoed = timeout(Duration::from_secs(5), socket.next())
+        .await?
+        .ok_or("the websocket stream ended")??;
     assert_eq!(echoed, Message::Binary(payload.into()));
 
-    socket.close(None).await.unwrap();
-    let _ = shutdown_tx.send(());
-    server.await.unwrap().unwrap();
+    socket.close(None).await?;
+    stop(server).await?;
+    Ok(())
 }

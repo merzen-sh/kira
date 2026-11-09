@@ -7,13 +7,35 @@ use std::net::SocketAddr;
 use serde::Deserialize;
 use thiserror::Error;
 
-pub fn load_env() {
-    let _ = dotenvy::dotenv();
+/// Load variables from a nearby `.env` file, if one exists.
+///
+/// A missing `.env` is expected: deployments may inject variables directly.
+/// Other failures (permissions, malformed lines) are returned to the caller.
+pub fn load_env() -> Result<(), ConfigError> {
+    match dotenvy::dotenv() {
+        Ok(_) => Ok(()),
+        Err(error) if error.not_found() => Ok(()),
+        Err(error) => Err(sanitize_dotenv_error(error)),
+    }
+}
+
+fn sanitize_dotenv_error(error: dotenvy::Error) -> ConfigError {
+    match error {
+        // `LineParse` carries the raw line, which may contain a secret value.
+        dotenvy::Error::LineParse(_, index) => ConfigError::DotenvLine { index },
+        error => ConfigError::Dotenv(error),
+    }
 }
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
-    #[error("Failed to parse environment variables: {0}")]
+    #[error("failed to load .env file")]
+    Dotenv(#[from] dotenvy::Error),
+
+    #[error("failed to parse .env content near index {index}")]
+    DotenvLine { index: usize },
+
+    #[error("failed to parse environment variables")]
     Environment(#[from] envy::Error),
 }
 
@@ -50,7 +72,7 @@ fn default_remote_url() -> String {
 
 impl DiscordConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
-        load_env();
+        load_env()?;
         Self::from_iter(std::env::vars())
     }
 
@@ -71,7 +93,7 @@ impl DiscordConfig {
 
 impl ServerConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
-        load_env();
+        load_env()?;
         Self::from_iter(std::env::vars())
     }
 
@@ -92,7 +114,7 @@ impl ServerConfig {
 
 impl CliConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
-        load_env();
+        load_env()?;
         Self::from_iter(std::env::vars())
     }
 
@@ -116,43 +138,64 @@ mod tests {
     use super::*;
 
     #[test]
-    fn discord_config_reads_token() {
-        let c = DiscordConfig::from_iter([("DISCORD_TOKEN", "abc")]).unwrap();
+    fn discord_config_reads_token() -> Result<(), ConfigError> {
+        let c = DiscordConfig::from_iter([("DISCORD_TOKEN", "abc")])?;
         assert_eq!(c.token, "abc");
+        Ok(())
+    }
+
+    #[test]
+    fn malformed_dotenv_line_is_sanitized() {
+        let error = sanitize_dotenv_error(dotenvy::Error::LineParse(
+            "DISCORD_TOKEN=super-secret".into(),
+            4,
+        ));
+
+        assert_eq!(
+            error.to_string(),
+            "failed to parse .env content near index 4"
+        );
+        assert!(!error.to_string().contains("super-secret"));
     }
 
     #[test]
     fn missing_token_is_an_error() {
-        assert!(DiscordConfig::from_iter(std::iter::empty::<(&str, &str)>()).is_err());
+        assert!(matches!(
+            DiscordConfig::from_iter(std::iter::empty::<(&str, &str)>()),
+            Err(ConfigError::Environment(_))
+        ));
     }
 
     #[test]
-    fn server_config_defaults_bind() {
-        let c = ServerConfig::from_iter(std::iter::empty::<(&str, &str)>()).unwrap();
-        assert_eq!(c.bind, "127.0.0.1:3000".parse().unwrap());
+    fn server_config_defaults_bind() -> Result<(), ConfigError> {
+        let c = ServerConfig::from_iter(std::iter::empty::<(&str, &str)>())?;
+        assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
+        Ok(())
     }
 
     #[test]
-    fn server_config_reads_kira_bind() {
-        let c = ServerConfig::from_iter([("KIRA_BIND", "0.0.0.0:8080")]).unwrap();
-        assert_eq!(c.bind, "0.0.0.0:8080".parse().unwrap());
+    fn server_config_reads_kira_bind() -> Result<(), ConfigError> {
+        let c = ServerConfig::from_iter([("KIRA_BIND", "0.0.0.0:8080")])?;
+        assert_eq!(c.bind, SocketAddr::from(([0, 0, 0, 0], 8080)));
+        Ok(())
     }
 
     #[test]
-    fn cli_config_defaults() {
-        let c = CliConfig::from_iter(std::iter::empty::<(&str, &str)>()).unwrap();
-        assert_eq!(c.bind, "127.0.0.1:3001".parse().unwrap());
+    fn cli_config_defaults() -> Result<(), ConfigError> {
+        let c = CliConfig::from_iter(std::iter::empty::<(&str, &str)>())?;
+        assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3001)));
         assert_eq!(c.remote_url, "http://127.0.0.1:3000");
+        Ok(())
     }
 
     #[test]
-    fn cli_config_reads_env() {
+    fn cli_config_reads_env() -> Result<(), ConfigError> {
         let c = CliConfig::from_iter([
             ("KIRA_CLI_BIND", "127.0.0.1:4001"),
             ("KIRA_REMOTE_URL", "http://example.test:9000"),
-        ])
-        .unwrap();
-        assert_eq!(c.bind, "127.0.0.1:4001".parse().unwrap());
+        ])?;
+        assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 4001)));
         assert_eq!(c.remote_url, "http://example.test:9000");
+        Ok(())
     }
 }

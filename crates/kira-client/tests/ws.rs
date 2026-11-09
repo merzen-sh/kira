@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{error::Error, time::Duration};
 
 use axum::{
     Router,
@@ -21,16 +21,18 @@ impl Drop for TestServer {
     }
 }
 
-async fn spawn_echo() -> (kira_client::Client, TestServer) {
+async fn spawn_echo() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
     let app = Router::new().route("/ws", get(upgrade));
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base_url = format!("http://{}", listener.local_addr().unwrap());
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let base_url = format!("http://{}", listener.local_addr()?);
     let task = tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+        if let Err(error) = axum::serve(listener, app).await {
+            eprintln!("test server failed: {error}");
+        }
     });
     let server = TestServer { base_url, task };
 
-    (kira_client::Client::new(server.base_url.clone()), server)
+    Ok((kira_client::Client::new(server.base_url.clone()), server))
 }
 
 async fn upgrade(upgrade: WebSocketUpgrade) -> Response {
@@ -38,10 +40,18 @@ async fn upgrade(upgrade: WebSocketUpgrade) -> Response {
 }
 
 async fn echo(mut socket: WebSocket) {
-    while let Some(Ok(message)) = socket.recv().await {
+    while let Some(result) = socket.recv().await {
+        let message = match result {
+            Ok(message) => message,
+            Err(error) => {
+                eprintln!("test websocket receive failed: {error}");
+                break;
+            }
+        };
         match message {
             AxumMessage::Text(text) => {
-                if socket.send(AxumMessage::Text(text)).await.is_err() {
+                if let Err(error) = socket.send(AxumMessage::Text(text)).await {
+                    eprintln!("test websocket send failed: {error}");
                     break;
                 }
             }
@@ -52,17 +62,16 @@ async fn echo(mut socket: WebSocket) {
 }
 
 #[tokio::test]
-async fn connect_ws_echoes_text_frames() {
-    let (client, _server) = spawn_echo().await;
-    let mut stream = client.connect_ws("/ws").await.unwrap();
+async fn connect_ws_echoes_text_frames() -> Result<(), Box<dyn Error>> {
+    let (client, _server) = spawn_echo().await?;
+    let mut stream = client.connect_ws("/ws").await?;
 
-    stream.send(Message::Text("hello".into())).await.unwrap();
+    stream.send(Message::Text("hello".into())).await?;
 
     let echoed = timeout(Duration::from_secs(5), stream.next())
-        .await
-        .expect("timed out waiting for an echoed frame")
-        .expect("the websocket stream ended")
-        .expect("the echoed frame was an error");
+        .await?
+        .ok_or("the websocket stream ended")??;
 
     assert_eq!(echoed, Message::Text("hello".into()));
+    Ok(())
 }

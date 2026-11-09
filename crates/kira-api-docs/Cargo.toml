@@ -8,4 +8,5 @@ publish.workspace = true
 [dependencies]
 kira-protocol = { path = "../kira-protocol" }
 kira-server = { path = "../kira-server" }
+thiserror.workspace = true
 utoipa = { workspace = true, features = ["yaml"] }

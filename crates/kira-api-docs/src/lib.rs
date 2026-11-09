@@ -1,4 +1,12 @@
+use thiserror::Error;
 use utoipa::OpenApi;
+
+/// Errors produced while assembling the OpenAPI document.
+#[derive(Debug, Error)]
+pub enum ApiDocsError {
+    #[error("failed to serialize OpenAPI document: {0}")]
+    Serialize(String),
+}
 
 #[derive(OpenApi)]
 #[openapi(
@@ -9,6 +17,8 @@ use utoipa::OpenApi;
 )]
 pub struct ApiDoc;
 
-pub fn yaml() -> Result<String, Box<dyn std::error::Error>> {
-    Ok(ApiDoc::openapi().to_yaml()?)
+pub fn yaml() -> Result<String, ApiDocsError> {
+    ApiDoc::openapi()
+        .to_yaml()
+        .map_err(|error| ApiDocsError::Serialize(error.to_string()))
 }

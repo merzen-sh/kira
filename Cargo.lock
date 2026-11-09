@@ -18,6 +18,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.104"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1065,10 +1071,12 @@ dependencies = [
 name = "kira"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "kira-bot",
  "kira-config",
  "kira-core",
  "kira-server",
+ "tempfile",
  "tokio",
 ]
 
@@ -1078,6 +1086,7 @@ version = "0.1.0"
 dependencies = [
  "kira-protocol",
  "kira-server",
+ "thiserror 2.0.21",
  "utoipa",
 ]
 
@@ -1086,8 +1095,8 @@ name = "kira-bot"
 version = "0.1.0"
 dependencies = [
  "kira-config",
- "kira-core",
  "serenity",
+ "thiserror 2.0.21",
  "tokio",
 ]
 
@@ -1095,6 +1104,7 @@ dependencies = [
 name = "kira-cli"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "futures-util",
  "http-body-util",
@@ -1116,7 +1126,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "futures-util",
- "kira-core",
  "kira-protocol",
  "reqwest 0.13.5",
  "thiserror 2.0.21",
@@ -1158,9 +1167,9 @@ dependencies = [
  "futures-util",
  "http-body-util",
  "kira-config",
- "kira-core",
  "kira-protocol",
  "serde_json",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite 0.30.0",
  "tower",
@@ -3034,6 +3043,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "kira-api-docs",
  "tempfile",
 ]

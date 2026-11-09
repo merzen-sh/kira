@@ -2,6 +2,7 @@ mod app;
 
 use std::{env, process::ExitCode};
 
+use anyhow::Context;
 use kira_config::DiscordConfig;
 #[cfg(feature = "server")]
 use kira_config::ServerConfig;
@@ -27,19 +28,19 @@ async fn main() -> ExitCode {
         None => match run().await {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
-                eprintln!("error: {error}");
+                eprintln!("error: {error:#}");
                 ExitCode::FAILURE
             }
         },
     }
 }
 
-async fn run() -> kira_core::Result<()> {
-    let discord = DiscordConfig::from_env()?;
+async fn run() -> anyhow::Result<()> {
+    let discord = DiscordConfig::from_env().context("loading Discord configuration")?;
 
     #[cfg(feature = "server")]
     {
-        let server = ServerConfig::from_env()?;
+        let server = ServerConfig::from_env().context("loading server configuration")?;
         app::run_all(discord, server).await
     }
 

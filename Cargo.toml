@@ -9,6 +9,7 @@ rust-version = "1.88"
 publish = false
 
 [workspace.dependencies]
+anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
 dotenvy = "0.15"
 envy = "0.4"

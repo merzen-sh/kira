@@ -1,4 +1,4 @@
-use std::{env, fs, path::Path};
+use std::{env, error::Error, fs, io, path::Path};
 
 const PLACEHOLDER: &str = r#"<!doctype html>
 <html lang="en">
@@ -14,8 +14,8 @@ const PLACEHOLDER: &str = r#"<!doctype html>
 </html>
 "#;
 
-fn main() {
-    let manifest = env::var("CARGO_MANIFEST_DIR").unwrap();
+fn main() -> Result<(), Box<dyn Error>> {
+    let manifest = env::var("CARGO_MANIFEST_DIR")?;
     let dist = Path::new(&manifest).join("../../apps/dashboard/dist");
     println!("cargo:rerun-if-changed={}", dist.display());
 
@@ -24,12 +24,17 @@ fn main() {
     let release = env::var("PROFILE").as_deref() == Ok("release");
 
     if release && (!index.exists() || marker.exists()) {
-        panic!("dashboard assets missing; run `make dashboard` before a release build");
+        return Err(io::Error::other(
+            "dashboard assets missing; run `make dashboard` before a release build",
+        )
+        .into());
     }
 
     if !index.exists() {
-        fs::create_dir_all(&dist).unwrap();
-        fs::write(&index, PLACEHOLDER).unwrap();
-        fs::write(&marker, "").unwrap();
+        fs::create_dir_all(&dist)?;
+        fs::write(&index, PLACEHOLDER)?;
+        fs::write(&marker, "")?;
     }
+
+    Ok(())
 }

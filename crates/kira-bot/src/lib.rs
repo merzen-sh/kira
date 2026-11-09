@@ -4,13 +4,27 @@ use std::{future::Future, sync::Arc};
 
 use kira_config::DiscordConfig;
 use serenity::{Client, prelude::GatewayIntents};
+use thiserror::Error;
 
 pub use handler::{ConfigKey, Handler, is_ping};
+
+/// Errors produced while running the Discord bot.
+#[derive(Debug, Error)]
+pub enum BotError {
+    #[error("Discord client error")]
+    Serenity(#[source] Box<serenity::Error>),
+}
+
+impl From<serenity::Error> for BotError {
+    fn from(error: serenity::Error) -> Self {
+        Self::Serenity(Box::new(error))
+    }
+}
 
 pub async fn run(
     config: DiscordConfig,
     shutdown: impl Future<Output = ()> + Send,
-) -> kira_core::Result<()> {
+) -> Result<(), BotError> {
     let config = Arc::new(config);
 
     let intents = GatewayIntents::GUILD_MESSAGES
@@ -61,7 +75,7 @@ pub async fn run(
     Ok(())
 }
 
-async fn wait_for_gateway<F>(shards_running: bool, start: F) -> kira_core::Result<()>
+async fn wait_for_gateway<F>(shards_running: bool, start: F) -> Result<(), BotError>
 where
     F: Future<Output = serenity::Result<()>>,
 {
@@ -79,26 +93,25 @@ mod tests {
     use super::wait_for_gateway;
 
     #[tokio::test]
-    async fn no_shards_does_not_await_gateway() {
+    async fn no_shards_does_not_await_gateway() -> Result<(), Box<dyn std::error::Error>> {
         let never = std::future::pending::<serenity::Result<()>>();
 
         let result =
             tokio::time::timeout(Duration::from_millis(100), wait_for_gateway(false, never))
-                .await
-                .expect("gateway must not be awaited when no shards are running");
+                .await?;
 
-        assert!(result.is_ok());
+        result?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn started_shards_await_gateway() {
-        let ready = async { Ok(()) };
+    async fn started_shards_await_gateway() -> Result<(), Box<dyn std::error::Error>> {
+        let ready = async { Ok::<(), serenity::Error>(()) };
 
         let result =
-            tokio::time::timeout(Duration::from_millis(100), wait_for_gateway(true, ready))
-                .await
-                .expect("gateway future should be awaited when shards are running");
+            tokio::time::timeout(Duration::from_millis(100), wait_for_gateway(true, ready)).await?;
 
-        assert!(result.is_ok());
+        result?;
+        Ok(())
     }
 }

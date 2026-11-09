@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::{Result, anyhow};
 use axum::{
     Json, Router,
     body::Body,
@@ -28,22 +29,24 @@ impl Drop for TestServer {
     }
 }
 
-async fn spawn(app: Router) -> TestServer {
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base_url = format!("http://{}", listener.local_addr().unwrap());
+async fn spawn(app: Router) -> Result<TestServer> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let base_url = format!("http://{}", listener.local_addr()?);
     let task = tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+        if let Err(error) = axum::serve(listener, app).await {
+            eprintln!("test server failed: {error}");
+        }
     });
 
-    TestServer { base_url, task }
+    Ok(TestServer { base_url, task })
 }
 
-async fn spawn_health() -> TestServer {
+async fn spawn_health() -> Result<TestServer> {
     let app = Router::new().route("/health", get(|| async { Json(HealthResponse::ok()) }));
     spawn(app).await
 }
 
-async fn spawn_echo() -> TestServer {
+async fn spawn_echo() -> Result<TestServer> {
     let app = Router::new().route("/ws", get(echo_upgrade));
     spawn(app).await
 }
@@ -53,81 +56,89 @@ async fn echo_upgrade(upgrade: WebSocketUpgrade) -> Response {
 }
 
 async fn echo(mut socket: WebSocket) {
-    while let Some(Ok(message)) = socket.recv().await {
+    while let Some(result) = socket.recv().await {
+        let message = match result {
+            Ok(message) => message,
+            Err(error) => {
+                eprintln!("test websocket receive failed: {error}");
+                break;
+            }
+        };
         let is_close = matches!(message, AxumMessage::Close(_));
-        if socket.send(message).await.is_err() || is_close {
+        if let Err(error) = socket.send(message).await {
+            eprintln!("test websocket send failed: {error}");
+            break;
+        }
+        if is_close {
             break;
         }
     }
 }
 
-async fn cli_get(client: Client, path: &str) -> axum::response::Response {
-    router(AppState { client })
-        .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
-        .await
-        .unwrap()
+async fn cli_get(client: Client, path: &str) -> Result<axum::response::Response> {
+    Ok(router(AppState { client })
+        .oneshot(Request::builder().uri(path).body(Body::empty())?)
+        .await?)
 }
 
 #[tokio::test]
-async fn health_is_proxied() {
-    let upstream = spawn_health().await;
-    let res = cli_get(Client::new(upstream.base_url.clone()), "/api/health").await;
+async fn health_is_proxied() -> Result<()> {
+    let upstream = spawn_health().await?;
+    let res = cli_get(Client::new(upstream.base_url.clone()), "/api/health").await?;
 
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(res.headers()[header::CONTENT_TYPE], "application/json");
 
-    let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    let health: HealthResponse = serde_json::from_slice(&bytes).unwrap();
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let health: HealthResponse = serde_json::from_slice(&bytes)?;
     assert_eq!(health.status, "ok");
     assert_eq!(health.version, HealthResponse::ok().version);
+    Ok(())
 }
 
 #[tokio::test]
-async fn unreachable_upstream_is_502() {
-    let res = cli_get(Client::new("http://127.0.0.1:1"), "/api/health").await;
+async fn unreachable_upstream_is_502() -> Result<()> {
+    let res = cli_get(Client::new("http://127.0.0.1:1"), "/api/health").await?;
 
     assert_eq!(res.status(), StatusCode::BAD_GATEWAY);
     assert_eq!(res.headers()[header::CONTENT_TYPE], "application/json");
 
-    let bytes = res.into_body().collect().await.unwrap().to_bytes();
-    let error: ErrorResponse = serde_json::from_slice(&bytes).unwrap();
-    assert!(!error.error.is_empty());
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let error: ErrorResponse = serde_json::from_slice(&bytes)?;
+    assert_eq!(error.error, "upstream service unavailable");
+    Ok(())
 }
 
 #[tokio::test]
-async fn websocket_frames_are_proxied() {
-    let upstream = spawn_echo().await;
+async fn websocket_frames_are_proxied() -> Result<()> {
+    let upstream = spawn_echo().await?;
     let client = Client::new(upstream.base_url.clone());
 
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let addr = listener.local_addr()?;
     let server = tokio::spawn(async move {
-        axum::serve(listener, router(AppState { client }))
-            .await
-            .unwrap();
+        if let Err(error) = axum::serve(listener, router(AppState { client })).await {
+            eprintln!("test server failed: {error}");
+        }
     });
 
-    let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+    let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await?;
 
-    socket.send(Message::Text("hello".into())).await.unwrap();
+    socket.send(Message::Text("hello".into())).await?;
     let echoed = timeout(Duration::from_secs(5), socket.next())
-        .await
-        .expect("timed out waiting for an echoed text frame")
-        .expect("the websocket stream ended")
-        .expect("the echoed frame was an error");
+        .await?
+        .ok_or_else(|| anyhow!("the websocket stream ended before an echoed text frame"))??;
     assert_eq!(echoed, Message::Text("hello".into()));
 
     socket
         .send(Message::Binary(vec![0x01, 0x02, 0x03].into()))
-        .await
-        .unwrap();
+        .await?;
     let echoed = timeout(Duration::from_secs(5), socket.next())
-        .await
-        .expect("timed out waiting for an echoed binary frame")
-        .expect("the websocket stream ended")
-        .expect("the echoed frame was an error");
+        .await?
+        .ok_or_else(|| anyhow!("the websocket stream ended before an echoed binary frame"))??;
     assert_eq!(echoed, Message::Binary(vec![0x01, 0x02, 0x03].into()));
 
-    let _ = socket.close(None).await;
+    socket.close(None).await?;
     server.abort();
+    Ok(())
 }

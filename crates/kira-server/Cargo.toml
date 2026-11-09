@@ -8,8 +8,8 @@ publish.workspace = true
 [dependencies]
 axum.workspace = true
 kira-config = { path = "../kira-config" }
-kira-core = { path = "../kira-core" }
 kira-protocol = { path = "../kira-protocol" }
+thiserror.workspace = true
 tokio.workspace = true
 utoipa.workspace = true
 
