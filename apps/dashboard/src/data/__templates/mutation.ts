@@ -1,6 +1,6 @@
 import { mutationOptions } from "@tanstack/react-query";
 
-import { POST, toResourceError, unwrap } from "../fetcher";
+import { POST, toResourceError, unwrap } from "@/data/fetcher";
 import { exampleKeys } from "./keys";
 
 export interface ExampleMutationInput {

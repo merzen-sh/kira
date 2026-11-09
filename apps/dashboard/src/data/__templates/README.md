@@ -11,7 +11,7 @@ Copy this directory to `src/data/<domain>/` and rename the exports. The
 
 ## Conventions
 
-1. Import HTTP helpers from `../fetcher`. Never create another
+1. Import HTTP helpers from `@/data/fetcher`. Never create another
    `openapi-fetch` client.
 2. Use a path key from the generated `paths` type. Do not hand-write URLs.
 3. Wrap every request in `toResourceError` so query and mutation consumers
@@ -19,8 +19,8 @@ Copy this directory to `src/data/<domain>/` and rename the exports. The
 4. Export `ResourceData` from the async function's return type. Do not
    duplicate response types by hand.
 5. Give every query a key from the domain's `keys.ts`.
-6. Use `UseCustomQueryOptions` from `../types` for hook options; the hook owns
-   `queryKey` and `queryFn`.
+6. Use `UseCustomQueryOptions` from `@/data/types` for hook options; the hook
+   owns `queryKey` and `queryFn`.
 7. Keep React components out of this layer. Components consume the exported
    hooks or mutation options.
 8. Add cross-cutting request behavior once in `fetcher.ts` (`setAuthToken`, or

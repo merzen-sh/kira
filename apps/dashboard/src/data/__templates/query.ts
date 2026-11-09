@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { GET, toResourceError, unwrap } from "../fetcher";
-import type { UseCustomQueryOptions } from "../types";
+import { GET, toResourceError, unwrap } from "@/data/fetcher";
+import type { UseCustomQueryOptions } from "@/data/types";
 import { exampleKeys } from "./keys";
 
 export async function getExample(id: string, signal?: AbortSignal) {

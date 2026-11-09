@@ -1,8 +1,13 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const src = new URL("./src", import.meta.url).pathname;
+
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: [{ find: /^@\//, replacement: `${src}/` }],
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

@@ -1,4 +1,4 @@
-import { useHealthQuery } from "./data/health/query";
+import { useHealthQuery } from "@/data/health/query";
 
 export default function App() {
   const { data } = useHealthQuery();

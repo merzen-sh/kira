@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { GET, toResourceError, unwrap } from "../fetcher";
-import type { ResourceError, UseCustomQueryOptions } from "../types";
+import { GET, toResourceError, unwrap } from "@/data/fetcher";
+import type { ResourceError, UseCustomQueryOptions } from "@/data/types";
 import { healthKeys } from "./keys";
 
 export async function checkHealth(signal?: AbortSignal) {
