@@ -1,6 +1,12 @@
+import { createFileRoute } from "@tanstack/react-router";
+
 import { useHealthQuery } from "@/data/health/query";
 
-export default function App() {
+export const Route = createFileRoute("/")({
+  component: HomePage,
+});
+
+function HomePage() {
   const { data } = useHealthQuery();
   const status = data?.status ?? "offline";
 

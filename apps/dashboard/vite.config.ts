@@ -1,11 +1,19 @@
 import { devtools } from "@tanstack/devtools-vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const src = new URL("./src", import.meta.url).pathname;
 
 export default defineConfig({
-  plugins: [devtools(), react()],
+  plugins: [
+    devtools(),
+    tanstackRouter({
+      target: "react",
+      autoCodeSplitting: true,
+    }),
+    react(),
+  ],
   resolve: {
     alias: [{ find: /^@\//, replacement: `${src}/` }],
   },

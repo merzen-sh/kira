@@ -201,6 +201,13 @@ route. It displays the remote health status. TanStack Router owns navigation;
 the unified TanStack Devtools panel hosts the Router and Query panels in
 development.
 
+Routing is file-based:
+
+- `src/routes/__root.tsx` owns the root layout and development devtools.
+- `src/routes/index.tsx` is the `/` page.
+- The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
+  creates the router from that tree.
+
 The API layer lives in `src/data/`:
 
 - `fetcher.ts` owns the single `openapi-fetch` client, the base URL, bearer
@@ -407,6 +414,9 @@ Development builds use line-table debug info with split debuginfo.
 - **Typed dashboard data layer.** `openapi-fetch` consumes the generated
   `paths`, TanStack Query owns server state, and domain folders keep keys,
   queries, and mutations together.
+- **File-based routing.** `@tanstack/router-plugin` generates the route tree
+  from `src/routes`; the generated tree is committed so `tsc` works before
+  Vite runs.
 
 ## 11. Current scope and limitations
 
