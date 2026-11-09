@@ -196,9 +196,19 @@ test cannot accidentally start the gateway.
 
 ### 4.3 Dashboard
 
-`apps/dashboard` is a Vite + React + TypeScript placeholder. It fetches
-`/api/health` and displays the returned status. There is no router, state
-manager, or product UI yet.
+`apps/dashboard` is a Vite + React + TypeScript placeholder. It displays the
+remote health status. There is no router or product UI yet.
+
+The API layer lives in `src/data/`:
+
+- `fetcher.ts` owns the single `openapi-fetch` client, the base URL, bearer
+  token injection, and `unwrap` error normalization. Its `paths` type comes
+  from `@kira/api-types`.
+- Each API domain owns `keys.ts` and `query.ts` (plus `mutation.ts` when
+  needed). `health/` is the first domain.
+- TanStack Query owns server state. Components consume exported query options;
+  they do not call `fetch` directly.
+- `__templates/` holds copyable conventions for new domains.
 
 In development, Vite runs on its own port and proxies `/api` and `/ws` to
 `kira-cli` on `127.0.0.1:3001`. The full dev path is:
@@ -392,6 +402,9 @@ Development builds use line-table debug info with split debuginfo.
 - **`anyhow` at the edges, `thiserror` in libraries.** Binaries own
   operational context; reusable crates keep typed errors so callers can react
   to failure modes without parsing strings.
+- **Typed dashboard data layer.** `openapi-fetch` consumes the generated
+  `paths`, TanStack Query owns server state, and domain folders keep keys,
+  queries, and mutations together.
 
 ## 11. Current scope and limitations
 
