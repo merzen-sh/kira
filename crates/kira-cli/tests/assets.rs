@@ -12,6 +12,7 @@ use tower::ServiceExt;
 fn app() -> axum::Router {
     router(AppState {
         client: Client::new("http://127.0.0.1:1"),
+        dev_server_url: None,
     })
 }
 

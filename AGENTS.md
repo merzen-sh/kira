@@ -5,6 +5,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 ## Setup
 
 - Rust 1.88 (edition 2024) and Node/npm.
+- `mprocs` and `cargo-watch` are needed for `make dev`.
 - Run `npm ci` before `make check` or any OpenAPI/type generation; the Make target requires `node_modules`.
 - Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime. A missing `.env` is tolerated and real environment variables take precedence.
 
@@ -13,9 +14,10 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 - `make check` — authoritative gate: fmt, clippy with `-D warnings`, workspace tests, OpenAPI drift, TypeScript type drift, typecheck, and dependency-boundary assertions. Run this before claiming work is complete.
 - `make test` or `cargo test --workspace`.
 - Focused test: `cargo test -p kira-server --test health`, or `cargo test -p kira-config <filter>`.
-- `cargo run -p kira` — bot + API on `127.0.0.1:3000`.
-- `make build-cli` — builds the dashboard, then release `kira-cli`; run `target/release/kira-cli` for the local host on `:3001`.
-- `npm run dev -w @kira/dashboard` — Vite dev server; proxies `/api` and `/ws` to `kira-cli` on `127.0.0.1:3001`.
+- `make dev` — start Vite, `kira`, and `kira-cli` together under `mprocs`.
+- `cargo run -p kira` — bot + API on `127.0.0.1:8080`.
+- `make build-cli` — builds the dashboard, then release `kira-cli`; run `target/release/kira-cli` for the local host on `:3000`.
+- `npm run dev -w @kira/dashboard` — Vite dev server on `127.0.0.1:5173`; proxies `/api` and `/ws` to `kira-cli` on `127.0.0.1:3000`. A debug `kira-cli` proxies non-API requests to Vite instead of serving embedded assets.
 - `make openapi` — regenerate `openapi/openapi.yaml` and `packages/api-types/src/schema.d.ts` after any route or DTO change.
 - `cargo xtask openapi generate|check` — the alias is defined in `.cargo/config.toml`.
 
