@@ -1,10 +1,11 @@
-import { defineConfig } from "vite";
+import { devtools } from "@tanstack/devtools-vite";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 const src = new URL("./src", import.meta.url).pathname;
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [devtools(), react()],
   resolve: {
     alias: [{ find: /^@\//, replacement: `${src}/` }],
   },

@@ -10,11 +10,16 @@
   "dependencies": {
     "@kira/api-types": "*",
     "@tanstack/react-query": "^5.107.1",
+    "@tanstack/react-router": "^1.170.46",
     "openapi-fetch": "^0.17.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@tanstack/devtools-vite": "^0.8.6",
+    "@tanstack/react-devtools": "^0.10.14",
+    "@tanstack/react-query-devtools": "^5.107.1",
+    "@tanstack/react-router-devtools": "^1.167.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",

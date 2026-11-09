@@ -196,8 +196,10 @@ test cannot accidentally start the gateway.
 
 ### 4.3 Dashboard
 
-`apps/dashboard` is a Vite + React + TypeScript placeholder. It displays the
-remote health status. There is no router or product UI yet.
+`apps/dashboard` is a Vite + React + TypeScript placeholder with a single
+route. It displays the remote health status. TanStack Router owns navigation;
+the unified TanStack Devtools panel hosts the Router and Query panels in
+development.
 
 The API layer lives in `src/data/`:
 
