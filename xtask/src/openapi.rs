@@ -1,3 +1,5 @@
+//! Generate and verify the committed OpenAPI document.
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -16,6 +18,7 @@ fn document() -> Result<String> {
     Ok(output)
 }
 
+/// Write the OpenAPI document to `openapi/openapi.yaml` under `root`.
 pub fn generate(root: &Path) -> Result<()> {
     let path = output_path(root);
     if let Some(parent) = path.parent() {
@@ -25,6 +28,7 @@ pub fn generate(root: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Fail when the committed OpenAPI document differs from the generated one.
 pub fn check(root: &Path) -> Result<()> {
     let path = output_path(root);
     let expected = document()?;

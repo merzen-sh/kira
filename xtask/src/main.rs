@@ -1,3 +1,5 @@
+//! Workspace task runner for OpenAPI generation and checks.
+
 use std::path::Path;
 use std::process::ExitCode;
 

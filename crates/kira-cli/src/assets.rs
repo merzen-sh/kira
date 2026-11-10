@@ -13,11 +13,13 @@ use crate::AppState;
 struct Dashboard;
 
 /// Look up an embedded dashboard file by its exact relative path.
+#[must_use]
 pub fn get(path: &str) -> Option<rust_embed::EmbeddedFile> {
     Dashboard::get(path)
 }
 
 /// Pick a `Content-Type` from the file extension.
+#[must_use]
 pub fn content_type_for(path: &str) -> String {
     mime_guess::from_path(path)
         .first_or_octet_stream()
@@ -25,6 +27,7 @@ pub fn content_type_for(path: &str) -> String {
 }
 
 /// Pick a `Cache-Control` policy for a dashboard file.
+#[must_use]
 pub fn cache_control_for(path: &str) -> &'static str {
     if path.starts_with("assets/") {
         "public, max-age=31536000, immutable"

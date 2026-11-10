@@ -1,3 +1,5 @@
+//! Local dashboard host that proxies to a remote Kira server.
+
 use anyhow::Context;
 use kira_cli::{AppState, router};
 use kira_client::Client;
@@ -21,20 +23,14 @@ async fn main() -> anyhow::Result<()> {
     println!("Listening on http://{address}");
     println!("Proxying to {}", config.remote_url);
 
-    axum::serve(
-        listener,
-        router(AppState {
-            client,
-            dev_server_url,
-        }),
-    )
-    .with_graceful_shutdown(async {
-        if let Err(error) = kira_core::shutdown::wait_for_signal().await {
-            eprintln!("failed to wait for shutdown signal: {error}");
-        }
-    })
-    .await
-    .context("serving the local dashboard")?;
+    axum::serve(listener, router(AppState::new(client, dev_server_url)))
+        .with_graceful_shutdown(async {
+            if let Err(error) = kira_core::shutdown::wait_for_signal().await {
+                eprintln!("failed to wait for shutdown signal: {error}");
+            }
+        })
+        .await
+        .context("serving the local dashboard")?;
 
     Ok(())
 }

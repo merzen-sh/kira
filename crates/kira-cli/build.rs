@@ -1,3 +1,5 @@
+//! Build script that ensures a dashboard placeholder exists for debug builds.
+
 use std::error::Error;
 use std::path::Path;
 use std::{env, fs, io};

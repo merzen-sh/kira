@@ -18,9 +18,7 @@ pub(crate) async fn forward(base_url: &str, request: Request) -> Response {
             eprintln!("vite dev proxy failed: {error:#}");
             (
                 StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse {
-                    error: "vite dev server unavailable".into(),
-                }),
+                Json(ErrorResponse::new("vite dev server unavailable")),
             )
                 .into_response()
         }

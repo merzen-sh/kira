@@ -1,3 +1,5 @@
+//! API and WebSocket proxy integration tests.
+
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
@@ -5,8 +7,7 @@ use axum::body::Body;
 use axum::extract::ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade};
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
-use axum::routing::get;
-use axum::{Json, Router};
+use axum::{Json, Router, routing};
 use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
@@ -15,7 +16,6 @@ use kira_protocol::{ErrorResponse, HealthResponse};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
-use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use tower::ServiceExt;
 
@@ -43,12 +43,15 @@ async fn spawn(app: Router) -> Result<TestServer> {
 }
 
 async fn spawn_health() -> Result<TestServer> {
-    let app = Router::new().route("/health", get(|| async { Json(HealthResponse::ok()) }));
+    let app = Router::new().route(
+        "/health",
+        routing::get(|| async { Json(HealthResponse::ok()) }),
+    );
     spawn(app).await
 }
 
 async fn spawn_echo() -> Result<TestServer> {
-    let app = Router::new().route("/ws", get(echo_upgrade));
+    let app = Router::new().route("/ws", routing::get(echo_upgrade));
     spawn(app).await
 }
 
@@ -77,12 +80,9 @@ async fn echo(mut socket: WebSocket) {
 }
 
 async fn cli_get(client: Client, path: &str) -> Result<axum::response::Response> {
-    Ok(router(AppState {
-        client,
-        dev_server_url: None,
-    })
-    .oneshot(Request::builder().uri(path).body(Body::empty())?)
-    .await?)
+    Ok(router(AppState::new(client, None))
+        .oneshot(Request::builder().uri(path).body(Body::empty())?)
+        .await?)
 }
 
 #[tokio::test]
@@ -121,20 +121,13 @@ async fn websocket_frames_are_proxied() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     let server = tokio::spawn(async move {
-        if let Err(error) = axum::serve(
-            listener,
-            router(AppState {
-                client,
-                dev_server_url: None,
-            }),
-        )
-        .await
-        {
+        if let Err(error) = axum::serve(listener, router(AppState::new(client, None))).await {
             eprintln!("test server failed: {error}");
         }
     });
 
-    let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await?;
+    let (mut socket, _response) =
+        tokio_tungstenite::connect_async(format!("ws://{addr}/ws")).await?;
 
     socket.send(Message::Text("hello".into())).await?;
     let echoed = timeout(Duration::from_secs(5), socket.next())

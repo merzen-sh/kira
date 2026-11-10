@@ -1,3 +1,5 @@
+//! Dashboard asset integration tests.
+
 use anyhow::Result;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
@@ -8,10 +10,7 @@ use kira_client::Client;
 use tower::ServiceExt;
 
 fn app() -> axum::Router {
-    router(AppState {
-        client: Client::new("http://127.0.0.1:1"),
-        dev_server_url: None,
-    })
+    router(AppState::new(Client::new("http://127.0.0.1:1"), None))
 }
 
 async fn get(path: &str) -> Result<Response> {

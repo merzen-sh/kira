@@ -1,3 +1,5 @@
+//! Configuration loading integration tests.
+
 use std::error::Error;
 use std::fs;
 use std::path::Path;

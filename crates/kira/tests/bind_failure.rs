@@ -1,3 +1,5 @@
+//! Regression tests for startup failure handling.
+
 use std::error::Error;
 use std::io;
 use std::net::TcpListener;

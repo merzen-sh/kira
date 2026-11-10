@@ -1,3 +1,5 @@
+//! Command-line flag integration tests.
+
 use std::error::Error;
 use std::path::PathBuf;
 use std::process::{Command, Output};

@@ -25,9 +25,7 @@ pub(crate) async fn health(State(state): State<AppState>) -> Response {
             eprintln!("health proxy failed: {error}");
             (
                 StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse {
-                    error: "upstream service unavailable".into(),
-                }),
+                Json(ErrorResponse::new("upstream service unavailable")),
             )
                 .into_response()
         }

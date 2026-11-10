@@ -1,3 +1,5 @@
+//! Kira service binary: Discord bot plus HTTP and WebSocket API.
+
 mod app;
 
 use std::env;
