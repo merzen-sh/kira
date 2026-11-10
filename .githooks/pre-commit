@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Block commits made while the checked-out branch is main.
+set -euo pipefail
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+
+if [[ "$branch" == "main" ]]; then
+    cat >&2 <<'EOF'
+Commits to 'main' are blocked by .githooks/pre-commit.
+
+Create a branch, then commit:
+  git switch -c <branch-name>
+
+To bypass this check intentionally:
+  git commit --no-verify
+EOF
+    exit 1
+fi
