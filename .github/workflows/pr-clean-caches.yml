@@ -1,0 +1,40 @@
+name: Clean PR caches
+
+on:
+  pull_request:
+    types: [opened, closed, reopened, synchronize]
+  push:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  clean:
+    name: Clean caches for the current ref
+    if: ${{ github.ref != 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete caches for this ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          cacheIdsForBranch=$(gh api --paginate --method GET "repos/${REPO}/actions/caches" \
+            -f ref="${BRANCH}" \
+            -f per_page=100 \
+            --jq '.actions_caches[].id')
+
+          if [ -z "${cacheIdsForBranch}" ]; then
+            echo "No caches found for ${BRANCH}."
+            exit 0
+          fi
+
+          while IFS= read -r cacheId; do
+            echo "Deleting cache ${cacheId} for ${BRANCH}."
+            gh api --method DELETE "repos/${REPO}/actions/caches/${cacheId}"
+          done <<< "${cacheIdsForBranch}"
