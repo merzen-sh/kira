@@ -41,4 +41,4 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 
 - Binary integration tests spawn `env!("CARGO_BIN_EXE_kira")`, clear `DISCORD_TOKEN`/`KIRA_BIND`, and need no real Discord access.
 - `crates/kira/tests/bind_failure.rs` uses dead HTTP(S) proxies and a 30-second timeout; it verifies a server bind failure exits rather than hangs.
-- There is no CI provider config; `make check` is the intended CI entrypoint.
+- `.github/workflows/ci.yml` runs nightly `cargo fmt --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, and `cargo test --workspace`. `make check` remains the full local and authoritative gate; it adds the OpenAPI/TypeScript drift checks, typecheck, and dependency-boundary assertions.
