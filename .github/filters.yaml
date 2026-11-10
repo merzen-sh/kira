@@ -1,4 +1,9 @@
 rust:
   - "**/*.rs"
+  - "**/Cargo.toml"
+  - "Cargo.lock"
+  - "rustfmt.toml"
+  - "clippy.toml"
+  - ".cargo/**"
   - ".github/workflows/ci.yml"
   - ".github/filters.yaml"
