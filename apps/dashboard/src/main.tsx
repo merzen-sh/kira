@@ -1,3 +1,5 @@
+import "@kira/ui/globals.css";
+
 import {
   QueryCache,
   QueryClient,
