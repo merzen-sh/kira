@@ -1,4 +1,8 @@
-use std::{env, error::Error, fs, io, path::Path};
+//! Build script that ensures a dashboard placeholder exists for debug builds.
+
+use std::error::Error;
+use std::path::Path;
+use std::{env, fs, io};
 
 const PLACEHOLDER: &str = r#"<!doctype html>
 <html lang="en">

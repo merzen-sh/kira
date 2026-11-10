@@ -23,3 +23,6 @@ tokio-tungstenite.workspace = true
 http-body-util.workspace = true
 serde_json.workspace = true
 tower.workspace = true
+
+[lints]
+workspace = true

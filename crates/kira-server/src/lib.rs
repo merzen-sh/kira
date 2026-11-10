@@ -1,11 +1,16 @@
-use std::{future::Future, net::SocketAddr};
+//! HTTP and WebSocket server for the Kira API.
 
-use axum::{
-    Json, Router,
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
-    response::Response,
-    routing::get,
-};
+#![expect(
+    clippy::exhaustive_structs,
+    reason = "utoipa::path generates an internal exhaustive route struct"
+)]
+
+use std::future::Future;
+use std::net::SocketAddr;
+
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::response::Response;
+use axum::{Json, Router, routing};
 use kira_config::ServerConfig;
 use kira_protocol::HealthResponse;
 use thiserror::Error;
@@ -13,18 +18,24 @@ use tokio::net::TcpListener;
 
 /// Errors produced while binding or serving the HTTP server.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ServerError {
+    /// The listener could not bind to the configured address.
     #[error("failed to bind server to {addr}")]
     Bind {
+        /// Address the server tried to bind.
         addr: SocketAddr,
+        /// Underlying bind failure.
         #[source]
         source: std::io::Error,
     },
 
+    /// The server failed while accepting or serving connections.
     #[error("server I/O error")]
     Io(#[from] std::io::Error),
 }
 
+/// Return the service health payload.
 #[utoipa::path(
     get,
     path = "/health",
@@ -35,12 +46,14 @@ pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse::ok())
 }
 
+/// Build the HTTP router for the Kira API.
 pub fn router() -> Router {
     Router::new()
-        .route("/health", get(health))
-        .route("/ws", get(ws_upgrade))
+        .route("/health", routing::get(health))
+        .route("/ws", routing::get(ws_upgrade))
 }
 
+/// Bind to the configured address and serve until `shutdown` resolves.
 pub async fn serve(
     config: &ServerConfig,
     shutdown: impl Future<Output = ()> + Send + 'static,
@@ -55,6 +68,7 @@ pub async fn serve(
     serve_with_listener(listener, shutdown).await
 }
 
+/// Serve on an already-bound listener until `shutdown` resolves.
 pub async fn serve_with_listener(
     listener: TcpListener,
     shutdown: impl Future<Output = ()> + Send + 'static,

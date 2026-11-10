@@ -1,6 +1,9 @@
+//! Kira service binary: Discord bot plus HTTP and WebSocket API.
+
 mod app;
 
-use std::{env, process::ExitCode};
+use std::env;
+use std::process::ExitCode;
 
 use anyhow::Context;
 use kira_config::DiscordConfig;

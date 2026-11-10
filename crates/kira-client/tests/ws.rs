@@ -1,14 +1,16 @@
-use std::{error::Error, time::Duration};
+//! WebSocket client integration tests.
 
-use axum::{
-    Router,
-    extract::ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade},
-    response::Response,
-    routing::get,
-};
+use std::error::Error;
+use std::time::Duration;
+
+use axum::extract::ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade};
+use axum::response::Response;
+use axum::{Router, routing};
 use futures_util::{SinkExt, StreamExt};
 use kira_client::Message;
-use tokio::{net::TcpListener, task::JoinHandle, time::timeout};
+use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
+use tokio::time::timeout;
 
 struct TestServer {
     base_url: String,
@@ -22,7 +24,7 @@ impl Drop for TestServer {
 }
 
 async fn spawn_echo() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
-    let app = Router::new().route("/ws", get(upgrade));
+    let app = Router::new().route("/ws", routing::get(upgrade));
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let base_url = format!("http://{}", listener.local_addr()?);
     let task = tokio::spawn(async move {

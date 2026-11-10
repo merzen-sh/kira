@@ -1,10 +1,10 @@
-use std::{
-    error::Error,
-    io,
-    net::TcpListener,
-    process::{Command, Stdio},
-    time::Duration,
-};
+//! Regression tests for startup failure handling.
+
+use std::error::Error;
+use std::io;
+use std::net::TcpListener;
+use std::process::{Command, Stdio};
+use std::time::Duration;
 
 // Regression test for the shutdown hang when the server fails to bind before
 // the bot has instantiated any shards. `ShardManager::shutdown_all()` is a

@@ -1,18 +1,23 @@
 //! HTTP and WebSocket client for a remote Kira server.
 
 use tokio::net::TcpStream;
-use tokio_tungstenite::connect_async;
 
 pub use tokio_tungstenite::tungstenite::Message;
 pub use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 /// Errors produced by the remote client.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ClientError {
+    /// The HTTP request failed or returned an unsuccessful status.
     #[error("http error: {0}")]
     Http(#[from] reqwest::Error),
+
+    /// The WebSocket connection or frame exchange failed.
     #[error("websocket error: {0}")]
     Ws(#[from] tokio_tungstenite::tungstenite::Error),
+
+    /// The configured URL could not be used as a WebSocket URL.
     #[error("invalid url: {0}")]
     InvalidUrl(String),
 }
@@ -25,6 +30,7 @@ pub struct Client {
 }
 
 impl Client {
+    /// Create a client for the server at `base_url`.
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             http: reqwest::Client::new(),
@@ -32,18 +38,20 @@ impl Client {
         }
     }
 
+    /// Fetch the remote server's health response.
     pub async fn health(&self) -> Result<kira_protocol::HealthResponse, ClientError> {
         let url = format!("{}/health", self.base_url.trim_end_matches('/'));
         let response = self.http.get(url).send().await?.error_for_status()?;
         Ok(response.json().await?)
     }
 
+    /// Open a WebSocket connection at `path` on the remote server.
     pub async fn connect_ws(
         &self,
         path: &str,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, ClientError> {
         let url = ws_url(&self.base_url, path)?;
-        let (stream, _response) = connect_async(url).await?;
+        let (stream, _response) = tokio_tungstenite::connect_async(url).await?;
         Ok(stream)
     }
 }

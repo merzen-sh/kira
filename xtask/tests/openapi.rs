@@ -1,3 +1,5 @@
+//! OpenAPI task integration tests.
+
 use std::fs;
 
 #[test]

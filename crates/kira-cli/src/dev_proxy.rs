@@ -1,13 +1,11 @@
 //! Development-only reverse proxy to the Vite dev server.
 
 use anyhow::Result;
-use axum::{
-    Json,
-    body::{Body, to_bytes},
-    extract::Request,
-    http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
-};
+use axum::Json;
+use axum::body::{Body, to_bytes};
+use axum::extract::Request;
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use kira_protocol::ErrorResponse;
 
 const MAX_BODY_SIZE: usize = 16 * 1024 * 1024;
@@ -20,9 +18,7 @@ pub(crate) async fn forward(base_url: &str, request: Request) -> Response {
             eprintln!("vite dev proxy failed: {error:#}");
             (
                 StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse {
-                    error: "vite dev server unavailable".into(),
-                }),
+                Json(ErrorResponse::new("vite dev server unavailable")),
             )
                 .into_response()
         }

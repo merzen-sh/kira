@@ -10,6 +10,7 @@ paths:
     get:
       tags:
       - health
+      summary: Return the service health payload.
       operationId: health
       responses:
         '200':
@@ -21,14 +22,17 @@ components:
   schemas:
     HealthResponse:
       type: object
+      description: Health information returned by `GET /health`.
       required:
       - status
       - version
       properties:
         status:
           type: string
+          description: Service status, `ok` when the server is healthy.
         version:
           type: string
+          description: Version of the running `kira` binary.
 tags:
 - name: health
   description: Service health

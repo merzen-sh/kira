@@ -1,6 +1,8 @@
-// The public config API intentionally exposes an inherent `from_iter` on each
-// config type; it is not an implementation of `std::iter::FromIterator`.
-#![allow(clippy::should_implement_trait)]
+//! Environment-backed configuration for the Kira binaries.
+//!
+//! Each configuration type reads environment variables with a fixed prefix.
+//! The `from_iter` constructors exist so tests can supply variables without
+//! mutating the process environment.
 
 use std::net::SocketAddr;
 
@@ -27,33 +29,51 @@ fn sanitize_dotenv_error(error: dotenvy::Error) -> ConfigError {
     }
 }
 
+/// Errors produced while loading or parsing configuration.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ConfigError {
+    /// A `.env` file was found but could not be loaded.
     #[error("failed to load .env file")]
     Dotenv(#[from] dotenvy::Error),
 
+    /// A line in `.env` could not be parsed.
     #[error("failed to parse .env content near index {index}")]
-    DotenvLine { index: usize },
+    DotenvLine {
+        /// Byte offset near the malformed line.
+        index: usize,
+    },
 
+    /// An environment variable was missing or had the wrong shape.
     #[error("failed to parse environment variables")]
     Environment(#[from] envy::Error),
 }
 
+/// Discord credentials read from `DISCORD_*` variables.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct DiscordConfig {
+    /// Bot token used to authenticate with Discord.
     pub token: String,
 }
 
+/// HTTP server settings read from `KIRA_*` variables.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct ServerConfig {
+    /// Address the HTTP server binds to.
     #[serde(default = "default_bind")]
     pub bind: SocketAddr,
 }
 
+/// Local dashboard settings read from `KIRA_*` variables.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct CliConfig {
+    /// Address the local dashboard binds to (`KIRA_CLI_BIND`).
     #[serde(default = "default_cli_bind", rename = "cli_bind")]
     pub bind: SocketAddr,
+    /// Base URL of the remote Kira server (`KIRA_REMOTE_URL`).
     #[serde(default = "default_remote_url")]
     pub remote_url: String,
 }
@@ -71,11 +91,17 @@ fn default_remote_url() -> String {
 }
 
 impl DiscordConfig {
+    /// Load Discord configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
         load_env()?;
         Self::from_iter(std::env::vars())
     }
 
+    /// Parse Discord configuration from an iterator of environment entries.
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "fallible parsing cannot implement infallible FromIterator"
+    )]
     pub fn from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
@@ -92,11 +118,17 @@ impl DiscordConfig {
 }
 
 impl ServerConfig {
+    /// Load server configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
         load_env()?;
         Self::from_iter(std::env::vars())
     }
 
+    /// Parse server configuration from an iterator of environment entries.
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "fallible parsing cannot implement infallible FromIterator"
+    )]
     pub fn from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
@@ -113,11 +145,17 @@ impl ServerConfig {
 }
 
 impl CliConfig {
+    /// Load local dashboard configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
         load_env()?;
         Self::from_iter(std::env::vars())
     }
 
+    /// Parse local dashboard configuration from environment entries.
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "fallible parsing cannot implement infallible FromIterator"
+    )]
     pub fn from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,

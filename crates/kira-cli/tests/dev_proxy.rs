@@ -1,16 +1,16 @@
+//! Vite dev proxy integration tests.
+
 use anyhow::Result;
-use axum::{
-    Router,
-    body::Body,
-    extract::Request,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::get,
-};
+use axum::body::Body;
+use axum::extract::Request;
+use axum::http::{StatusCode, header};
+use axum::response::{IntoResponse, Response};
+use axum::{Router, routing};
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
 use kira_client::Client;
-use tokio::{net::TcpListener, task::JoinHandle};
+use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
 use tower::ServiceExt;
 
 struct TestServer {
@@ -40,14 +40,14 @@ async fn spawn_vite() -> Result<TestServer> {
     let app = Router::new()
         .route(
             "/assets/app.js",
-            get(|| async {
+            routing::get(|| async {
                 (
                     [(header::CONTENT_TYPE, "text/javascript")],
                     "console.log('vite')",
                 )
             }),
         )
-        .fallback(get(vite_fallback));
+        .fallback(routing::get(vite_fallback));
     spawn(app).await
 }
 
@@ -65,10 +65,10 @@ async fn vite_fallback(request: Request) -> Response {
 }
 
 fn app(dev_server_url: Option<String>) -> Router {
-    router(AppState {
-        client: Client::new("http://127.0.0.1:1"),
+    router(AppState::new(
+        Client::new("http://127.0.0.1:1"),
         dev_server_url,
-    })
+    ))
 }
 
 async fn request(app: Router, path: &str) -> Result<Response> {

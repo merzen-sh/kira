@@ -11,6 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Return the service health payload. */
         get: operations["health"];
         put?: never;
         post?: never;
@@ -24,8 +25,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Health information returned by `GET /health`. */
         HealthResponse: {
+            /** @description Service status, `ok` when the server is healthy. */
             status: string;
+            /** @description Version of the running `kira` binary. */
             version: string;
         };
     };
