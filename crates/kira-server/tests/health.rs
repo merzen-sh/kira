@@ -1,3 +1,5 @@
+//! Server health integration tests.
+
 use std::error::Error;
 
 use axum::body::Body;

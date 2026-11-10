@@ -1,3 +1,5 @@
+//! WebSocket echo integration tests.
+
 use std::error::Error;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -8,7 +10,6 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
-use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 struct TestServer {
@@ -50,7 +51,8 @@ async fn stop(server: TestServer) -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn ws_echoes_text_frames() -> Result<(), Box<dyn Error>> {
     let server = spawn_server().await?;
-    let (mut socket, _response) = connect_async(format!("ws://{}/ws", server.addr)).await?;
+    let (mut socket, _response) =
+        tokio_tungstenite::connect_async(format!("ws://{}/ws", server.addr)).await?;
     socket.send(Message::Text("hello".into())).await?;
     let echoed = timeout(Duration::from_secs(5), socket.next())
         .await?
@@ -65,7 +67,8 @@ async fn ws_echoes_text_frames() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn ws_echoes_binary_frames() -> Result<(), Box<dyn Error>> {
     let server = spawn_server().await?;
-    let (mut socket, _response) = connect_async(format!("ws://{}/ws", server.addr)).await?;
+    let (mut socket, _response) =
+        tokio_tungstenite::connect_async(format!("ws://{}/ws", server.addr)).await?;
     let payload = vec![0x01, 0x02, 0x03];
     socket.send(Message::Binary(payload.clone().into())).await?;
     let echoed = timeout(Duration::from_secs(5), socket.next())
