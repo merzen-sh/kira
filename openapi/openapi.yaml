@@ -10,6 +10,7 @@ paths:
     get:
       tags:
       - health
+      summary: Return the service health payload.
       operationId: health
       responses:
         '200':

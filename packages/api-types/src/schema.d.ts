@@ -11,6 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Return the service health payload. */
         get: operations["health"];
         put?: never;
         post?: never;
