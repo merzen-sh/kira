@@ -1,6 +1,6 @@
 CARGO := cargo
 
-.PHONY: all build dev release build-cli build-all install dashboard openapi test check clean fmt clippy
+.PHONY: all build dev release build-cli build-all install install-hooks uninstall-hooks dashboard openapi test check clean fmt clippy
 
 all: build
 
@@ -20,6 +20,15 @@ node_modules: package.json package-lock.json
 	npm ci
 
 install: node_modules
+
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
+	@echo "Installed Git hooks from .githooks"
+
+uninstall-hooks:
+	git config --unset core.hooksPath || true
+	@echo "Uninstalled Git hooks"
 
 dashboard: node_modules
 	npm run build -w @kira/dashboard
