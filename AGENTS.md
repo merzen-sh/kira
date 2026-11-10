@@ -34,6 +34,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 - Binaries use `anyhow::Result` with context at operational boundaries; reusable crates expose typed `thiserror` errors.
 - OpenAPI ownership: `#[utoipa::path]` handlers in `kira-server`, `ToSchema` DTOs in `kira-protocol`, document assembly only in `kira-api-docs`. Never hand-edit generated contracts — run `make openapi`.
 - Dashboard uses file-based TanStack Router (`src/routes/`, with committed `routeTree.gen.ts`) and a single `openapi-fetch` client in `src/data/fetcher.ts`. Add API domains by copying `src/data/__templates/` (excluded from `tsc` until copied). Components must consume hooks, not call `fetch` directly.
+- Shared presentational components live in `packages/ui` (`@kira/ui`) and are generated with the shadcn CLI. Add components with `npx shadcn@latest add <name> -c apps/dashboard`; import them as `@kira/ui/components/<name>`. The dashboard stylesheet is `packages/ui/src/styles/globals.css`, imported once from `apps/dashboard/src/main.tsx`.
 - Current code uses `println!`/`eprintln!`; there is no logging crate. Do not add one incidentally.
 - Shutdown uses one `tokio::sync::watch` channel shared by bot and server. The bot deliberately avoids awaiting gateway startup when no shards exist, so bind failures can exit instead of hanging.
 
