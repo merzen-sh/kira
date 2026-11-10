@@ -1,0 +1,4 @@
+rust:
+  - "**/*.rs"
+  - ".github/workflows/ci.yml"
+  - ".github/filters.yaml"
