@@ -1,8 +1,9 @@
+//! HTTP client integration tests.
+
 use std::error::Error;
 
 use axum::http::StatusCode;
-use axum::routing::get;
-use axum::{Json, Router};
+use axum::{Json, Router, routing};
 use kira_protocol::HealthResponse;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
@@ -31,7 +32,10 @@ async fn spawn(app: Router) -> Result<TestServer, Box<dyn Error>> {
 }
 
 async fn spawn_health() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
-    let app = Router::new().route("/health", get(|| async { Json(HealthResponse::ok()) }));
+    let app = Router::new().route(
+        "/health",
+        routing::get(|| async { Json(HealthResponse::ok()) }),
+    );
     let server = spawn(app).await?;
     Ok((kira_client::Client::new(server.base_url.clone()), server))
 }
@@ -39,7 +43,7 @@ async fn spawn_health() -> Result<(kira_client::Client, TestServer), Box<dyn Err
 async fn spawn_status(
     status: StatusCode,
 ) -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
-    let app = Router::new().route("/health", get(move || async move { status }));
+    let app = Router::new().route("/health", routing::get(move || async move { status }));
     let server = spawn(app).await?;
     Ok((kira_client::Client::new(server.base_url.clone()), server))
 }
