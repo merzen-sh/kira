@@ -1,18 +1,26 @@
+//! Discord event handling for the `!ping` command.
+
 use std::sync::Arc;
 
 use kira_config::DiscordConfig;
 use serenity::async_trait;
 use serenity::model::channel::Message;
-use serenity::prelude::*;
+use serenity::prelude::{Context, EventHandler, TypeMapKey};
 
+/// Type-map key holding the shared Discord configuration.
+#[non_exhaustive]
 pub struct ConfigKey;
 
 impl TypeMapKey for ConfigKey {
     type Value = Arc<DiscordConfig>;
 }
 
+/// Serenity event handler for the bot.
+#[non_exhaustive]
 pub struct Handler;
 
+/// Return whether a message is a `!ping` command from a human.
+#[must_use]
 pub fn is_ping(content: &str, author_is_bot: bool) -> bool {
     !author_is_bot && content == "!ping"
 }
@@ -20,7 +28,10 @@ pub fn is_ping(content: &str, author_is_bot: bool) -> bool {
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        if !is_ping(msg.content.as_str(), msg.author.bot) {
+        if !is_ping(
+            msg.content.as_str(),
+            /* author_is_bot= */ msg.author.bot,
+        ) {
             return;
         }
 
