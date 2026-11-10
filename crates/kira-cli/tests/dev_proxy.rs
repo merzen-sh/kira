@@ -1,16 +1,15 @@
 use anyhow::Result;
-use axum::{
-    Router,
-    body::Body,
-    extract::Request,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::get,
-};
+use axum::Router;
+use axum::body::Body;
+use axum::extract::Request;
+use axum::http::{StatusCode, header};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
 use kira_client::Client;
-use tokio::{net::TcpListener, task::JoinHandle};
+use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
 use tower::ServiceExt;
 
 struct TestServer {

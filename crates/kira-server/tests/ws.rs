@@ -1,9 +1,15 @@
-use std::{error::Error, net::SocketAddr, time::Duration};
+use std::error::Error;
+use std::net::SocketAddr;
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use kira_server::{ServerError, serve_with_listener};
-use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle, time::timeout};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio::net::TcpListener;
+use tokio::sync::oneshot;
+use tokio::task::JoinHandle;
+use tokio::time::timeout;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::Message;
 
 struct TestServer {
     addr: SocketAddr,

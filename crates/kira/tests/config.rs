@@ -1,9 +1,7 @@
-use std::{
-    error::Error,
-    fs,
-    path::Path,
-    process::{Command, Output},
-};
+use std::error::Error;
+use std::fs;
+use std::path::Path;
+use std::process::{Command, Output};
 
 use tempfile::tempdir;
 

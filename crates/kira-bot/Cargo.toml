@@ -10,3 +10,6 @@ kira-config = { path = "../kira-config" }
 serenity.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+
+[lints]
+workspace = true

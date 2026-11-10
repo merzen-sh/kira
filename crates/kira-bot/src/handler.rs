@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use kira_config::DiscordConfig;
-use serenity::{async_trait, model::channel::Message, prelude::*};
+use serenity::async_trait;
+use serenity::model::channel::Message;
+use serenity::prelude::*;
 
 pub struct ConfigKey;
 

@@ -1,11 +1,9 @@
 //! Embedded dashboard asset lookup and response headers.
 
-use axum::{
-    body::Body,
-    extract::{Request, State},
-    http::{StatusCode, Uri, header},
-    response::{IntoResponse, Response},
-};
+use axum::body::Body;
+use axum::extract::{Request, State};
+use axum::http::{StatusCode, Uri, header};
+use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 
 use crate::AppState;

@@ -1,9 +1,7 @@
 use std::error::Error;
 
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-};
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use kira_protocol::HealthResponse;
 use kira_server::router;

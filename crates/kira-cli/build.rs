@@ -1,4 +1,6 @@
-use std::{env, error::Error, fs, io, path::Path};
+use std::error::Error;
+use std::path::Path;
+use std::{env, fs, io};
 
 const PLACEHOLDER: &str = r#"<!doctype html>
 <html lang="en">

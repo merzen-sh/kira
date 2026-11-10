@@ -1,9 +1,7 @@
 use anyhow::Result;
-use axum::{
-    body::Body,
-    http::{Request, StatusCode, header},
-    response::Response,
-};
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
+use axum::response::Response;
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
 use kira_client::Client;

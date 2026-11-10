@@ -1,11 +1,10 @@
-use std::{future::Future, net::SocketAddr};
+use std::future::Future;
+use std::net::SocketAddr;
 
-use axum::{
-    Json, Router,
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
-    response::Response,
-    routing::get,
-};
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::response::Response;
+use axum::routing::get;
+use axum::{Json, Router};
 use kira_config::ServerConfig;
 use kira_protocol::HealthResponse;
 use thiserror::Error;

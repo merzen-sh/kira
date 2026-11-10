@@ -1,22 +1,19 @@
 //! HTTP and WebSocket proxies to the remote Kira server.
 
-use axum::{
-    Json,
-    extract::{
-        State,
-        ws::{CloseFrame as AxumCloseFrame, Message as AxumMessage, WebSocket, WebSocketUpgrade},
-    },
-    http::StatusCode,
-    response::{IntoResponse, Response},
+use axum::Json;
+use axum::extract::State;
+use axum::extract::ws::{
+    CloseFrame as AxumCloseFrame, Message as AxumMessage, WebSocket, WebSocketUpgrade,
 };
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use futures_util::{SinkExt, StreamExt};
 use kira_client::Client;
 use kira_protocol::ErrorResponse;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream,
-    tungstenite::{Message as TsMessage, protocol::CloseFrame as TsCloseFrame},
-};
+use tokio_tungstenite::tungstenite::Message as TsMessage;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame as TsCloseFrame;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 use crate::AppState;
 

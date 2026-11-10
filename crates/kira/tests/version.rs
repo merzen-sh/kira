@@ -1,11 +1,8 @@
-use std::{
-    env,
-    error::Error,
-    fs,
-    path::PathBuf,
-    process::{Command, Output},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::error::Error;
+use std::path::PathBuf;
+use std::process::{Command, Output};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::{env, fs};
 
 fn temp_cwd() -> Result<PathBuf, Box<dyn Error>> {
     let unique = format!(

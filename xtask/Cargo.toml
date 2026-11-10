@@ -11,3 +11,6 @@ kira-api-docs = { path = "../crates/kira-api-docs" }
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[lints]
+workspace = true

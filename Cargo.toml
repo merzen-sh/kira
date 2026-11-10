@@ -28,6 +28,25 @@ tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 tower = { version = "0.5", features = ["util"] }
 utoipa = "6"
 
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unstable_features = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+ref_option = "deny"
+unwrap_used = "deny"
+wildcard_imports = "deny"
+needless_for_each = "deny"
+undocumented_unsafe_blocks = "deny"
+derive_partial_eq_without_eq = "allow"
+missing_const_for_fn = "allow"
+exhaustive_enums = "deny"
+exhaustive_structs = "deny"
+must_use_candidate = "deny"
+return_self_not_must_use = "deny"
+missing_panics_doc = "deny"
+
 [profile.release]
 opt-level = 3
 codegen-units = 1

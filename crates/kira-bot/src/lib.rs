@@ -1,9 +1,11 @@
 pub mod handler;
 
-use std::{future::Future, sync::Arc};
+use std::future::Future;
+use std::sync::Arc;
 
 use kira_config::DiscordConfig;
-use serenity::{Client, prelude::GatewayIntents};
+use serenity::Client;
+use serenity::prelude::GatewayIntents;
 use thiserror::Error;
 
 pub use handler::{ConfigKey, Handler, is_ping};

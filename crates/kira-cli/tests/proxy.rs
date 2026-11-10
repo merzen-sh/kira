@@ -1,21 +1,22 @@
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use axum::{
-    Json, Router,
-    body::Body,
-    extract::ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade},
-    http::{Request, StatusCode, header},
-    response::Response,
-    routing::get,
-};
+use axum::body::Body;
+use axum::extract::ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade};
+use axum::http::{Request, StatusCode, header};
+use axum::response::Response;
+use axum::routing::get;
+use axum::{Json, Router};
 use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
 use kira_client::Client;
 use kira_protocol::{ErrorResponse, HealthResponse};
-use tokio::{net::TcpListener, task::JoinHandle, time::timeout};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
+use tokio::time::timeout;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::Message;
 use tower::ServiceExt;
 
 struct TestServer {

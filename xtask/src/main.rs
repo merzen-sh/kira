@@ -1,4 +1,5 @@
-use std::{path::Path, process::ExitCode};
+use std::path::Path;
+use std::process::ExitCode;
 
 use anyhow::Context;
 

@@ -1,8 +1,11 @@
 use std::error::Error;
 
-use axum::{Json, Router, http::StatusCode, routing::get};
+use axum::http::StatusCode;
+use axum::routing::get;
+use axum::{Json, Router};
 use kira_protocol::HealthResponse;
-use tokio::{net::TcpListener, task::JoinHandle};
+use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
 
 struct TestServer {
     base_url: String,

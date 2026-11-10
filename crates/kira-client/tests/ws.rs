@@ -1,14 +1,15 @@
-use std::{error::Error, time::Duration};
+use std::error::Error;
+use std::time::Duration;
 
-use axum::{
-    Router,
-    extract::ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade},
-    response::Response,
-    routing::get,
-};
+use axum::Router;
+use axum::extract::ws::{Message as AxumMessage, WebSocket, WebSocketUpgrade};
+use axum::response::Response;
+use axum::routing::get;
 use futures_util::{SinkExt, StreamExt};
 use kira_client::Message;
-use tokio::{net::TcpListener, task::JoinHandle, time::timeout};
+use tokio::net::TcpListener;
+use tokio::task::JoinHandle;
+use tokio::time::timeout;
 
 struct TestServer {
     base_url: String,
