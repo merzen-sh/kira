@@ -23,6 +23,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /guild/channels:
+    get:
+      tags:
+      - guild
+      summary: Return the configured Discord server's channels.
+      operationId: get_guild_channels
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelDetails'
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /health:
     get:
       tags:
@@ -37,6 +56,38 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
 components:
   schemas:
+    ChannelDetails:
+      type: object
+      description: A channel belonging to the Discord server targeted by `GET /guild/channels`.
+      required:
+      - id
+      - guild_id
+      - name
+      - kind
+      - position
+      properties:
+        guild_id:
+          type: string
+          description: ID of the server the channel belongs to.
+        id:
+          type: string
+          description: Discord channel ID.
+        kind:
+          type: string
+          description: Channel type, such as `text`, `voice`, or `category`.
+        name:
+          type: string
+          description: Channel name.
+        parent_id:
+          type:
+          - string
+          - 'null'
+          description: ID of the parent category or channel, when set.
+        position:
+          type: integer
+          format: int32
+          description: Sort position within the server.
+          minimum: 0
     ErrorResponse:
       type: object
       description: Error payload returned when a request fails.
@@ -113,4 +164,4 @@ tags:
 - name: health
   description: Service health
 - name: guild
-  description: Discord server
+  description: Discord server and channels

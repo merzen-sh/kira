@@ -4,7 +4,7 @@ use std::error::Error;
 
 use axum::http::StatusCode;
 use axum::{Json, Router, routing};
-use kira_protocol::{GuildDetails, HealthResponse};
+use kira_protocol::{ChannelDetails, GuildDetails, HealthResponse};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
@@ -70,6 +70,47 @@ async fn spawn_guild_unavailable() -> Result<(kira_client::Client, TestServer), 
     );
     let server = spawn(app).await?;
     Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+async fn spawn_channels() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
+    let channels = vec![ChannelDetails::new("10", "1", "general", "text")];
+
+    let app = Router::new().route(
+        "/guild/channels",
+        routing::get(move || {
+            let channels = channels.clone();
+            async move { Json(channels) }
+        }),
+    );
+    let server = spawn(app).await?;
+    Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+async fn spawn_channels_unavailable() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
+    let app = Router::new().route(
+        "/guild/channels",
+        routing::get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
+    );
+    let server = spawn(app).await?;
+    Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+#[tokio::test]
+async fn channels_return_the_list() -> Result<(), Box<dyn Error>> {
+    let (client, _server) = spawn_channels().await?;
+
+    let channels = client.channels().await?.expect("channels");
+    assert_eq!(channels.len(), 1);
+    assert_eq!(channels[0].name, "general");
+    Ok(())
+}
+
+#[tokio::test]
+async fn channels_map_unavailable_to_none() -> Result<(), Box<dyn Error>> {
+    let (client, _server) = spawn_channels_unavailable().await?;
+
+    assert!(client.channels().await?.is_none());
+    Ok(())
 }
 
 #[tokio::test]

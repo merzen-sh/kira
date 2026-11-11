@@ -43,7 +43,8 @@ async fn guild_returns_503_without_data() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = watch::channel(Vec::new());
-    let state = AppState::new(Some(1), receiver);
+    let (_channel_sender, channels) = watch::channel(Vec::new());
+    let state = AppState::new(Some(1), receiver, channels);
 
     sender.send_replace(vec![details("1", "Alpha"), details("2", "Beta")]);
 
@@ -68,7 +69,8 @@ async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn guild_returns_503_when_the_target_is_missing() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = watch::channel(Vec::new());
-    let state = AppState::new(Some(9), receiver);
+    let (_channel_sender, channels) = watch::channel(Vec::new());
+    let state = AppState::new(Some(9), receiver, channels);
 
     sender.send_replace(vec![details("1", "Alpha")]);
 

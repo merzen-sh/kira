@@ -52,6 +52,26 @@ pub(crate) async fn guild(State(state): State<AppState>) -> Response {
     }
 }
 
+/// Proxy the remote guild channels endpoint.
+pub(crate) async fn channels(State(state): State<AppState>) -> Response {
+    match state.client.channels().await {
+        Ok(Some(channels)) => Json(channels).into_response(),
+        Ok(None) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse::new("guild data is not available")),
+        )
+            .into_response(),
+        Err(error) => {
+            eprintln!("channels proxy failed: {error}");
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse::new("upstream service unavailable")),
+            )
+                .into_response()
+        }
+    }
+}
+
 /// Upgrade the local connection and bridge it to the remote `/ws` endpoint.
 pub(crate) async fn ws_upgrade(
     State(state): State<AppState>,
