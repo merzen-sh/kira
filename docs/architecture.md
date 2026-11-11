@@ -251,6 +251,10 @@ The handler is defined at the `kira-server` crate root and annotated with
 The API reference routes are mounted only under `debug_assertions`; release
 builds return `404` for both paths.
 
+`GET /guild` returns `503` until the bot has cached the server named by
+`KIRA_GUILD_ID`. An unset `KIRA_GUILD_ID` is a permanent configuration error,
+not a transient condition clients should retry indefinitely.
+
 `GET /ws` is a WebSocket echo scaffold. Text and binary frames are echoed;
 ping/pong are handled by Axum; close ends the socket. WebSockets are not
 representable in OpenAPI and are intentionally undocumented.
