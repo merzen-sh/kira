@@ -4,7 +4,7 @@ use std::error::Error;
 
 use axum::http::StatusCode;
 use axum::{Json, Router, routing};
-use kira_protocol::HealthResponse;
+use kira_protocol::{GuildDetails, HealthResponse};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
@@ -46,6 +46,49 @@ async fn spawn_status(
     let app = Router::new().route("/health", routing::get(move || async move { status }));
     let server = spawn(app).await?;
     Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+async fn spawn_guild() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
+    let mut guild = GuildDetails::new("1", "Alpha");
+    guild.member_count = 12;
+
+    let app = Router::new().route(
+        "/guild",
+        routing::get(move || {
+            let guild = guild.clone();
+            async move { Json(guild) }
+        }),
+    );
+    let server = spawn(app).await?;
+    Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+async fn spawn_guild_unavailable() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
+    let app = Router::new().route(
+        "/guild",
+        routing::get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
+    );
+    let server = spawn(app).await?;
+    Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+#[tokio::test]
+async fn guild_returns_the_details() -> Result<(), Box<dyn Error>> {
+    let (client, _server) = spawn_guild().await?;
+
+    let guild = client.guild().await?.expect("guild details");
+    assert_eq!(guild.id, "1");
+    assert_eq!(guild.name, "Alpha");
+    assert_eq!(guild.member_count, 12);
+    Ok(())
+}
+
+#[tokio::test]
+async fn guild_maps_unavailable_to_none() -> Result<(), Box<dyn Error>> {
+    let (client, _server) = spawn_guild_unavailable().await?;
+
+    assert!(client.guild().await?.is_none());
+    Ok(())
 }
 
 #[tokio::test]

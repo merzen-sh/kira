@@ -34,6 +34,7 @@ impl AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/health", axum::routing::get(proxy::health))
+        .route("/api/guild", axum::routing::get(proxy::guild))
         .route("/ws", axum::routing::get(proxy::ws_upgrade))
         .fallback(assets::fallback)
         .with_state(state)

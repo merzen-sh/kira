@@ -260,6 +260,7 @@ representable in OpenAPI and are intentionally undocumented.
 | Method | Path | Behavior |
 |---|---|---|
 | `GET` | `/api/health` | Proxy to remote `/health`; `502` JSON on failure |
+| `GET` | `/api/guild` | Proxy to remote `/guild`; passes through `503`, `502` on failure |
 | `GET` | `/ws` | Frame-by-frame proxy to remote `/ws` |
 | `GET` | `/` and other non-API paths | Vite dev server in debug; embedded `index.html` (SPA fallback) in release |
 | `GET` | `/assets/*` | Vite dev server in debug; embedded asset or `404` in release |

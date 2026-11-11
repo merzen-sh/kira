@@ -12,7 +12,7 @@ use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
 use kira_client::Client;
-use kira_protocol::{ErrorResponse, HealthResponse};
+use kira_protocol::{ErrorResponse, GuildDetails, HealthResponse};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -46,6 +46,28 @@ async fn spawn_health() -> Result<TestServer> {
     let app = Router::new().route(
         "/health",
         routing::get(|| async { Json(HealthResponse::ok()) }),
+    );
+    spawn(app).await
+}
+
+async fn spawn_guild() -> Result<TestServer> {
+    let mut guild = GuildDetails::new("1", "Alpha");
+    guild.member_count = 12;
+
+    let app = Router::new().route(
+        "/guild",
+        routing::get(move || {
+            let guild = guild.clone();
+            async move { Json(guild) }
+        }),
+    );
+    spawn(app).await
+}
+
+async fn spawn_guild_unavailable() -> Result<TestServer> {
+    let app = Router::new().route(
+        "/guild",
+        routing::get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
     );
     spawn(app).await
 }
@@ -97,6 +119,34 @@ async fn health_is_proxied() -> Result<()> {
     let health: HealthResponse = serde_json::from_slice(&bytes)?;
     assert_eq!(health.status, "ok");
     assert_eq!(health.version, HealthResponse::ok().version);
+    Ok(())
+}
+
+#[tokio::test]
+async fn guild_is_proxied() -> Result<()> {
+    let upstream = spawn_guild().await?;
+    let res = cli_get(Client::new(upstream.base_url.clone()), "/api/guild").await?;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers()[header::CONTENT_TYPE], "application/json");
+
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let guild: GuildDetails = serde_json::from_slice(&bytes)?;
+    assert_eq!(guild.id, "1");
+    assert_eq!(guild.member_count, 12);
+    Ok(())
+}
+
+#[tokio::test]
+async fn unavailable_guild_is_503() -> Result<()> {
+    let upstream = spawn_guild_unavailable().await?;
+    let res = cli_get(Client::new(upstream.base_url.clone()), "/api/guild").await?;
+
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let error: ErrorResponse = serde_json::from_slice(&bytes)?;
+    assert_eq!(error.error, "guild data is not available");
     Ok(())
 }
 
