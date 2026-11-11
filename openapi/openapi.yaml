@@ -78,7 +78,7 @@ components:
         member_count:
           type: integer
           format: int64
-          description: Number of members cached by the bot.
+          description: Total number of members in the server.
           minimum: 0
         name:
           type: string

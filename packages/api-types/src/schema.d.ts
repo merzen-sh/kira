@@ -59,7 +59,7 @@ export interface components {
             id: string;
             /**
              * Format: int64
-             * @description Number of members cached by the bot.
+             * @description Total number of members in the server.
              */
             member_count: number;
             /** @description Server display name. */

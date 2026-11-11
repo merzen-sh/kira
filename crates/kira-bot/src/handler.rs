@@ -87,6 +87,22 @@ fn partial_guild_details(guild: &PartialGuild) -> GuildDetails {
     details
 }
 
+fn merge_guild_update(existing: Option<&GuildDetails>, mut details: GuildDetails) -> GuildDetails {
+    if let Some(existing) = existing {
+        details.member_count = existing.member_count;
+
+        if details.presence_count.is_none() {
+            details.presence_count = existing.presence_count;
+        }
+    }
+
+    details
+}
+
+fn is_guild_removal(unavailable: bool) -> bool {
+    !unavailable
+}
+
 fn guild_snapshot(cache: &serenity::cache::Cache) -> Vec<GuildDetails> {
     let mut guilds = cache
         .guilds()
@@ -126,17 +142,20 @@ impl EventHandler for Handler {
     }
 
     async fn guild_update(&self, ctx: Context, _old: Option<Guild>, new: PartialGuild) {
-        let mut details = partial_guild_details(&new);
+        let details = partial_guild_details(&new);
         publish_guilds(&ctx, |guilds| {
-            if let Some(existing) = guilds.iter().find(|guild| guild.id == details.id) {
-                details.member_count = existing.member_count;
-            }
+            let existing = guilds.iter().find(|guild| guild.id == details.id);
+            let details = merge_guild_update(existing, details);
             upsert_guild(guilds, details)
         })
         .await;
     }
 
     async fn guild_delete(&self, ctx: Context, incomplete: UnavailableGuild, _full: Option<Guild>) {
+        if !is_guild_removal(incomplete.unavailable) {
+            return;
+        }
+
         let id = incomplete.id.to_string();
         publish_guilds(&ctx, |guilds| remove_guild(guilds, &id)).await;
     }
@@ -169,7 +188,7 @@ impl EventHandler for Handler {
 mod tests {
     use kira_protocol::GuildDetails;
 
-    use super::{is_ping, remove_guild, upsert_guild};
+    use super::{is_guild_removal, is_ping, merge_guild_update, remove_guild, upsert_guild};
 
     #[test]
     fn ping_from_human_matches() {
@@ -226,5 +245,38 @@ mod tests {
         assert!(remove_guild(&mut guilds, "1"));
         assert_eq!(guilds, vec![GuildDetails::new("2", "Beta")]);
         assert!(!remove_guild(&mut guilds, "9"));
+    }
+
+    #[test]
+    fn guild_update_preserves_cached_counts() {
+        let mut existing = GuildDetails::new("1", "Alpha");
+        existing.member_count = 12;
+        existing.presence_count = Some(3);
+
+        let updated = GuildDetails::new("1", "Renamed");
+
+        let merged = merge_guild_update(Some(&existing), updated);
+
+        assert_eq!(merged.name, "Renamed");
+        assert_eq!(merged.member_count, 12);
+        assert_eq!(merged.presence_count, Some(3));
+    }
+
+    #[test]
+    fn guild_update_keeps_a_reported_presence_count() {
+        let mut existing = GuildDetails::new("1", "Alpha");
+        existing.presence_count = Some(2);
+
+        let mut updated = GuildDetails::new("1", "Alpha");
+        updated.presence_count = Some(5);
+
+        let merged = merge_guild_update(Some(&existing), updated);
+        assert_eq!(merged.presence_count, Some(5));
+    }
+
+    #[test]
+    fn unavailable_guild_events_are_not_removals() {
+        assert!(!is_guild_removal(true));
+        assert!(is_guild_removal(false));
     }
 }

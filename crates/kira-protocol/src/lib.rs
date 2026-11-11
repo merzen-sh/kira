@@ -38,7 +38,7 @@ pub struct GuildDetails {
     pub icon_url: Option<String>,
     /// ID of the server owner.
     pub owner_id: String,
-    /// Number of members cached by the bot.
+    /// Total number of members in the server.
     pub member_count: u64,
     /// Approximate number of online members, when known.
     pub presence_count: Option<u64>,
