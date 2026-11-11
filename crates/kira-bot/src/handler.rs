@@ -158,13 +158,13 @@ fn sort_channels(channels: &mut [ChannelDetails]) {
 }
 
 fn channel_snapshot(cache: &serenity::cache::Cache) -> Vec<ChannelDetails> {
-    let mut channels = cache
-        .guilds()
-        .into_iter()
-        .filter_map(|id| cache.guild(id))
-        .flat_map(|guild| guild.channels.values().cloned().collect::<Vec<_>>())
-        .map(|channel| channel_details(&channel))
-        .collect::<Vec<_>>();
+    let mut channels = Vec::new();
+
+    for id in cache.guilds() {
+        if let Some(guild) = cache.guild(id) {
+            channels.extend(guild.channels.values().map(channel_details));
+        }
+    }
 
     sort_channels(&mut channels);
     channels

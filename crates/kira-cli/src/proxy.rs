@@ -1,5 +1,7 @@
 //! HTTP and WebSocket proxies to the remote Kira server.
 
+use std::future::Future;
+
 use axum::Json;
 use axum::extract::State;
 use axum::extract::ws::{
@@ -8,7 +10,7 @@ use axum::extract::ws::{
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use futures_util::{SinkExt, StreamExt};
-use kira_client::Client;
+use kira_client::{Client, ClientError};
 use kira_protocol::ErrorResponse;
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message as TsMessage;
@@ -34,35 +36,39 @@ pub(crate) async fn health(State(state): State<AppState>) -> Response {
 
 /// Proxy the remote guild endpoint.
 pub(crate) async fn guild(State(state): State<AppState>) -> Response {
-    match state.client.guild().await {
-        Ok(Some(guild)) => Json(guild).into_response(),
-        Ok(None) => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ErrorResponse::new("guild data is not available")),
-        )
-            .into_response(),
-        Err(error) => {
-            eprintln!("guild proxy failed: {error}");
-            (
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse::new("upstream service unavailable")),
-            )
-                .into_response()
-        }
-    }
+    optional_proxy("guild", async move {
+        state.client.guild().await.map(|guild| guild.map(Json))
+    })
+    .await
 }
 
 /// Proxy the remote guild channels endpoint.
 pub(crate) async fn channels(State(state): State<AppState>) -> Response {
-    match state.client.channels().await {
-        Ok(Some(channels)) => Json(channels).into_response(),
+    optional_proxy("channels", async move {
+        state
+            .client
+            .channels()
+            .await
+            .map(|channels| channels.map(Json))
+    })
+    .await
+}
+
+/// Proxy an endpoint that returns `503` when its data is not available.
+async fn optional_proxy<T, F>(label: &str, fetch: F) -> Response
+where
+    T: IntoResponse,
+    F: Future<Output = Result<Option<T>, ClientError>>,
+{
+    match fetch.await {
+        Ok(Some(value)) => value.into_response(),
         Ok(None) => (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(ErrorResponse::new("guild data is not available")),
         )
             .into_response(),
         Err(error) => {
-            eprintln!("channels proxy failed: {error}");
+            eprintln!("{label} proxy failed: {error}");
             (
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse::new("upstream service unavailable")),

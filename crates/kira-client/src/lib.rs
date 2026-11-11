@@ -50,14 +50,10 @@ impl Client {
     /// Returns `None` when the remote server responds with `503`, which means
     /// the bot has not cached the guild yet or no guild is configured.
     pub async fn guild(&self) -> Result<Option<kira_protocol::GuildDetails>, ClientError> {
-        let url = format!("{}/guild", self.base_url.trim_end_matches('/'));
-        let response = self.http.get(url).send().await?;
-
-        if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+        let Some(response) = self.get_optional("/guild").await? else {
             return Ok(None);
-        }
+        };
 
-        let response = response.error_for_status()?;
         Ok(Some(response.json().await?))
     }
 
@@ -68,15 +64,23 @@ impl Client {
     pub async fn channels(
         &self,
     ) -> Result<Option<Vec<kira_protocol::ChannelDetails>>, ClientError> {
-        let url = format!("{}/guild/channels", self.base_url.trim_end_matches('/'));
+        let Some(response) = self.get_optional("/guild/channels").await? else {
+            return Ok(None);
+        };
+
+        Ok(Some(response.json().await?))
+    }
+
+    /// Get a response, mapping `503` to `None`.
+    async fn get_optional(&self, path: &str) -> Result<Option<reqwest::Response>, ClientError> {
+        let url = format!("{}{path}", self.base_url.trim_end_matches('/'));
         let response = self.http.get(url).send().await?;
 
         if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
             return Ok(None);
         }
 
-        let response = response.error_for_status()?;
-        Ok(Some(response.json().await?))
+        Ok(Some(response.error_for_status()?))
     }
 
     /// Open a WebSocket connection at `path` on the remote server.
