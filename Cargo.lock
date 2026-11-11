@@ -1084,7 +1084,6 @@ dependencies = [
 name = "kira-api-docs"
 version = "0.1.0"
 dependencies = [
- "kira-protocol",
  "kira-server",
  "thiserror 2.0.21",
  "utoipa",

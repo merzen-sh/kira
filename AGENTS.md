@@ -32,7 +32,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 
 - Layers: leaves `kira-core`, `kira-config`, `kira-protocol`; libraries `kira-bot`, `kira-server`, `kira-client`; applications `kira`, `kira-cli`; dev-only `kira-api-docs` (capstone over `kira-server`) and `xtask`.
 - Binaries use `anyhow::Result` with context at operational boundaries; reusable crates expose typed `thiserror` errors.
-- OpenAPI ownership: `#[utoipa::path]` handlers in `kira-server`, `ToSchema` DTOs in `kira-protocol`, document assembly only in `kira-api-docs`. Never hand-edit generated contracts — run `make openapi`.
+- OpenAPI ownership: `#[utoipa::path]` handlers and the `ApiDoc` assembly live in `kira-server`, `ToSchema` DTOs in `kira-protocol`, and YAML serialization for the committed contract in `kira-api-docs`. Debug builds serve `ApiDoc` at `/openapi.json` with the Scalar UI at `/docs`; release builds expose neither. Never hand-edit generated contracts — run `make openapi`.
 - Dashboard uses file-based TanStack Router (`src/routes/`, with committed `routeTree.gen.ts`) and a single `openapi-fetch` client in `src/data/fetcher.ts`. Add API domains by copying `src/data/__templates/` (excluded from `tsc` until copied). Components must consume hooks, not call `fetch` directly.
 - Shared presentational components live in `packages/ui` (`@kira/ui`) and are generated with the shadcn CLI. Add components with `npx shadcn@latest add <name> -c apps/dashboard`; import them as `@kira/ui/components/<name>`. The dashboard stylesheet is `packages/ui/src/styles/globals.css`, imported once from `apps/dashboard/src/main.tsx`.
 - Current code uses `println!`/`eprintln!`; there is no logging crate. Do not add one incidentally.

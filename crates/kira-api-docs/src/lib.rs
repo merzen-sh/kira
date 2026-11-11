@@ -1,5 +1,6 @@
-//! Assemble the OpenAPI document from the server's route definitions.
+//! Serialize the server's OpenAPI document for the committed contract.
 
+use kira_server::ApiDoc;
 use thiserror::Error;
 use utoipa::OpenApi;
 
@@ -11,17 +12,6 @@ pub enum ApiDocsError {
     #[error("failed to serialize OpenAPI document: {0}")]
     Serialize(String),
 }
-
-/// OpenAPI document for the Kira service API.
-#[derive(OpenApi)]
-#[non_exhaustive]
-#[openapi(
-    info(title = "Kira API", version = env!("CARGO_PKG_VERSION"), description = "Kira service API"),
-    tags((name = "health", description = "Service health")),
-    paths(kira_server::health),
-    components(schemas(kira_protocol::HealthResponse))
-)]
-pub struct ApiDoc;
 
 /// Serialize the OpenAPI document to YAML.
 pub fn yaml() -> Result<String, ApiDocsError> {

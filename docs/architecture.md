@@ -56,7 +56,7 @@ kira/
 │   ├── kira-bot/                 Serenity client and event handler
 │   ├── kira-server/              Axum router, handlers, utoipa annotations
 │   ├── kira-client/              HTTP + WebSocket client
-│   └── kira-api-docs/            OpenAPI document assembly (dev-only)
+│   └── kira-api-docs/            OpenAPI YAML serialization (dev-only)
 ├── xtask/                        OpenAPI generate/check tooling
 ├── apps/
 │   └── dashboard/                Vite + React + TypeScript dashboard
@@ -122,8 +122,9 @@ Rules:
 3. `kira-client` never depends on the bot or server.
 4. `kira` and `kira-cli` never depend on `kira-api-docs` or `xtask`.
 5. `kira-api-docs` is a capstone over `kira-server`; it is never a dependency of
-   an application. This keeps OpenAPI document assembly and YAML serialization
-   out of production binaries.
+   an application. This keeps OpenAPI YAML serialization out of production
+   binaries. The document itself is assembled in `kira-server` so debug builds
+   can serve it live.
 6. `xtask` is never a dependency of any shipped crate.
 
 `make check` enforces the most important boundaries with `cargo tree`
@@ -240,9 +241,14 @@ In production, `kira-cli` serves the built assets itself.
 | Method | Path | Behavior |
 |---|---|---|
 | `GET` | `/health` | `200 application/json` with `{ "status": "ok", "version": "0.1.0" }` |
+| `GET` | `/docs` | Scalar API Reference UI (debug builds only) |
+| `GET` | `/openapi.json` | Live OpenAPI document from `ApiDoc` (debug builds only) |
 
 The handler is defined at the `kira-server` crate root and annotated with
 `#[utoipa::path]`. OpenAPI covers the remote server only.
+
+The API reference routes are mounted only under `debug_assertions`; release
+builds return `404` for both paths.
 
 `GET /ws` is a WebSocket echo scaffold. Text and binary frames are echoed;
 ping/pong are handled by Axum; close ends the socket. WebSockets are not
@@ -284,9 +290,10 @@ Rotation of any previously exposed Discord token is an operational follow-up.
 
 ```mermaid
 flowchart TD
-    SRV["kira-server<br/>#[utoipa::path]"] --> DOC
-    DTO["kira-protocol<br/>#[derive(ToSchema)]"] --> DOC
-    DOC["kira-api-docs<br/>(dev-only)"] --> XT
+    SRV["kira-server<br/>#[utoipa::path] + ApiDoc"] --> DOC
+    DTO["kira-protocol<br/>#[derive(ToSchema)]"] --> SRV
+    SRV --> LIVE["GET /openapi.json + /docs<br/>(debug builds only)"]
+    DOC["kira-api-docs<br/>(dev-only YAML serializer)"] --> XT
     XT["cargo xtask openapi generate"] --> YAML
     YAML["openapi/openapi.yaml<br/>(committed)"] --> GEN
     GEN["npm run gen:api-types"] --> DTS
@@ -298,8 +305,10 @@ flowchart TD
 
 - Route annotations live in `kira-server`.
 - Request/response schemas live with the DTOs in `kira-protocol`.
-- `kira-api-docs` is the only crate that assembles the full `OpenApi` document
-  and serializes YAML. It depends on `kira-server`, never the reverse.
+- `kira-server` assembles the full `OpenApi` document (`ApiDoc`) from its route
+  annotations and serves it only in debug builds.
+- `kira-api-docs` serializes that document to YAML for the committed contract.
+  It depends on `kira-server`, never the reverse.
 - `xtask` is the only consumer of `kira-api-docs`.
 
 ### Commands
