@@ -1,7 +1,9 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
-import { Outlet, createRootRoute } from "@tanstack/react-router";
+import { createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+
+import { DashboardShell } from "@/components/dashboard-shell";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -10,7 +12,7 @@ export const Route = createRootRoute({
 function RootLayout() {
   return (
     <>
-      <Outlet />
+      <DashboardShell />
       {import.meta.env.DEV ? (
         <TanStackDevtools
           plugins={[
