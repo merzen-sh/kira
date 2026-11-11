@@ -9,12 +9,16 @@ use std::future::Future;
 use std::net::SocketAddr;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+#[cfg(debug_assertions)]
+use axum::response::Html;
 use axum::response::Response;
 use axum::{Json, Router, routing};
 use kira_config::ServerConfig;
 use kira_protocol::HealthResponse;
 use thiserror::Error;
 use tokio::net::TcpListener;
+#[cfg(debug_assertions)]
+use utoipa::OpenApi;
 
 /// Errors produced while binding or serving the HTTP server.
 #[derive(Debug, Error)]
@@ -46,11 +50,54 @@ pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse::ok())
 }
 
+/// OpenAPI document assembled from the server's route annotations.
+#[derive(utoipa::OpenApi)]
+#[non_exhaustive]
+#[openapi(
+    info(title = "Kira API", version = env!("CARGO_PKG_VERSION"), description = "Kira service API"),
+    tags((name = "health", description = "Service health")),
+    paths(health),
+    components(schemas(kira_protocol::HealthResponse))
+)]
+pub struct ApiDoc;
+
 /// Build the HTTP router for the Kira API.
 pub fn router() -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/health", routing::get(health))
-        .route("/ws", routing::get(ws_upgrade))
+        .route("/ws", routing::get(ws_upgrade));
+
+    #[cfg(debug_assertions)]
+    let router = router
+        .route("/docs", routing::get(scalar_ui))
+        .route("/openapi.json", routing::get(openapi_json));
+
+    router
+}
+
+#[cfg(debug_assertions)]
+const SCALAR_UI: &str = r#"<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kira API Reference</title>
+  </head>
+  <body>
+    <script id="api-reference" data-url="/openapi.json"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>
+"#;
+
+#[cfg(debug_assertions)]
+async fn scalar_ui() -> Html<&'static str> {
+    Html(SCALAR_UI)
+}
+
+#[cfg(debug_assertions)]
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(ApiDoc::openapi())
 }
 
 /// Bind to the configured address and serve until `shutdown` resolves.
