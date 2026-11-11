@@ -1,8 +1,12 @@
-//! Environment-backed configuration for the Kira binaries.
+//! Environment-backed configuration for Kira binaries.
 //!
-//! Each configuration type reads environment variables with a fixed prefix.
-//! The `from_iter` constructors exist so tests can supply variables without
-//! mutating the process environment.
+//! Provides configuration types for Discord, the HTTP server, and the local
+//! dashboard. Configuration can be loaded from process environment variables
+//! or parsed from an iterator for testing.
+//!
+//! Environment variables use the following prefixes:
+//! - `DISCORD_` for Discord configuration.
+//! - `KIRA_` for server and CLI configuration.
 
 use std::net::SocketAddr;
 
@@ -73,6 +77,7 @@ pub struct CliConfig {
     /// Address the local dashboard binds to (`KIRA_CLI_BIND`).
     #[serde(default = "default_cli_bind", rename = "cli_bind")]
     pub bind: SocketAddr,
+
     /// Base URL of the remote Kira server (`KIRA_REMOTE_URL`).
     #[serde(default = "default_remote_url")]
     pub remote_url: String,
@@ -94,15 +99,11 @@ impl DiscordConfig {
     /// Load Discord configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
         load_env()?;
-        Self::from_iter(std::env::vars())
+        Self::try_from_iter(std::env::vars())
     }
 
     /// Parse Discord configuration from an iterator of environment entries.
-    #[expect(
-        clippy::should_implement_trait,
-        reason = "fallible parsing cannot implement infallible FromIterator"
-    )]
-    pub fn from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
+    pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,
@@ -121,15 +122,11 @@ impl ServerConfig {
     /// Load server configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
         load_env()?;
-        Self::from_iter(std::env::vars())
+        Self::try_from_iter(std::env::vars())
     }
 
     /// Parse server configuration from an iterator of environment entries.
-    #[expect(
-        clippy::should_implement_trait,
-        reason = "fallible parsing cannot implement infallible FromIterator"
-    )]
-    pub fn from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
+    pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,
@@ -148,15 +145,11 @@ impl CliConfig {
     /// Load local dashboard configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
         load_env()?;
-        Self::from_iter(std::env::vars())
+        Self::try_from_iter(std::env::vars())
     }
 
     /// Parse local dashboard configuration from environment entries.
-    #[expect(
-        clippy::should_implement_trait,
-        reason = "fallible parsing cannot implement infallible FromIterator"
-    )]
-    pub fn from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
+    pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,
@@ -177,7 +170,7 @@ mod tests {
 
     #[test]
     fn discord_config_reads_token() -> Result<(), ConfigError> {
-        let c = DiscordConfig::from_iter([("DISCORD_TOKEN", "abc")])?;
+        let c = DiscordConfig::try_from_iter([("DISCORD_TOKEN", "abc")])?;
         assert_eq!(c.token, "abc");
         Ok(())
     }
@@ -199,28 +192,31 @@ mod tests {
     #[test]
     fn missing_token_is_an_error() {
         assert!(matches!(
-            DiscordConfig::from_iter(std::iter::empty::<(&str, &str)>()),
+            DiscordConfig::try_from_iter(std::iter::empty::<(&str, &str)>()),
             Err(ConfigError::Environment(_))
         ));
     }
 
     #[test]
     fn server_config_defaults_bind() -> Result<(), ConfigError> {
-        let c = ServerConfig::from_iter(std::iter::empty::<(&str, &str)>())?;
+        let c = ServerConfig::try_from_iter(std::iter::empty::<(&str, &str)>())?;
+
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 8080)));
         Ok(())
     }
 
     #[test]
     fn server_config_reads_kira_bind() -> Result<(), ConfigError> {
-        let c = ServerConfig::from_iter([("KIRA_BIND", "0.0.0.0:8080")])?;
+        let c = ServerConfig::try_from_iter([("KIRA_BIND", "0.0.0.0:8080")])?;
+
         assert_eq!(c.bind, SocketAddr::from(([0, 0, 0, 0], 8080)));
         Ok(())
     }
 
     #[test]
     fn cli_config_defaults() -> Result<(), ConfigError> {
-        let c = CliConfig::from_iter(std::iter::empty::<(&str, &str)>())?;
+        let c = CliConfig::try_from_iter(std::iter::empty::<(&str, &str)>())?;
+
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
         assert_eq!(c.remote_url, "http://127.0.0.1:8080");
         Ok(())
@@ -228,10 +224,11 @@ mod tests {
 
     #[test]
     fn cli_config_reads_env() -> Result<(), ConfigError> {
-        let c = CliConfig::from_iter([
+        let c = CliConfig::try_from_iter([
             ("KIRA_CLI_BIND", "127.0.0.1:4001"),
             ("KIRA_REMOTE_URL", "http://example.test:9000"),
         ])?;
+
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 4001)));
         assert_eq!(c.remote_url, "http://example.test:9000");
         Ok(())
