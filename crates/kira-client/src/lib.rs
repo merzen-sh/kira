@@ -45,6 +45,22 @@ impl Client {
         Ok(response.json().await?)
     }
 
+    /// Fetch the configured guild's details.
+    ///
+    /// Returns `None` when the remote server responds with `503`, which means
+    /// the bot has not cached the guild yet or no guild is configured.
+    pub async fn guild(&self) -> Result<Option<kira_protocol::GuildDetails>, ClientError> {
+        let url = format!("{}/guild", self.base_url.trim_end_matches('/'));
+        let response = self.http.get(url).send().await?;
+
+        if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+            return Ok(None);
+        }
+
+        let response = response.error_for_status()?;
+        Ok(Some(response.json().await?))
+    }
+
     /// Open a WebSocket connection at `path` on the remote server.
     pub async fn connect_ws(
         &self,

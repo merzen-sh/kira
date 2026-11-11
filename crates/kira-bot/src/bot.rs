@@ -4,11 +4,13 @@ use std::future::Future;
 use std::sync::Arc;
 
 use kira_config::DiscordConfig;
+use kira_protocol::GuildDetails;
 use serenity::Client;
 use serenity::prelude::GatewayIntents;
 use thiserror::Error;
+use tokio::sync::watch;
 
-use crate::handler::{ConfigKey, Handler};
+use crate::handler::{ConfigKey, GuildsKey, Handler};
 
 /// Errors produced while running the Discord bot.
 #[derive(Debug, Error)]
@@ -28,11 +30,13 @@ impl From<serenity::Error> for BotError {
 /// Run the Discord bot until the gateway stops or `shutdown` resolves.
 pub async fn run(
     config: DiscordConfig,
+    guilds: watch::Sender<Vec<GuildDetails>>,
     shutdown: impl Future<Output = ()> + Send,
 ) -> Result<(), BotError> {
     let config = Arc::new(config);
 
-    let intents = GatewayIntents::GUILD_MESSAGES
+    let intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
@@ -44,6 +48,7 @@ pub async fn run(
     {
         let mut data = client.data.write().await;
         data.insert::<ConfigKey>(Arc::clone(&config));
+        data.insert::<GuildsKey>(guilds);
     }
 
     // Keep a reference to the shard manager.

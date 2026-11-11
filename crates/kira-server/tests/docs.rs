@@ -7,12 +7,12 @@ use std::error::Error;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
-use kira_server::router;
+use kira_server::{AppState, router};
 use tower::ServiceExt;
 
 #[tokio::test]
 async fn docs_serves_scalar_reference_ui() -> Result<(), Box<dyn Error>> {
-    let res = router()
+    let res = router(AppState::default())
         .oneshot(Request::builder().uri("/docs").body(Body::empty())?)
         .await?;
 
@@ -39,7 +39,7 @@ async fn docs_serves_scalar_reference_ui() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn openapi_json_serves_the_live_spec() -> Result<(), Box<dyn Error>> {
-    let res = router()
+    let res = router(AppState::default())
         .oneshot(
             Request::builder()
                 .uri("/openapi.json")
@@ -59,5 +59,6 @@ async fn openapi_json_serves_the_live_spec() -> Result<(), Box<dyn Error>> {
     let spec: serde_json::Value = serde_json::from_slice(&bytes)?;
     assert_eq!(spec["info"]["title"], "Kira API");
     assert!(spec["paths"]["/health"].is_object());
+    assert!(spec["paths"]["/guild"].is_object());
     Ok(())
 }

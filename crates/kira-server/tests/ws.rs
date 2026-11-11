@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use kira_server::{ServerError, serve_with_listener};
+use kira_server::{AppState, ServerError, serve_with_listener};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
@@ -23,7 +23,7 @@ async fn spawn_server() -> Result<TestServer, Box<dyn Error>> {
     let addr = listener.local_addr()?;
     let (shutdown, shutdown_rx) = oneshot::channel::<()>();
     let task = tokio::spawn(async move {
-        serve_with_listener(listener, async {
+        serve_with_listener(listener, AppState::default(), async {
             if let Err(error) = shutdown_rx.await {
                 eprintln!("test shutdown channel closed: {error}");
             }

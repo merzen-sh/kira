@@ -241,6 +241,7 @@ In production, `kira-cli` serves the built assets itself.
 | Method | Path | Behavior |
 |---|---|---|
 | `GET` | `/health` | `200 application/json` with `{ "status": "ok", "version": "0.1.0" }` |
+| `GET` | `/guild` | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/docs` | Scalar API Reference UI (debug builds only) |
 | `GET` | `/openapi.json` | Live OpenAPI document from `ApiDoc` (debug builds only) |
 
@@ -249,6 +250,10 @@ The handler is defined at the `kira-server` crate root and annotated with
 
 The API reference routes are mounted only under `debug_assertions`; release
 builds return `404` for both paths.
+
+`GET /guild` returns `503` until the bot has cached the server named by
+`KIRA_GUILD_ID`. An unset `KIRA_GUILD_ID` is a permanent configuration error,
+not a transient condition clients should retry indefinitely.
 
 `GET /ws` is a WebSocket echo scaffold. Text and binary frames are echoed;
 ping/pong are handled by Axum; close ends the socket. WebSockets are not
@@ -259,6 +264,7 @@ representable in OpenAPI and are intentionally undocumented.
 | Method | Path | Behavior |
 |---|---|---|
 | `GET` | `/api/health` | Proxy to remote `/health`; `502` JSON on failure |
+| `GET` | `/api/guild` | Proxy to remote `/guild`; passes through `503`, `502` on failure |
 | `GET` | `/ws` | Frame-by-frame proxy to remote `/ws` |
 | `GET` | `/` and other non-API paths | Vite dev server in debug; embedded `index.html` (SPA fallback) in release |
 | `GET` | `/assets/*` | Vite dev server in debug; embedded asset or `404` in release |
