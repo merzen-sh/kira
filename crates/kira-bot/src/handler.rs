@@ -3,9 +3,9 @@
 use std::sync::Arc;
 
 use kira_config::DiscordConfig;
-use kira_protocol::GuildDetails;
+use kira_protocol::{ChannelDetails, GuildDetails};
 use serenity::async_trait;
-use serenity::model::channel::Message;
+use serenity::model::channel::{GuildChannel, Message};
 use serenity::model::gateway::Ready;
 use serenity::model::guild::{Guild, PartialGuild, UnavailableGuild};
 use serenity::prelude::{Context, EventHandler, TypeMapKey};
@@ -25,6 +25,14 @@ pub struct GuildsKey;
 
 impl TypeMapKey for GuildsKey {
     type Value = watch::Sender<Vec<GuildDetails>>;
+}
+
+/// Type-map key holding the sender for the channel list shared with the API server.
+#[non_exhaustive]
+pub struct ChannelsKey;
+
+impl TypeMapKey for ChannelsKey {
+    type Value = watch::Sender<Vec<ChannelDetails>>;
 }
 
 /// Serenity event handler for the bot.
@@ -128,17 +136,64 @@ async fn publish_guilds(ctx: &Context, update: impl FnOnce(&mut Vec<GuildDetails
     sender.send_if_modified(update);
 }
 
+fn channel_details(channel: &GuildChannel) -> ChannelDetails {
+    let mut details = ChannelDetails::new(
+        channel.id.to_string(),
+        channel.guild_id.to_string(),
+        channel.name.clone(),
+        channel.kind.name(),
+    );
+    details.position = channel.position;
+    details.parent_id = channel.parent_id.map(|id| id.to_string());
+    details
+}
+
+fn sort_channels(channels: &mut [ChannelDetails]) {
+    channels.sort_by(|a, b| {
+        a.guild_id
+            .cmp(&b.guild_id)
+            .then(a.position.cmp(&b.position))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+}
+
+fn channel_snapshot(cache: &serenity::cache::Cache) -> Vec<ChannelDetails> {
+    let mut channels = Vec::new();
+
+    for id in cache.guilds() {
+        if let Some(guild) = cache.guild(id) {
+            channels.extend(guild.channels.values().map(channel_details));
+        }
+    }
+
+    sort_channels(&mut channels);
+    channels
+}
+
+async fn publish_channels(ctx: &Context) {
+    let sender = {
+        let data = ctx.data.read().await;
+        data.get::<ChannelsKey>().cloned()
+    };
+
+    if let Some(sender) = sender {
+        sender.send_replace(channel_snapshot(&ctx.cache));
+    }
+}
+
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
         if let Some(sender) = guild_sender(&ctx).await {
             sender.send_replace(guild_snapshot(&ctx.cache));
         }
+        publish_channels(&ctx).await;
     }
 
     async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: Option<bool>) {
         let details = guild_details(&guild);
         publish_guilds(&ctx, |guilds| upsert_guild(guilds, details)).await;
+        publish_channels(&ctx).await;
     }
 
     async fn guild_update(&self, ctx: Context, _old: Option<Guild>, new: PartialGuild) {
@@ -158,6 +213,24 @@ impl EventHandler for Handler {
 
         let id = incomplete.id.to_string();
         publish_guilds(&ctx, |guilds| remove_guild(guilds, &id)).await;
+        publish_channels(&ctx).await;
+    }
+
+    async fn channel_create(&self, ctx: Context, _channel: GuildChannel) {
+        publish_channels(&ctx).await;
+    }
+
+    async fn channel_update(&self, ctx: Context, _old: Option<GuildChannel>, _new: GuildChannel) {
+        publish_channels(&ctx).await;
+    }
+
+    async fn channel_delete(
+        &self,
+        ctx: Context,
+        _channel: GuildChannel,
+        _messages: Option<Vec<Message>>,
+    ) {
+        publish_channels(&ctx).await;
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
@@ -186,9 +259,11 @@ impl EventHandler for Handler {
 
 #[cfg(test)]
 mod tests {
-    use kira_protocol::GuildDetails;
+    use kira_protocol::{ChannelDetails, GuildDetails};
 
-    use super::{is_guild_removal, is_ping, merge_guild_update, remove_guild, upsert_guild};
+    use super::{
+        is_guild_removal, is_ping, merge_guild_update, remove_guild, sort_channels, upsert_guild,
+    };
 
     #[test]
     fn ping_from_human_matches() {
@@ -272,6 +347,22 @@ mod tests {
 
         let merged = merge_guild_update(Some(&existing), updated);
         assert_eq!(merged.presence_count, Some(5));
+    }
+
+    #[test]
+    fn channels_are_sorted_by_guild_position_and_name() {
+        let mut late = ChannelDetails::new("3", "2", "general", "text");
+        late.position = 1;
+        let mut early = ChannelDetails::new("2", "1", "voice", "voice");
+        early.position = 5;
+        let first = ChannelDetails::new("1", "1", "general", "text");
+
+        let mut channels = vec![late, early, first.clone()];
+        sort_channels(&mut channels);
+
+        assert_eq!(first, channels[0]);
+        assert_eq!("2", channels[1].id);
+        assert_eq!("3", channels[2].id);
     }
 
     #[test]

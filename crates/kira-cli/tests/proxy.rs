@@ -12,7 +12,7 @@ use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
 use kira_client::Client;
-use kira_protocol::{ErrorResponse, GuildDetails, HealthResponse};
+use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -67,6 +67,27 @@ async fn spawn_guild() -> Result<TestServer> {
 async fn spawn_guild_unavailable() -> Result<TestServer> {
     let app = Router::new().route(
         "/guild",
+        routing::get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
+    );
+    spawn(app).await
+}
+
+async fn spawn_channels() -> Result<TestServer> {
+    let channels = vec![ChannelDetails::new("10", "1", "general", "text")];
+
+    let app = Router::new().route(
+        "/guild/channels",
+        routing::get(move || {
+            let channels = channels.clone();
+            async move { Json(channels) }
+        }),
+    );
+    spawn(app).await
+}
+
+async fn spawn_channels_unavailable() -> Result<TestServer> {
+    let app = Router::new().route(
+        "/guild/channels",
         routing::get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
     );
     spawn(app).await
@@ -141,6 +162,42 @@ async fn guild_is_proxied() -> Result<()> {
 async fn unavailable_guild_is_503() -> Result<()> {
     let upstream = spawn_guild_unavailable().await?;
     let res = cli_get(Client::new(upstream.base_url.clone()), "/api/guild").await?;
+
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let error: ErrorResponse = serde_json::from_slice(&bytes)?;
+    assert_eq!(error.error, "guild data is not available");
+    Ok(())
+}
+
+#[tokio::test]
+async fn channels_are_proxied() -> Result<()> {
+    let upstream = spawn_channels().await?;
+    let res = cli_get(
+        Client::new(upstream.base_url.clone()),
+        "/api/guild/channels",
+    )
+    .await?;
+
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers()[header::CONTENT_TYPE], "application/json");
+
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let channels: Vec<ChannelDetails> = serde_json::from_slice(&bytes)?;
+    assert_eq!(channels.len(), 1);
+    assert_eq!(channels[0].name, "general");
+    Ok(())
+}
+
+#[tokio::test]
+async fn unavailable_channels_are_503() -> Result<()> {
+    let upstream = spawn_channels_unavailable().await?;
+    let res = cli_get(
+        Client::new(upstream.base_url.clone()),
+        "/api/guild/channels",
+    )
+    .await?;
 
     assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
 

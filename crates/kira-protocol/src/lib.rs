@@ -66,6 +66,44 @@ impl GuildDetails {
     }
 }
 
+/// A channel belonging to the Discord server targeted by `GET /guild/channels`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct ChannelDetails {
+    /// Discord channel ID.
+    pub id: String,
+    /// ID of the server the channel belongs to.
+    pub guild_id: String,
+    /// Channel name.
+    pub name: String,
+    /// Channel type, such as `text`, `voice`, or `category`.
+    pub kind: String,
+    /// Sort position within the server.
+    pub position: u16,
+    /// ID of the parent category or channel, when set.
+    pub parent_id: Option<String>,
+}
+
+impl ChannelDetails {
+    /// Build details with only the required fields populated.
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        guild_id: impl Into<String>,
+        name: impl Into<String>,
+        kind: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            guild_id: guild_id.into(),
+            name: name.into(),
+            kind: kind.into(),
+            position: 0,
+            parent_id: None,
+        }
+    }
+}
+
 /// Error payload returned when a request fails.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]
@@ -100,6 +138,23 @@ mod tests {
     fn error_response_serializes() -> Result<(), Box<dyn std::error::Error>> {
         let v = serde_json::to_value(ErrorResponse::new("boom"))?;
         assert_eq!(v["error"], "boom");
+        Ok(())
+    }
+
+    #[test]
+    fn channel_details_serializes_all_fields() -> Result<(), Box<dyn std::error::Error>> {
+        let mut channel = ChannelDetails::new("10", "1", "general", "text");
+        channel.position = 2;
+        channel.parent_id = Some("9".into());
+
+        let value = serde_json::to_value(channel)?;
+
+        assert_eq!(value["id"], "10");
+        assert_eq!(value["guild_id"], "1");
+        assert_eq!(value["name"], "general");
+        assert_eq!(value["kind"], "text");
+        assert_eq!(value["position"], 2);
+        assert_eq!(value["parent_id"], "9");
         Ok(())
     }
 

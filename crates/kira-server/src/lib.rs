@@ -16,7 +16,7 @@ use axum::response::Html;
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router, routing};
 use kira_config::ServerConfig;
-use kira_protocol::{ErrorResponse, GuildDetails, HealthResponse};
+use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse};
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -47,15 +47,21 @@ pub enum ServerError {
 pub struct AppState {
     guild_id: Option<String>,
     guilds: watch::Receiver<Vec<GuildDetails>>,
+    channels: watch::Receiver<Vec<ChannelDetails>>,
 }
 
 impl AppState {
-    /// Build state from the configured guild ID and the bot's guild list.
+    /// Build state from the configured guild ID and the bot's cached state.
     #[must_use]
-    pub fn new(guild_id: Option<u64>, guilds: watch::Receiver<Vec<GuildDetails>>) -> Self {
+    pub fn new(
+        guild_id: Option<u64>,
+        guilds: watch::Receiver<Vec<GuildDetails>>,
+        channels: watch::Receiver<Vec<ChannelDetails>>,
+    ) -> Self {
         Self {
             guild_id: guild_id.map(|id| id.to_string()),
             guilds,
+            channels,
         }
     }
 
@@ -68,12 +74,27 @@ impl AppState {
             .find(|guild| guild.id == target)
             .cloned()
     }
+
+    fn guild_channels(&self) -> Option<Vec<ChannelDetails>> {
+        let target = self.guild_id.as_deref()?;
+        self.guild()?;
+
+        Some(
+            self.channels
+                .borrow()
+                .iter()
+                .filter(|channel| channel.guild_id == target)
+                .cloned()
+                .collect(),
+        )
+    }
 }
 
 impl Default for AppState {
     fn default() -> Self {
-        let (_sender, receiver) = watch::channel(Vec::new());
-        Self::new(None, receiver)
+        let (_guild_sender, guilds) = watch::channel(Vec::new());
+        let (_channel_sender, channels) = watch::channel(Vec::new());
+        Self::new(None, guilds, channels)
     }
 }
 
@@ -109,6 +130,27 @@ pub async fn get_guild(State(state): State<AppState>) -> Response {
     }
 }
 
+/// Return the configured Discord server's channels.
+#[utoipa::path(
+    get,
+    path = "/guild/channels",
+    tag = "guild",
+    responses(
+        (status = 200, body = [ChannelDetails]),
+        (status = 503, body = ErrorResponse)
+    )
+)]
+pub async fn get_guild_channels(State(state): State<AppState>) -> Response {
+    match state.guild_channels() {
+        Some(channels) => Json(channels).into_response(),
+        None => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse::new("guild data is not available")),
+        )
+            .into_response(),
+    }
+}
+
 /// OpenAPI document assembled from the server's route annotations.
 #[derive(utoipa::OpenApi)]
 #[non_exhaustive]
@@ -116,12 +158,13 @@ pub async fn get_guild(State(state): State<AppState>) -> Response {
     info(title = "Kira API", version = env!("CARGO_PKG_VERSION"), description = "Kira service API"),
     tags(
         (name = "health", description = "Service health"),
-        (name = "guild", description = "Discord server")
+        (name = "guild", description = "Discord server and channels")
     ),
-    paths(health, get_guild),
+    paths(health, get_guild, get_guild_channels),
     components(schemas(
         kira_protocol::HealthResponse,
         kira_protocol::GuildDetails,
+        kira_protocol::ChannelDetails,
         kira_protocol::ErrorResponse
     ))
 )]
@@ -132,6 +175,7 @@ pub fn router(state: AppState) -> Router {
     let router = Router::new()
         .route("/health", routing::get(health))
         .route("/guild", routing::get(get_guild))
+        .route("/guild/channels", routing::get(get_guild_channels))
         .route("/ws", routing::get(ws_upgrade))
         .with_state(state);
 
@@ -172,6 +216,7 @@ async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
 pub async fn serve(
     config: &ServerConfig,
     guilds: watch::Receiver<Vec<GuildDetails>>,
+    channels: watch::Receiver<Vec<ChannelDetails>>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
     let listener = TcpListener::bind(config.bind)
@@ -181,7 +226,12 @@ pub async fn serve(
             source,
         })?;
     println!("Listening on http://{}", listener.local_addr()?);
-    serve_with_listener(listener, AppState::new(config.guild_id, guilds), shutdown).await
+    serve_with_listener(
+        listener,
+        AppState::new(config.guild_id, guilds, channels),
+        shutdown,
+    )
+    .await
 }
 
 /// Serve on an already-bound listener until `shutdown` resolves.

@@ -60,5 +60,6 @@ async fn openapi_json_serves_the_live_spec() -> Result<(), Box<dyn Error>> {
     assert_eq!(spec["info"]["title"], "Kira API");
     assert!(spec["paths"]["/health"].is_object());
     assert!(spec["paths"]["/guild"].is_object());
+    assert!(spec["paths"]["/guild/channels"].is_object());
     Ok(())
 }
