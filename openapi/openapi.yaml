@@ -6,6 +6,23 @@ info:
     name: ''
   version: 0.1.0
 paths:
+  /guild:
+    get:
+      tags:
+      - guild
+      summary: Return the configured Discord server's details.
+      operationId: get_guild
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuildDetails'
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /health:
     get:
       tags:
@@ -20,6 +37,65 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
 components:
   schemas:
+    ErrorResponse:
+      type: object
+      description: Error payload returned when a request fails.
+      required:
+      - error
+      properties:
+        error:
+          type: string
+          description: Human-readable failure message.
+    GuildDetails:
+      type: object
+      description: Details of the Discord server targeted by `GET /guild`.
+      required:
+      - id
+      - name
+      - owner_id
+      - member_count
+      - preferred_locale
+      - features
+      properties:
+        description:
+          type:
+          - string
+          - 'null'
+          description: Server description, when set.
+        features:
+          type: array
+          items:
+            type: string
+          description: Enabled guild features.
+        icon_url:
+          type:
+          - string
+          - 'null'
+          description: URL of the server icon, when set.
+        id:
+          type: string
+          description: Discord server ID.
+        member_count:
+          type: integer
+          format: int64
+          description: Number of members cached by the bot.
+          minimum: 0
+        name:
+          type: string
+          description: Server display name.
+        owner_id:
+          type: string
+          description: ID of the server owner.
+        preferred_locale:
+          type: string
+          description: Preferred locale of the server.
+        presence_count:
+          type:
+          - integer
+          - 'null'
+          format: int64
+          description: Approximate number of online members, when known.
+          minimum: 0
     HealthResponse:
       type: object
       description: Health information returned by `GET /health`.
@@ -36,3 +112,5 @@ components:
 tags:
 - name: health
   description: Service health
+- name: guild
+  description: Discord server

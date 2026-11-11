@@ -19,9 +19,10 @@ async fn wait_flag(mut rx: watch::Receiver<bool>) {
 #[cfg(feature = "server")]
 pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()> {
     let (tx, rx) = watch::channel(false);
+    let (guild_tx, guild_rx) = watch::channel(Vec::new());
 
-    let bot = kira_bot::run(discord, wait_flag(rx.clone()));
-    let http = kira_server::serve(&server, wait_flag(rx.clone()));
+    let bot = kira_bot::run(discord, guild_tx, wait_flag(rx.clone()));
+    let http = kira_server::serve(&server, guild_rx, wait_flag(rx.clone()));
     tokio::pin!(bot);
     tokio::pin!(http);
 
@@ -65,8 +66,9 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()>
 #[cfg(not(feature = "server"))]
 pub async fn run_bot(discord: DiscordConfig) -> Result<()> {
     let (tx, rx) = watch::channel(false);
+    let (guild_tx, _guild_rx) = watch::channel(Vec::new());
 
-    let bot = kira_bot::run(discord, wait_flag(rx.clone()));
+    let bot = kira_bot::run(discord, guild_tx, wait_flag(rx.clone()));
     tokio::pin!(bot);
 
     let mut bot_result = None;

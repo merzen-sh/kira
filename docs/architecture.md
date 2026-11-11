@@ -241,6 +241,7 @@ In production, `kira-cli` serves the built assets itself.
 | Method | Path | Behavior |
 |---|---|---|
 | `GET` | `/health` | `200 application/json` with `{ "status": "ok", "version": "0.1.0" }` |
+| `GET` | `/guild` | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/docs` | Scalar API Reference UI (debug builds only) |
 | `GET` | `/openapi.json` | Live OpenAPI document from `ApiDoc` (debug builds only) |
 

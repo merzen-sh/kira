@@ -68,6 +68,10 @@ pub struct ServerConfig {
     /// Address the HTTP server binds to.
     #[serde(default = "default_bind")]
     pub bind: SocketAddr,
+
+    /// Discord server exposed by the API (`KIRA_GUILD_ID`).
+    #[serde(default)]
+    pub guild_id: Option<u64>,
 }
 
 /// Local dashboard settings read from `KIRA_*` variables.
@@ -210,6 +214,14 @@ mod tests {
         let c = ServerConfig::try_from_iter([("KIRA_BIND", "0.0.0.0:8080")])?;
 
         assert_eq!(c.bind, SocketAddr::from(([0, 0, 0, 0], 8080)));
+        Ok(())
+    }
+
+    #[test]
+    fn server_config_reads_guild_id() -> Result<(), ConfigError> {
+        let c = ServerConfig::try_from_iter([("KIRA_GUILD_ID", "123456789012345678")])?;
+
+        assert_eq!(c.guild_id, Some(123_456_789_012_345_678));
         Ok(())
     }
 
