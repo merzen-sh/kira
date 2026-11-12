@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local dashboard host that proxies to a remote `kira`). Deeper design notes live in `docs/architecture.md`.
+Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local dashboard host that proxies to a remote `kira`). Deeper design notes live in `docs/`; start at `docs/README.md`.
 
 ## Setup
 
