@@ -276,7 +276,7 @@ representable in OpenAPI and are intentionally undocumented.
 | `GET` | `/api/health` | Proxy to remote `/health`; `502` JSON on failure |
 | `GET` | `/api/guild` | Proxy to remote `/guild`; passes through `503`, `502` on failure |
 | `GET` | `/api/guild/channels` | Proxy to remote `/guild/channels`; passes through `503`, `502` on failure |
-| `POST` | `/api/guild/channels/{channel_id}/messages` | Proxy to remote messages endpoint; `201` on success, `502` on failure |
+| `POST` | `/api/guild/channels/{channel_id}/messages` | Proxy to remote messages endpoint; passes through success and error statuses, `502` when unreachable |
 | `GET` | `/ws` | Frame-by-frame proxy to remote `/ws` |
 | `GET` | `/` and other non-API paths | Vite dev server in debug; embedded `index.html` (SPA fallback) in release |
 | `GET` | `/assets/*` | Vite dev server in debug; embedded asset or `404` in release |

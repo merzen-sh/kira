@@ -17,6 +17,15 @@ pub enum ClientError {
     #[error("websocket error: {0}")]
     Ws(#[from] tokio_tungstenite::tungstenite::Error),
 
+    /// The remote server returned an error response with a message.
+    #[error("upstream error {status}: {message}")]
+    Upstream {
+        /// HTTP status returned by the remote server.
+        status: u16,
+        /// Human-readable message from the error payload.
+        message: String,
+    },
+
     /// The configured URL could not be used as a WebSocket URL.
     #[error("invalid url: {0}")]
     InvalidUrl(String),
@@ -81,13 +90,26 @@ impl Client {
             "{}/guild/channels/{channel_id}/messages",
             self.base_url.trim_end_matches('/')
         );
-        let response = self
-            .http
-            .post(url)
-            .json(message)
-            .send()
-            .await?
-            .error_for_status()?;
+        let response = self.http.post(url).json(message).send().await?;
+        let status = response.status();
+
+        if !status.is_success() {
+            let message = response
+                .json::<kira_protocol::ErrorResponse>()
+                .await
+                .map(|error| error.error)
+                .unwrap_or_else(|_| {
+                    status
+                        .canonical_reason()
+                        .unwrap_or("request failed")
+                        .to_owned()
+                });
+
+            return Err(ClientError::Upstream {
+                status: status.as_u16(),
+                message,
+            });
+        }
 
         Ok(response.json().await?)
     }

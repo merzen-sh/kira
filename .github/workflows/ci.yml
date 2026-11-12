@@ -78,3 +78,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test -w @kira/dashboard
+      - run: npm run build -w @kira/dashboard

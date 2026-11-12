@@ -2,6 +2,7 @@
 
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use kira_config::DiscordConfig;
 use kira_core::messaging::OutgoingMessage;
@@ -14,6 +15,9 @@ use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
 use crate::handler::{ChannelsKey, ConfigKey, GuildsKey, Handler};
+
+/// How long a single Discord send may take before the queue moves on.
+const SEND_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Errors produced while running the Discord bot.
 #[derive(Debug, Error)]
@@ -108,10 +112,13 @@ async fn send_message(http: &Http, message: &OutgoingMessage) -> Result<String, 
         .parse::<u64>()
         .map_err(|error| format!("invalid channel ID: {error}"))?;
     let body = &message.payload;
-    let sent = http
-        .send_message(ChannelId::new(channel_id), Vec::new(), &body)
-        .await
-        .map_err(|error| error.to_string())?;
+    let sent = tokio::time::timeout(
+        SEND_TIMEOUT,
+        http.send_message(ChannelId::new(channel_id), Vec::new(), body),
+    )
+    .await
+    .map_err(|_| "Discord request timed out".to_string())?
+    .map_err(|error| error.to_string())?;
 
     Ok(sent.id.to_string())
 }

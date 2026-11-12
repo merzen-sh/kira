@@ -101,6 +101,19 @@ async fn spawn_send_message() -> Result<TestServer> {
     spawn(app).await
 }
 
+async fn spawn_send_message_error() -> Result<TestServer> {
+    let app = Router::new().route(
+        "/guild/channels/{channel_id}/messages",
+        routing::post(|| async {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("content or embeds is required")),
+            )
+        }),
+    );
+    spawn(app).await
+}
+
 async fn spawn_echo() -> Result<TestServer> {
     let app = Router::new().route("/ws", routing::get(echo_upgrade));
     spawn(app).await
@@ -244,6 +257,24 @@ async fn message_is_proxied() -> Result<()> {
     let message: SentMessage = serde_json::from_slice(&bytes)?;
     assert_eq!(message.id, "99");
     assert_eq!(message.channel_id, "10");
+    Ok(())
+}
+
+#[tokio::test]
+async fn message_error_is_forwarded() -> Result<()> {
+    let upstream = spawn_send_message_error().await?;
+    let res = cli_post(
+        Client::new(upstream.base_url.clone()),
+        "/api/guild/channels/10/messages",
+        "{}",
+    )
+    .await?;
+
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let error: ErrorResponse = serde_json::from_slice(&bytes)?;
+    assert_eq!(error.error, "content or embeds is required");
     Ok(())
 }
 

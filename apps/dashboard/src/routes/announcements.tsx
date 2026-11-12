@@ -41,7 +41,9 @@ function AnnouncementsPage() {
   const channelId = sendable.some((channel) => channel.id === selectedId)
     ? selectedId
     : (sendable[0]?.id ?? "");
-  const channel = sendable.find((candidate) => candidate.id === channelId);
+  const sentChannel = sendable.find(
+    (candidate) => candidate.id === mutation.variables?.channelId,
+  );
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -186,16 +188,24 @@ function AnnouncementsPage() {
             )}
 
             {formError ? (
-              <p className="text-sm text-destructive">{formError}</p>
+              <p role="alert" className="text-sm text-destructive">
+                {formError}
+              </p>
             ) : null}
 
             {mutation.isError ? (
-              <p className="text-sm text-destructive">{mutation.error.message}</p>
+              <p role="alert" className="text-sm text-destructive">
+                {mutation.error.message}
+              </p>
             ) : null}
 
             {mutation.isSuccess ? (
-              <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                Message posted{channel ? ` to # ${channel.name}` : ""}.
+              <p
+                role="status"
+                className="text-sm text-emerald-600 dark:text-emerald-400"
+              >
+                Message posted
+                {sentChannel ? ` to # ${sentChannel.name}` : ""}.
               </p>
             ) : null}
 

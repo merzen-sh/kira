@@ -62,6 +62,10 @@ pub(crate) async fn send_message(
 ) -> Response {
     match state.client.send_message(&channel_id, &payload).await {
         Ok(message) => (StatusCode::CREATED, Json(message)).into_response(),
+        Err(ClientError::Upstream { status, message }) => {
+            let status = StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY);
+            (status, Json(ErrorResponse::new(message))).into_response()
+        }
         Err(error) => {
             eprintln!("message proxy failed: {error}");
             (

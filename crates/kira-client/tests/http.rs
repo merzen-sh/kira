@@ -4,7 +4,7 @@ use std::error::Error;
 
 use axum::http::StatusCode;
 use axum::{Json, Router, routing};
-use kira_protocol::{ChannelDetails, GuildDetails, HealthResponse, SentMessage};
+use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, SentMessage};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
@@ -113,6 +113,32 @@ async fn message_is_posted_to_the_channel() -> Result<(), Box<dyn Error>> {
         .await?;
     assert_eq!(message.id, "99");
     assert_eq!(message.channel_id, "10");
+    Ok(())
+}
+
+#[tokio::test]
+async fn message_error_is_propagated() -> Result<(), Box<dyn Error>> {
+    let app = Router::new().route(
+        "/guild/channels/{channel_id}/messages",
+        routing::post(|| async {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("content or embeds is required")),
+            )
+        }),
+    );
+    let server = spawn(app).await?;
+    let client = kira_client::Client::new(server.base_url.clone());
+
+    let result = client.send_message("10", &serde_json::json!({})).await;
+
+    match result {
+        Err(kira_client::ClientError::Upstream { status, message }) => {
+            assert_eq!(status, 400);
+            assert_eq!(message, "content or embeds is required");
+        }
+        other => panic!("expected an upstream error, got {other:?}"),
+    }
     Ok(())
 }
 
