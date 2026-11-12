@@ -14,6 +14,18 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
+function applyThemeWithoutTransition(theme: Theme) {
+  const root = document.documentElement;
+
+  root.classList.add("disable-transitions");
+  applyTheme(theme);
+
+  // Force style recalculation before restoring transitions.
+  void root.offsetHeight;
+
+  root.classList.remove("disable-transitions");
+}
+
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = storedTheme();
@@ -47,7 +59,7 @@ export function useTheme() {
   const toggle = useCallback(() => {
     setTheme((current) => {
       const next: Theme = current === "dark" ? "light" : "dark";
-      applyTheme(next);
+      applyThemeWithoutTransition(next);
       localStorage.setItem(STORAGE_KEY, next);
       return next;
     });
