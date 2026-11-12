@@ -11,7 +11,7 @@ const VITE_DEV_SERVER_URL: &str = "http://127.0.0.1:5173";
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = CliConfig::from_env().context("loading CLI configuration")?;
-    let client = Client::new(config.remote_url.clone());
+    let client = Client::new(config.remote_url.clone()).with_token(config.api_token.clone());
     let dev_server_url = cfg!(debug_assertions).then(|| VITE_DEV_SERVER_URL.to_owned());
 
     let listener = TcpListener::bind(config.bind)

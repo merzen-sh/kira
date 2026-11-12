@@ -148,10 +148,12 @@ assertions.
 and waits for Ctrl-C/SIGTERM.
 
 - `kira-config::DiscordConfig` requires `DISCORD_TOKEN`.
-- `kira-config::ServerConfig` supplies `KIRA_BIND` (default `127.0.0.1:8080`).
+- `kira-config::ServerConfig` requires `KIRA_GUILD_ID` and supplies `KIRA_BIND`
+  (default `127.0.0.1:8080`) plus optional `KIRA_API_TOKEN`.
 - `kira-bot::run` builds the Serenity client with the
   `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents, registers the
-  config in Serenity's type map, and starts the gateway.
+  config in Serenity's type map, and starts the gateway. It caches only the
+  configured guild.
 - `kira-server::serve` binds the configured address and runs Axum with graceful
   shutdown.
 - A `tokio::sync::watch` channel fans a single shutdown signal out to both
@@ -181,8 +183,9 @@ test cannot accidentally start the gateway.
 
 `kira-cli` is a local dashboard host and reverse proxy.
 
-- `kira-config::CliConfig` reads `KIRA_CLI_BIND` (default `127.0.0.1:3000`) and
-  `KIRA_REMOTE_URL` (default `http://127.0.0.1:8080`).
+- `kira-config::CliConfig` reads `KIRA_CLI_BIND` (default `127.0.0.1:3000`),
+  `KIRA_REMOTE_URL` (default `http://127.0.0.1:8080`), and `KIRA_API_TOKEN`
+  (forwarded to the remote server when set).
 - `kira-client::Client` talks to the remote server over `reqwest` (HTTP) and
   `tokio-tungstenite` (WebSocket). WebSocket URLs are derived from the remote
   base: `http` → `ws`, `https` → `wss`.
@@ -244,7 +247,7 @@ In production, `kira-cli` serves the built assets itself.
 | `GET` | `/health` | `200 application/json` with `{ "status": "ok", "version": "0.1.0" }` |
 | `GET` | `/guild` | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/guild/channels` | `200` with the configured server's channels, or `503` while unavailable |
-| `POST` | `/guild/channels/{channel_id}/messages` | `201` with the sent `SentMessage`; `400`, `404`, `502`, or `503` on failure |
+| `POST` | `/guild/channels/{channel_id}/messages` | `201` with the sent `SentMessage`; `400`, `404`, `502`, `503`, or `504` on failure |
 | `GET` | `/docs` | Scalar API Reference UI (debug builds only) |
 | `GET` | `/openapi.json` | Live OpenAPI document from `ApiDoc` (debug builds only) |
 
@@ -255,15 +258,20 @@ The API reference routes are mounted only under `debug_assertions`; release
 builds return `404` for both paths.
 
 `GET /guild` returns `503` until the bot has cached the server named by
-`KIRA_GUILD_ID`. An unset `KIRA_GUILD_ID` is a permanent configuration error,
-not a transient condition clients should retry indefinitely. `GET
-/guild/channels` follows the same availability rule and returns the cached
-channels of that server.
+`KIRA_GUILD_ID`. `KIRA_GUILD_ID` is required and a missing value fails at
+startup. `GET /guild/channels` follows the same availability rule and returns
+the cached channels of that server.
+
+When `KIRA_API_TOKEN` is set, `/guild`, `/guild/channels`, and the message
+endpoint require `Authorization: Bearer <token>` and return `401` otherwise.
+`/health` stays public. A non-loopback `KIRA_BIND` is refused unless a token is
+configured.
 
 `POST /guild/channels/{channel_id}/messages` validates the channel against that
-cached list, then forwards the raw Discord message JSON to the bot over an
-in-process channel. The bot posts the payload unchanged and returns the Discord
-message ID.
+cached list and rejects channel kinds that cannot receive messages with `400`.
+It then forwards the raw Discord message JSON to the bot over an in-process
+channel. The bot posts the payload unchanged and returns the Discord message
+ID; the request fails with `504` if the bot does not answer within 15 seconds.
 
 `GET /ws` is a WebSocket echo scaffold. Text and binary frames are echoed;
 ping/pong are handled by Axum; close ends the socket. WebSockets are not
@@ -297,6 +305,8 @@ environment variables are authoritative.
 | Variable | Used by | Default | Required |
 |---|---|---|---|
 | `DISCORD_TOKEN` | `kira` | — | yes |
+| `KIRA_GUILD_ID` | `kira` | — | yes |
+| `KIRA_API_TOKEN` | `kira`, `kira-cli` | — | no |
 | `KIRA_BIND` | `kira` server | `127.0.0.1:8080` | no |
 | `KIRA_CLI_BIND` | `kira-cli` | `127.0.0.1:3000` | no |
 | `KIRA_REMOTE_URL` | `kira-cli` | `http://127.0.0.1:8080` | no |

@@ -14,7 +14,7 @@ use serenity::prelude::GatewayIntents;
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
-use crate::handler::{ChannelsKey, ConfigKey, GuildsKey, Handler};
+use crate::handler::{ChannelsKey, ConfigKey, GuildIdKey, GuildsKey, Handler};
 
 /// How long a single Discord send may take before the queue moves on.
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -37,6 +37,7 @@ impl From<serenity::Error> for BotError {
 /// Run the Discord bot until the gateway stops or `shutdown` resolves.
 pub async fn run(
     config: DiscordConfig,
+    guild_id: Option<u64>,
     guilds: watch::Sender<Vec<GuildDetails>>,
     channels: watch::Sender<Vec<ChannelDetails>>,
     messages: mpsc::Receiver<OutgoingMessage>,
@@ -57,6 +58,7 @@ pub async fn run(
     {
         let mut data = client.data.write().await;
         data.insert::<ConfigKey>(Arc::clone(&config));
+        data.insert::<GuildIdKey>(guild_id);
         data.insert::<GuildsKey>(guilds);
         data.insert::<ChannelsKey>(channels);
     }
@@ -100,8 +102,12 @@ pub async fn run(
 fn spawn_message_sender(http: Arc<Http>, mut messages: mpsc::Receiver<OutgoingMessage>) {
     tokio::spawn(async move {
         while let Some(message) = messages.recv().await {
-            let result = send_message(&http, &message).await;
-            let _ = message.reply.send(result);
+            // Send concurrently so one slow Discord call cannot stall the queue.
+            let http = Arc::clone(&http);
+            tokio::spawn(async move {
+                let result = send_message(&http, &message).await;
+                let _ = message.reply.send(result);
+            });
         }
     });
 }

@@ -1,9 +1,14 @@
 //! HTTP and WebSocket client for a remote Kira server.
 
+use std::time::Duration;
+
 use tokio::net::TcpStream;
 
 pub use tokio_tungstenite::tungstenite::Message;
 pub use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+
+/// How long a single request to the remote server may take.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Errors produced by the remote client.
 #[derive(Debug, thiserror::Error)]
@@ -36,21 +41,50 @@ pub enum ClientError {
 pub struct Client {
     http: reqwest::Client,
     base_url: String,
+    token: Option<String>,
 }
 
 impl Client {
     /// Create a client for the server at `base_url`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the underlying HTTP client cannot be built.
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(REQUEST_TIMEOUT)
+                .build()
+                .expect("failed to build the HTTP client"),
             base_url: base_url.into(),
+            token: None,
+        }
+    }
+
+    /// Send `Authorization: Bearer` with every request when a token is set.
+    #[must_use]
+    pub fn with_token(mut self, token: Option<String>) -> Self {
+        self.token = token;
+        self
+    }
+
+    fn request(&self, method: reqwest::Method, url: String) -> reqwest::RequestBuilder {
+        let request = self.http.request(method, url);
+
+        match &self.token {
+            Some(token) => request.bearer_auth(token),
+            None => request,
         }
     }
 
     /// Fetch the remote server's health response.
     pub async fn health(&self) -> Result<kira_protocol::HealthResponse, ClientError> {
         let url = format!("{}/health", self.base_url.trim_end_matches('/'));
-        let response = self.http.get(url).send().await?.error_for_status()?;
+        let response = self
+            .request(reqwest::Method::GET, url)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(response.json().await?)
     }
 
@@ -90,7 +124,11 @@ impl Client {
             "{}/guild/channels/{channel_id}/messages",
             self.base_url.trim_end_matches('/')
         );
-        let response = self.http.post(url).json(message).send().await?;
+        let response = self
+            .request(reqwest::Method::POST, url)
+            .json(message)
+            .send()
+            .await?;
         let status = response.status();
 
         if !status.is_success() {
@@ -117,7 +155,7 @@ impl Client {
     /// Get a response, mapping `503` to `None`.
     async fn get_optional(&self, path: &str) -> Result<Option<reqwest::Response>, ClientError> {
         let url = format!("{}{path}", self.base_url.trim_end_matches('/'));
-        let response = self.http.get(url).send().await?;
+        let response = self.request(reqwest::Method::GET, url).send().await?;
 
         if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
             return Ok(None);

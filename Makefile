@@ -49,6 +49,7 @@ test:
 check: node_modules
 	$(CARGO) fmt --check
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
+	$(CARGO) clippy -p kira --no-default-features -- -D warnings
 	$(CARGO) test --workspace
 	$(CARGO) xtask openapi check
 	npm run check:api-types

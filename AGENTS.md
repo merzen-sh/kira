@@ -7,7 +7,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 - Rust 1.88 (edition 2024) and Node/npm.
 - `mprocs` and `cargo-watch` are needed for `make dev`.
 - Run `npm ci` before `make check` or any OpenAPI/type generation; the Make target requires `node_modules`.
-- Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime. A missing `.env` is tolerated and real environment variables take precedence.
+- Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime, and `KIRA_GUILD_ID` is required whenever the server is built. A missing `.env` is tolerated and real environment variables take precedence.
 
 ## Commands
 
@@ -42,4 +42,4 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 
 - Binary integration tests spawn `env!("CARGO_BIN_EXE_kira")`, clear `DISCORD_TOKEN`/`KIRA_BIND`, and need no real Discord access.
 - `crates/kira/tests/bind_failure.rs` uses dead HTTP(S) proxies and a 30-second timeout; it verifies a server bind failure exits rather than hangs.
-- `.github/workflows/ci.yml` runs `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, and `cargo test --workspace`. A `changes` job gates those jobs with `dorny/paths-filter` and `.github/filters.yaml`; they run when Rust sources, manifests/lockfiles, Rust tool config, the workflow file, or the filter file changes. The `dashboard-test` job runs `npm test -w @kira/dashboard` when dashboard or shared frontend packages change. `make check` remains the full local and authoritative gate; it adds the OpenAPI/TypeScript drift checks, typecheck, dashboard tests, and dependency-boundary assertions.
+- `.github/workflows/ci.yml` runs `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, bot-only clippy for `kira --no-default-features`, `cargo test --workspace`, the release `docs_release` test, and `cargo xtask openapi check`. A `changes` job gates those jobs with `dorny/paths-filter` and `.github/filters.yaml`; they run when Rust sources, manifests/lockfiles, Rust tool config, the workflow file, or the filter file changes. The `dashboard-test` job runs `npm test -w @kira/dashboard`, `npm run check:api-types`, and `npm run build -w @kira/dashboard` when dashboard or shared frontend packages change. `make check` remains the full local and authoritative gate; it adds the OpenAPI/TypeScript drift checks, typecheck, dashboard tests, and dependency-boundary assertions.

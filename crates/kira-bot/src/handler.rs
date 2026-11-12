@@ -8,6 +8,7 @@ use serenity::async_trait;
 use serenity::model::channel::{GuildChannel, Message};
 use serenity::model::gateway::Ready;
 use serenity::model::guild::{Guild, PartialGuild, UnavailableGuild};
+use serenity::model::id::GuildId;
 use serenity::prelude::{Context, EventHandler, TypeMapKey};
 use tokio::sync::watch;
 
@@ -17,6 +18,14 @@ pub struct ConfigKey;
 
 impl TypeMapKey for ConfigKey {
     type Value = Arc<DiscordConfig>;
+}
+
+/// Type-map key holding the guild the API serves, when one is configured.
+#[non_exhaustive]
+pub struct GuildIdKey;
+
+impl TypeMapKey for GuildIdKey {
+    type Value = Option<u64>;
 }
 
 /// Type-map key holding the sender for the guild list shared with the API server.
@@ -111,16 +120,28 @@ fn is_guild_removal(unavailable: bool) -> bool {
     !unavailable
 }
 
-fn guild_snapshot(cache: &serenity::cache::Cache) -> Vec<GuildDetails> {
+fn guild_snapshot(cache: &serenity::cache::Cache, target: Option<u64>) -> Vec<GuildDetails> {
     let mut guilds = cache
         .guilds()
         .into_iter()
+        .filter(|id| target.is_none_or(|target| id.get() == target))
         .filter_map(|id| cache.guild(id))
         .map(|guild| guild_details(&guild))
         .collect::<Vec<_>>();
 
     sort_guilds(&mut guilds);
     guilds
+}
+
+async fn target_guild(ctx: &Context) -> Option<u64> {
+    let data = ctx.data.read().await;
+    data.get::<GuildIdKey>().and_then(|id| *id)
+}
+
+async fn is_target_guild(ctx: &Context, id: GuildId) -> bool {
+    target_guild(ctx)
+        .await
+        .is_none_or(|target| id.get() == target)
 }
 
 async fn guild_sender(ctx: &Context) -> Option<watch::Sender<Vec<GuildDetails>>> {
@@ -157,10 +178,14 @@ fn sort_channels(channels: &mut [ChannelDetails]) {
     });
 }
 
-fn channel_snapshot(cache: &serenity::cache::Cache) -> Vec<ChannelDetails> {
+fn channel_snapshot(cache: &serenity::cache::Cache, target: Option<u64>) -> Vec<ChannelDetails> {
     let mut channels = Vec::new();
 
     for id in cache.guilds() {
+        if target.is_some_and(|target| id.get() != target) {
+            continue;
+        }
+
         if let Some(guild) = cache.guild(id) {
             channels.extend(guild.channels.values().map(channel_details));
         }
@@ -177,7 +202,8 @@ async fn publish_channels(ctx: &Context) {
     };
 
     if let Some(sender) = sender {
-        sender.send_replace(channel_snapshot(&ctx.cache));
+        let target = target_guild(ctx).await;
+        sender.send_replace(channel_snapshot(&ctx.cache, target));
     }
 }
 
@@ -185,18 +211,27 @@ async fn publish_channels(ctx: &Context) {
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
         if let Some(sender) = guild_sender(&ctx).await {
-            sender.send_replace(guild_snapshot(&ctx.cache));
+            let target = target_guild(&ctx).await;
+            sender.send_replace(guild_snapshot(&ctx.cache, target));
         }
         publish_channels(&ctx).await;
     }
 
     async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: Option<bool>) {
+        if !is_target_guild(&ctx, guild.id).await {
+            return;
+        }
+
         let details = guild_details(&guild);
         publish_guilds(&ctx, |guilds| upsert_guild(guilds, details)).await;
         publish_channels(&ctx).await;
     }
 
     async fn guild_update(&self, ctx: Context, _old: Option<Guild>, new: PartialGuild) {
+        if !is_target_guild(&ctx, new.id).await {
+            return;
+        }
+
         let details = partial_guild_details(&new);
         publish_guilds(&ctx, |guilds| {
             let existing = guilds.iter().find(|guild| guild.id == details.id);
@@ -207,7 +242,8 @@ impl EventHandler for Handler {
     }
 
     async fn guild_delete(&self, ctx: Context, incomplete: UnavailableGuild, _full: Option<Guild>) {
-        if !is_guild_removal(incomplete.unavailable) {
+        if !is_guild_removal(incomplete.unavailable) || !is_target_guild(&ctx, incomplete.id).await
+        {
             return;
         }
 
