@@ -37,7 +37,7 @@ async fn channels_return_the_configured_server_channels() -> Result<(), Box<dyn 
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(Some(1), guilds, channels, messages);
+    let state = AppState::new(1, guilds, channels, messages, None);
 
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
     channel_sender.send_replace(vec![

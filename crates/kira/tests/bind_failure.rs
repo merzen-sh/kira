@@ -18,6 +18,7 @@ async fn server_bind_failure_exits_instead_of_hanging() -> Result<(), Box<dyn Er
     let mut child = Command::new(env!("CARGO_BIN_EXE_kira"))
         .env("DISCORD_TOKEN", "not-a-real-token")
         .env("KIRA_BIND", bind.to_string())
+        .env("KIRA_GUILD_ID", "1")
         // Fail the gateway lookup quickly instead of reaching the network.
         .env("HTTPS_PROXY", "http://127.0.0.1:1")
         .env("https_proxy", "http://127.0.0.1:1")

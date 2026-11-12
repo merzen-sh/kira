@@ -45,7 +45,7 @@ async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(Some(1), receiver, channels, messages);
+    let state = AppState::new(1, receiver, channels, messages, None);
 
     sender.send_replace(vec![details("1", "Alpha"), details("2", "Beta")]);
 
@@ -72,7 +72,7 @@ async fn guild_returns_503_when_the_target_is_missing() -> Result<(), Box<dyn Er
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(Some(9), receiver, channels, messages);
+    let state = AppState::new(9, receiver, channels, messages, None);
 
     sender.send_replace(vec![details("1", "Alpha")]);
 

@@ -25,6 +25,7 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()>
 
     let bot = kira_bot::run(
         discord,
+        Some(server.guild_id),
         guild_tx,
         channel_tx,
         message_rx,
@@ -86,6 +87,7 @@ pub async fn run_bot(discord: DiscordConfig) -> Result<()> {
 
     let bot = kira_bot::run(
         discord,
+        None,
         guild_tx,
         channel_tx,
         message_rx,

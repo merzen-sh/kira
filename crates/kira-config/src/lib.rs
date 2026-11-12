@@ -70,8 +70,11 @@ pub struct ServerConfig {
     pub bind: SocketAddr,
 
     /// Discord server exposed by the API (`KIRA_GUILD_ID`).
+    pub guild_id: u64,
+
+    /// Bearer token required by the API (`KIRA_API_TOKEN`).
     #[serde(default)]
-    pub guild_id: Option<u64>,
+    pub api_token: Option<String>,
 }
 
 /// Local dashboard settings read from `KIRA_*` variables.
@@ -85,6 +88,10 @@ pub struct CliConfig {
     /// Base URL of the remote Kira server (`KIRA_REMOTE_URL`).
     #[serde(default = "default_remote_url")]
     pub remote_url: String,
+
+    /// Bearer token sent to the remote Kira server (`KIRA_API_TOKEN`).
+    #[serde(default)]
+    pub api_token: Option<String>,
 }
 
 fn default_bind() -> SocketAddr {
@@ -203,15 +210,24 @@ mod tests {
 
     #[test]
     fn server_config_defaults_bind() -> Result<(), ConfigError> {
-        let c = ServerConfig::try_from_iter(std::iter::empty::<(&str, &str)>())?;
+        let c = ServerConfig::try_from_iter([("KIRA_GUILD_ID", "1")])?;
 
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 8080)));
         Ok(())
     }
 
     #[test]
+    fn server_config_requires_a_guild_id() {
+        assert!(matches!(
+            ServerConfig::try_from_iter(std::iter::empty::<(&str, &str)>()),
+            Err(ConfigError::Environment(_))
+        ));
+    }
+
+    #[test]
     fn server_config_reads_kira_bind() -> Result<(), ConfigError> {
-        let c = ServerConfig::try_from_iter([("KIRA_BIND", "0.0.0.0:8080")])?;
+        let c =
+            ServerConfig::try_from_iter([("KIRA_BIND", "0.0.0.0:8080"), ("KIRA_GUILD_ID", "1")])?;
 
         assert_eq!(c.bind, SocketAddr::from(([0, 0, 0, 0], 8080)));
         Ok(())
@@ -221,7 +237,16 @@ mod tests {
     fn server_config_reads_guild_id() -> Result<(), ConfigError> {
         let c = ServerConfig::try_from_iter([("KIRA_GUILD_ID", "123456789012345678")])?;
 
-        assert_eq!(c.guild_id, Some(123_456_789_012_345_678));
+        assert_eq!(c.guild_id, 123_456_789_012_345_678);
+        Ok(())
+    }
+
+    #[test]
+    fn server_config_reads_api_token() -> Result<(), ConfigError> {
+        let c =
+            ServerConfig::try_from_iter([("KIRA_GUILD_ID", "1"), ("KIRA_API_TOKEN", "secret")])?;
+
+        assert_eq!(c.api_token.as_deref(), Some("secret"));
         Ok(())
     }
 
@@ -231,6 +256,7 @@ mod tests {
 
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
         assert_eq!(c.remote_url, "http://127.0.0.1:8080");
+        assert_eq!(c.api_token, None);
         Ok(())
     }
 
@@ -239,10 +265,12 @@ mod tests {
         let c = CliConfig::try_from_iter([
             ("KIRA_CLI_BIND", "127.0.0.1:4001"),
             ("KIRA_REMOTE_URL", "http://example.test:9000"),
+            ("KIRA_API_TOKEN", "secret"),
         ])?;
 
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 4001)));
         assert_eq!(c.remote_url, "http://example.test:9000");
+        assert_eq!(c.api_token.as_deref(), Some("secret"));
         Ok(())
     }
 }

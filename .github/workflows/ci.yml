@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@1.88
         with:
           components: rustfmt
       - run: cargo fmt --all --check
@@ -53,6 +53,7 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo clippy -p kira --no-default-features -- -D warnings
 
   test:
     name: Test
@@ -64,6 +65,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
+      - run: cargo test --release -p kira-server --test docs_release
+      - run: cargo xtask openapi check
 
   dashboard-test:
     name: Dashboard test
@@ -78,4 +81,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test -w @kira/dashboard
+      - run: npm run check:api-types
       - run: npm run build -w @kira/dashboard

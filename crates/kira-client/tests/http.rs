@@ -2,7 +2,8 @@
 
 use std::error::Error;
 
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
+use axum::response::IntoResponse;
 use axum::{Json, Router, routing};
 use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, SentMessage};
 use tokio::net::TcpListener;
@@ -102,6 +103,33 @@ async fn spawn_send_message() -> Result<(kira_client::Client, TestServer), Box<d
     );
     let server = spawn(app).await?;
     Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+#[tokio::test]
+async fn requests_carry_the_api_token() -> Result<(), Box<dyn Error>> {
+    let app = Router::new().route(
+        "/health",
+        routing::get(|headers: axum::http::HeaderMap| async move {
+            let authorized = headers
+                .get(header::AUTHORIZATION)
+                .and_then(|value| value.to_str().ok())
+                == Some("Bearer secret");
+
+            if authorized {
+                (StatusCode::OK, Json(HealthResponse::ok())).into_response()
+            } else {
+                StatusCode::UNAUTHORIZED.into_response()
+            }
+        }),
+    );
+    let server = spawn(app).await?;
+    let client =
+        kira_client::Client::new(server.base_url.clone()).with_token(Some("secret".into()));
+
+    let health = client.health().await?;
+
+    assert_eq!(health.status, "ok");
+    Ok(())
 }
 
 #[tokio::test]

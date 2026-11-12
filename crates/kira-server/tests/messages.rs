@@ -17,7 +17,7 @@ fn state() -> (
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
     let (messages, receiver) = mpsc::channel(1);
-    let state = AppState::new(Some(1), guilds, channels, messages);
+    let state = AppState::new(1, guilds, channels, messages, None);
 
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
     channel_sender.send_replace(vec![ChannelDetails::new("10", "1", "general", "text")]);
@@ -101,5 +101,58 @@ async fn unknown_channel_is_rejected() -> Result<(), Box<dyn Error>> {
 
     let res = post(state, "11", r#"{"content":"Hello"}"#).await?;
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    Ok(())
+}
+
+#[tokio::test]
+async fn non_text_channel_is_rejected() -> Result<(), Box<dyn Error>> {
+    let (guild_sender, guilds) = watch::channel(Vec::new());
+    let (channel_sender, channels) = watch::channel(Vec::new());
+    let (messages, _message_receiver) = mpsc::channel(1);
+    let state = AppState::new(1, guilds, channels, messages, None);
+    guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
+    channel_sender.send_replace(vec![ChannelDetails::new("10", "1", "voice", "voice")]);
+
+    let res = post(state, "10", r#"{"content":"Hello"}"#).await?;
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    Ok(())
+}
+
+#[tokio::test]
+async fn content_over_the_limit_is_rejected() -> Result<(), Box<dyn Error>> {
+    let (state, _messages) = state();
+    let body = serde_json::json!({ "content": "x".repeat(2001) }).to_string();
+
+    let res = post(state, "10", &body).await?;
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    Ok(())
+}
+
+#[tokio::test]
+async fn embeds_only_payload_is_accepted() -> Result<(), Box<dyn Error>> {
+    let (state, mut messages) = state();
+    tokio::spawn(async move {
+        if let Some(message) = messages.recv().await {
+            let _ = message.reply.send(Ok("99".into()));
+        }
+    });
+
+    let res = post(state, "10", r#"{"embeds":[{"title":"x"}]}"#).await?;
+    assert_eq!(res.status(), StatusCode::CREATED);
+    Ok(())
+}
+
+#[tokio::test(start_paused = true)]
+async fn stalled_delivery_times_out() -> Result<(), Box<dyn Error>> {
+    let (state, mut messages) = state();
+    let _hold = tokio::spawn(async move {
+        if let Some(message) = messages.recv().await {
+            let _reply = message.reply;
+            std::future::pending::<()>().await;
+        }
+    });
+
+    let res = post(state, "10", r#"{"content":"Hello"}"#).await?;
+    assert_eq!(res.status(), StatusCode::GATEWAY_TIMEOUT);
     Ok(())
 }

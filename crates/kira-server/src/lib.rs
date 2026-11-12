@@ -7,10 +7,12 @@
 
 use std::future::Future;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Path, Request, State};
+use axum::http::{StatusCode, header};
+use axum::middleware::{self, Next};
 #[cfg(debug_assertions)]
 use axum::response::Html;
 use axum::response::{IntoResponse, Response};
@@ -23,6 +25,12 @@ use tokio::net::TcpListener;
 use tokio::sync::{mpsc, watch};
 #[cfg(debug_assertions)]
 use utoipa::OpenApi;
+
+/// How long a message POST waits for the bot to report a send result.
+const MESSAGE_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Channel kinds that can receive messages.
+const SENDABLE_KINDS: [&str; 4] = ["text", "news", "public_thread", "private_thread"];
 
 /// Errors produced while binding or serving the HTTP server.
 #[derive(Debug, Error)]
@@ -38,6 +46,13 @@ pub enum ServerError {
         source: std::io::Error,
     },
 
+    /// A non-loopback bind was requested without an API token.
+    #[error("refusing to bind {addr} without KIRA_API_TOKEN")]
+    InsecureBind {
+        /// Address the server refused to bind.
+        addr: SocketAddr,
+    },
+
     /// The server failed while accepting or serving connections.
     #[error("server I/O error")]
     Io(#[from] std::io::Error),
@@ -46,48 +61,48 @@ pub enum ServerError {
 /// Shared state for the HTTP server.
 #[derive(Clone)]
 pub struct AppState {
-    guild_id: Option<String>,
+    guild_id: String,
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
     messages: MessageSender,
+    api_token: Option<String>,
 }
 
 impl AppState {
     /// Build state from the configured guild ID and the bot's cached state.
     #[must_use]
     pub fn new(
-        guild_id: Option<u64>,
+        guild_id: u64,
         guilds: watch::Receiver<Vec<GuildDetails>>,
         channels: watch::Receiver<Vec<ChannelDetails>>,
         messages: MessageSender,
+        api_token: Option<String>,
     ) -> Self {
         Self {
-            guild_id: guild_id.map(|id| id.to_string()),
+            guild_id: guild_id.to_string(),
             guilds,
             channels,
             messages,
+            api_token,
         }
     }
 
     fn guild(&self) -> Option<GuildDetails> {
-        let target = self.guild_id.as_deref()?;
-
         self.guilds
             .borrow()
             .iter()
-            .find(|guild| guild.id == target)
+            .find(|guild| guild.id == self.guild_id)
             .cloned()
     }
 
     fn guild_channels(&self) -> Option<Vec<ChannelDetails>> {
-        let target = self.guild_id.as_deref()?;
         self.guild()?;
 
         Some(
             self.channels
                 .borrow()
                 .iter()
-                .filter(|channel| channel.guild_id == target)
+                .filter(|channel| channel.guild_id == self.guild_id)
                 .cloned()
                 .collect(),
         )
@@ -99,7 +114,31 @@ impl Default for AppState {
         let (_guild_sender, guilds) = watch::channel(Vec::new());
         let (_channel_sender, channels) = watch::channel(Vec::new());
         let (messages, _receiver) = mpsc::channel(1);
-        Self::new(None, guilds, channels, messages)
+        Self::new(0, guilds, channels, messages, None)
+    }
+}
+
+/// Reject requests that do not carry the configured bearer token.
+async fn require_token(State(state): State<AppState>, request: Request, next: Next) -> Response {
+    let Some(token) = state.api_token.as_deref() else {
+        return next.run(request).await;
+    };
+
+    let authorized = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .is_some_and(|value| value == token);
+
+    if authorized {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse::new("missing or invalid API token")),
+        )
+            .into_response()
     }
 }
 
@@ -121,6 +160,7 @@ pub async fn health() -> Json<HealthResponse> {
     tag = "guild",
     responses(
         (status = 200, body = GuildDetails),
+        (status = 401, body = ErrorResponse),
         (status = 503, body = ErrorResponse)
     )
 )]
@@ -142,6 +182,7 @@ pub async fn get_guild(State(state): State<AppState>) -> Response {
     tag = "guild",
     responses(
         (status = 200, body = [ChannelDetails]),
+        (status = 401, body = ErrorResponse),
         (status = 503, body = ErrorResponse)
     )
 )]
@@ -185,9 +226,11 @@ fn validate_message(payload: &serde_json::Value) -> Result<(), &'static str> {
     responses(
         (status = 201, body = SentMessage),
         (status = 400, body = ErrorResponse),
+        (status = 401, body = ErrorResponse),
         (status = 404, body = ErrorResponse),
         (status = 502, body = ErrorResponse),
-        (status = 503, body = ErrorResponse)
+        (status = 503, body = ErrorResponse),
+        (status = 504, body = ErrorResponse)
     )
 )]
 pub async fn send_guild_message(
@@ -203,10 +246,18 @@ pub async fn send_guild_message(
             .into_response();
     };
 
-    if !channels.iter().any(|channel| channel.id == channel_id) {
+    let Some(channel) = channels.iter().find(|channel| channel.id == channel_id) else {
         return (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("channel is not available")),
+        )
+            .into_response();
+    };
+
+    if !SENDABLE_KINDS.contains(&channel.kind.as_str()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new("channel cannot receive messages")),
         )
             .into_response();
     }
@@ -225,14 +276,21 @@ pub async fn send_guild_message(
             .into_response();
     }
 
-    match response.await {
-        Ok(Ok(id)) => (StatusCode::CREATED, Json(SentMessage::new(id, channel_id))).into_response(),
-        Ok(Err(error)) => {
+    match tokio::time::timeout(MESSAGE_TIMEOUT, response).await {
+        Ok(Ok(Ok(id))) => {
+            (StatusCode::CREATED, Json(SentMessage::new(id, channel_id))).into_response()
+        }
+        Ok(Ok(Err(error))) => {
             (StatusCode::BAD_GATEWAY, Json(ErrorResponse::new(error))).into_response()
         }
-        Err(_) => (
+        Ok(Err(_)) => (
             StatusCode::BAD_GATEWAY,
             Json(ErrorResponse::new("message delivery failed")),
+        )
+            .into_response(),
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            Json(ErrorResponse::new("message delivery timed out")),
         )
             .into_response(),
     }
@@ -260,15 +318,19 @@ pub struct ApiDoc;
 
 /// Build the HTTP router for the Kira API.
 pub fn router(state: AppState) -> Router {
-    let router = Router::new()
-        .route("/health", routing::get(health))
+    let protected = Router::new()
         .route("/guild", routing::get(get_guild))
         .route("/guild/channels", routing::get(get_guild_channels))
         .route(
             "/guild/channels/{channel_id}/messages",
             routing::post(send_guild_message),
         )
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_token));
+
+    let router = Router::new()
+        .route("/health", routing::get(health))
         .route("/ws", routing::get(ws_upgrade))
+        .merge(protected)
         .with_state(state);
 
     #[cfg(debug_assertions)]
@@ -312,6 +374,8 @@ pub async fn serve(
     messages: MessageSender,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
+    ensure_secure_bind(config.bind, config.api_token.as_deref())?;
+
     let listener = TcpListener::bind(config.bind)
         .await
         .map_err(|source| ServerError::Bind {
@@ -321,10 +385,24 @@ pub async fn serve(
     println!("Listening on http://{}", listener.local_addr()?);
     serve_with_listener(
         listener,
-        AppState::new(config.guild_id, guilds, channels, messages),
+        AppState::new(
+            config.guild_id,
+            guilds,
+            channels,
+            messages,
+            config.api_token.clone(),
+        ),
         shutdown,
     )
     .await
+}
+
+fn ensure_secure_bind(bind: SocketAddr, api_token: Option<&str>) -> Result<(), ServerError> {
+    if bind.ip().is_loopback() || api_token.is_some() {
+        return Ok(());
+    }
+
+    Err(ServerError::InsecureBind { addr: bind })
 }
 
 /// Serve on an already-bound listener until `shutdown` resolves.
@@ -369,5 +447,24 @@ async fn handle_socket(mut socket: WebSocket) {
             Message::Close(_) => break,
             Message::Ping(_) | Message::Pong(_) => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loopback_bind_needs_no_token() {
+        assert!(ensure_secure_bind(SocketAddr::from(([127, 0, 0, 1], 8080)), None).is_ok());
+    }
+
+    #[test]
+    fn public_bind_requires_a_token() {
+        assert!(matches!(
+            ensure_secure_bind(SocketAddr::from(([0, 0, 0, 0], 8080)), None),
+            Err(ServerError::InsecureBind { .. })
+        ));
+        assert!(ensure_secure_bind(SocketAddr::from(([0, 0, 0, 0], 8080)), Some("secret")).is_ok());
     }
 }
