@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use kira_config::DiscordConfig;
 #[cfg(feature = "server")]
 use kira_config::ServerConfig;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
 async fn wait_flag(mut rx: watch::Receiver<bool>) {
     loop {
@@ -21,9 +21,22 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()>
     let (tx, rx) = watch::channel(false);
     let (guild_tx, guild_rx) = watch::channel(Vec::new());
     let (channel_tx, channel_rx) = watch::channel(Vec::new());
+    let (message_tx, message_rx) = mpsc::channel(16);
 
-    let bot = kira_bot::run(discord, guild_tx, channel_tx, wait_flag(rx.clone()));
-    let http = kira_server::serve(&server, guild_rx, channel_rx, wait_flag(rx.clone()));
+    let bot = kira_bot::run(
+        discord,
+        guild_tx,
+        channel_tx,
+        message_rx,
+        wait_flag(rx.clone()),
+    );
+    let http = kira_server::serve(
+        &server,
+        guild_rx,
+        channel_rx,
+        message_tx,
+        wait_flag(rx.clone()),
+    );
     tokio::pin!(bot);
     tokio::pin!(http);
 
@@ -69,8 +82,15 @@ pub async fn run_bot(discord: DiscordConfig) -> Result<()> {
     let (tx, rx) = watch::channel(false);
     let (guild_tx, _guild_rx) = watch::channel(Vec::new());
     let (channel_tx, _channel_rx) = watch::channel(Vec::new());
+    let (_message_tx, message_rx) = mpsc::channel(1);
 
-    let bot = kira_bot::run(discord, guild_tx, channel_tx, wait_flag(rx.clone()));
+    let bot = kira_bot::run(
+        discord,
+        guild_tx,
+        channel_tx,
+        message_rx,
+        wait_flag(rx.clone()),
+    );
     tokio::pin!(bot);
 
     let mut bot_result = None;

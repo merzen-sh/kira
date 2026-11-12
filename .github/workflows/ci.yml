@@ -21,6 +21,7 @@ jobs:
       pull-requests: read
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
+      dashboard: ${{ steps.filter.outputs.dashboard }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -63,3 +64,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
+
+  dashboard-test:
+    name: Dashboard test
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test -w @kira/dashboard
+      - run: npm run build -w @kira/dashboard

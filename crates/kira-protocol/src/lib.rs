@@ -104,6 +104,27 @@ impl ChannelDetails {
     }
 }
 
+/// A message posted to a Discord channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct SentMessage {
+    /// Discord message ID.
+    pub id: String,
+    /// Channel that received the message.
+    pub channel_id: String,
+}
+
+impl SentMessage {
+    /// Build a sent message reference.
+    #[must_use]
+    pub fn new(id: impl Into<String>, channel_id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            channel_id: channel_id.into(),
+        }
+    }
+}
+
 /// Error payload returned when a request fails.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]

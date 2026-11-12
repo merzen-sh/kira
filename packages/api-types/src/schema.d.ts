@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guild/channels/{channel_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post a message to one of the configured Discord server's channels. */
+        post: operations["send_guild_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -116,6 +133,13 @@ export interface components {
             /** @description Version of the running `kira` binary. */
             version: string;
         };
+        /** @description A message posted to a Discord channel. */
+        SentMessage: {
+            /** @description Channel that received the message. */
+            channel_id: string;
+            /** @description Discord message ID. */
+            id: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -167,6 +191,64 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChannelDetails"][];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    send_guild_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Discord channel ID */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": unknown;
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SentMessage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             503: {

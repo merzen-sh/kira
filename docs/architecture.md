@@ -200,15 +200,16 @@ test cannot accidentally start the gateway.
 
 ### 4.3 Dashboard
 
-`apps/dashboard` is a Vite + React + TypeScript placeholder with a single
-route. It displays the remote health status. TanStack Router owns navigation;
-the unified TanStack Devtools panel hosts the Router and Query panels in
-development.
+`apps/dashboard` is a Vite + React + TypeScript dashboard. It shows server
+health, the configured guild, and an announcements composer. TanStack Router
+owns navigation; the unified TanStack Devtools panel hosts the Router and Query
+panels in development.
 
 Routing is file-based:
 
 - `src/routes/__root.tsx` owns the root layout and development devtools.
-- `src/routes/index.tsx` is the `/` page.
+- `src/routes/index.tsx`, `server.tsx`, `settings.tsx`, and `announcements.tsx`
+  are the page routes.
 - The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
   creates the router from that tree.
 
@@ -243,6 +244,7 @@ In production, `kira-cli` serves the built assets itself.
 | `GET` | `/health` | `200 application/json` with `{ "status": "ok", "version": "0.1.0" }` |
 | `GET` | `/guild` | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/guild/channels` | `200` with the configured server's channels, or `503` while unavailable |
+| `POST` | `/guild/channels/{channel_id}/messages` | `201` with the sent `SentMessage`; `400`, `404`, `502`, or `503` on failure |
 | `GET` | `/docs` | Scalar API Reference UI (debug builds only) |
 | `GET` | `/openapi.json` | Live OpenAPI document from `ApiDoc` (debug builds only) |
 
@@ -258,6 +260,11 @@ not a transient condition clients should retry indefinitely. `GET
 /guild/channels` follows the same availability rule and returns the cached
 channels of that server.
 
+`POST /guild/channels/{channel_id}/messages` validates the channel against that
+cached list, then forwards the raw Discord message JSON to the bot over an
+in-process channel. The bot posts the payload unchanged and returns the Discord
+message ID.
+
 `GET /ws` is a WebSocket echo scaffold. Text and binary frames are echoed;
 ping/pong are handled by Axum; close ends the socket. WebSockets are not
 representable in OpenAPI and are intentionally undocumented.
@@ -269,6 +276,7 @@ representable in OpenAPI and are intentionally undocumented.
 | `GET` | `/api/health` | Proxy to remote `/health`; `502` JSON on failure |
 | `GET` | `/api/guild` | Proxy to remote `/guild`; passes through `503`, `502` on failure |
 | `GET` | `/api/guild/channels` | Proxy to remote `/guild/channels`; passes through `503`, `502` on failure |
+| `POST` | `/api/guild/channels/{channel_id}/messages` | Proxy to remote messages endpoint; passes through success and error statuses, `502` when unreachable |
 | `GET` | `/ws` | Frame-by-frame proxy to remote `/ws` |
 | `GET` | `/` and other non-API paths | Vite dev server in debug; embedded `index.html` (SPA fallback) in release |
 | `GET` | `/assets/*` | Vite dev server in debug; embedded asset or `404` in release |
@@ -365,6 +373,8 @@ route change cannot silently leave either contract stale.
   - A real Vite build removes the marker because it empties the output
     directory.
 - `apps/dashboard/dist/` is gitignored; the built assets are not committed.
+- `npm test -w @kira/dashboard` runs Vitest in the dashboard workspace; test
+  files live next to the code they cover as `*.test.ts`. `make check` runs it.
 
 This means `cargo build --release -p kira-cli` is independent of the `kira`
 application, but it requires `make dashboard` first. `make build-cli` performs
@@ -452,15 +462,15 @@ Implemented:
 
 - Workspace, crate boundaries, and feature topology.
 - Discord `!ping` → `Pong!`.
-- `GET /health` and a WebSocket echo scaffold.
+- `GET /health`, guild/channel reads, and guild message posting.
 - Local dashboard hosting, SPA fallback, asset caching, HTTP/WS proxying.
+- Dashboard navigation, health, guild header, theme toggle, and announcements.
 - OpenAPI generation and TypeScript contract checks.
 - Build, lint, test, and smoke-test workflow.
 
 Not implemented yet:
 
-- Authentication, persistence, domain models, or product endpoints.
-- A real dashboard UI or routing.
+- Authentication, persistence, or broader domain models.
 - A WebSocket protocol beyond the echo/bridge scaffold.
 - Logging/tracing infrastructure; the code uses `println!`/`eprintln!`.
 - CI provider configuration; `make check` is the intended CI entry point.

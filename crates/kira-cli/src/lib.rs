@@ -36,6 +36,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/health", axum::routing::get(proxy::health))
         .route("/api/guild", axum::routing::get(proxy::guild))
         .route("/api/guild/channels", axum::routing::get(proxy::channels))
+        .route(
+            "/api/guild/channels/{channel_id}/messages",
+            axum::routing::post(proxy::send_message),
+        )
         .route("/ws", axum::routing::get(proxy::ws_upgrade))
         .fallback(assets::fallback)
         .with_state(state)

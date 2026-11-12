@@ -42,6 +42,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /guild/channels/{channel_id}/messages:
+    post:
+      tags:
+      - guild
+      summary: Post a message to one of the configured Discord server's channels.
+      operationId: send_guild_message
+      parameters:
+      - name: channel_id
+        in: path
+        description: Discord channel ID
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema: {}
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentMessage'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /health:
     get:
       tags:
@@ -160,6 +204,19 @@ components:
         version:
           type: string
           description: Version of the running `kira` binary.
+    SentMessage:
+      type: object
+      description: A message posted to a Discord channel.
+      required:
+      - id
+      - channel_id
+      properties:
+        channel_id:
+          type: string
+          description: Channel that received the message.
+        id:
+          type: string
+          description: Discord message ID.
 tags:
 - name: health
   description: Service health
