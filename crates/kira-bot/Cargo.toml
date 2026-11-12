@@ -12,6 +12,7 @@ kira-protocol = { path = "../kira-protocol" }
 serenity.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true

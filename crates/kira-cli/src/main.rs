@@ -10,6 +10,8 @@ const VITE_DEV_SERVER_URL: &str = "http://127.0.0.1:5173";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    kira_core::logging::init();
+
     let config = CliConfig::from_env().context("loading CLI configuration")?;
     let client = Client::new(config.remote_url.clone()).with_token(config.api_token.clone());
     let dev_server_url = cfg!(debug_assertions).then(|| VITE_DEV_SERVER_URL.to_owned());
@@ -20,13 +22,13 @@ async fn main() -> anyhow::Result<()> {
     let address = listener
         .local_addr()
         .context("reading the local listener address")?;
-    println!("Listening on http://{address}");
-    println!("Proxying to {}", config.remote_url);
+    tracing::info!("Listening on http://{address}");
+    tracing::info!("Proxying to {}", config.remote_url);
 
     axum::serve(listener, router(AppState::new(client, dev_server_url)))
         .with_graceful_shutdown(async {
             if let Err(error) = kira_core::shutdown::wait_for_signal().await {
-                eprintln!("failed to wait for shutdown signal: {error}");
+                tracing::error!("failed to wait for shutdown signal: {error}");
             }
         })
         .await

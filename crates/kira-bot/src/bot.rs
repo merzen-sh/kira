@@ -78,7 +78,7 @@ pub async fn run(
         }
 
         () = shutdown => {
-            println!("Shutdown signal received.");
+            tracing::info!("Shutdown signal received.");
 
             // `shutdown_all` is a no-op when no shard runner exists, and the
             // gateway future would then keep booting forever. Only wait for it
@@ -92,7 +92,7 @@ pub async fn run(
             // Wait for the gateway to finish shutting down.
             wait_for_gateway(shards_running, start).await?;
 
-            println!("Bot shutdown completed.");
+            tracing::info!("Bot shutdown completed.");
         }
     }
 

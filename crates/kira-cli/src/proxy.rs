@@ -24,7 +24,7 @@ pub(crate) async fn health(State(state): State<AppState>) -> Response {
     match state.client.health().await {
         Ok(health) => Json(health).into_response(),
         Err(error) => {
-            eprintln!("health proxy failed: {error}");
+            tracing::error!("health proxy failed: {error}");
             (
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse::new("upstream service unavailable")),
@@ -67,7 +67,7 @@ pub(crate) async fn send_message(
             (status, Json(ErrorResponse::new(message))).into_response()
         }
         Err(error) => {
-            eprintln!("message proxy failed: {error}");
+            tracing::error!("message proxy failed: {error}");
             (
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse::new("upstream service unavailable")),
@@ -91,7 +91,7 @@ where
         )
             .into_response(),
         Err(error) => {
-            eprintln!("{label} proxy failed: {error}");
+            tracing::error!("{label} proxy failed: {error}");
             (
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse::new("upstream service unavailable")),
@@ -113,7 +113,7 @@ async fn proxy_socket(socket: WebSocket, client: Client) {
     match client.connect_ws("/ws").await {
         Ok(remote) => bridge(socket, remote).await,
         Err(error) => {
-            eprintln!("websocket proxy failed to reach the remote server: {error}");
+            tracing::error!("websocket proxy failed to reach the remote server: {error}");
             let mut socket = socket;
             if let Err(send_error) = socket
                 .send(AxumMessage::Close(Some(AxumCloseFrame {
@@ -122,7 +122,7 @@ async fn proxy_socket(socket: WebSocket, client: Client) {
                 })))
                 .await
             {
-                eprintln!("failed to send websocket close frame: {send_error}");
+                tracing::warn!("failed to send websocket close frame: {send_error}");
             }
         }
     }
@@ -137,13 +137,13 @@ async fn bridge(socket: WebSocket, remote: WebSocketStream<MaybeTlsStream<TcpStr
             let message = match result {
                 Ok(message) => message,
                 Err(error) => {
-                    eprintln!("client websocket receive failed: {error}");
+                    tracing::warn!("client websocket receive failed: {error}");
                     break;
                 }
             };
             let closing = matches!(message, AxumMessage::Close(_));
             if let Err(error) = remote_tx.send(to_tungstenite(message)).await {
-                eprintln!("forwarding to the remote websocket failed: {error}");
+                tracing::error!("forwarding to the remote websocket failed: {error}");
                 break;
             }
             if closing {
@@ -157,13 +157,13 @@ async fn bridge(socket: WebSocket, remote: WebSocketStream<MaybeTlsStream<TcpStr
             let message = match result {
                 Ok(message) => message,
                 Err(error) => {
-                    eprintln!("remote websocket receive failed: {error}");
+                    tracing::warn!("remote websocket receive failed: {error}");
                     break;
                 }
             };
             let closing = matches!(message, TsMessage::Close(_));
             if let Err(error) = client_tx.send(to_axum(message)).await {
-                eprintln!("forwarding to the local websocket failed: {error}");
+                tracing::error!("forwarding to the local websocket failed: {error}");
                 break;
             }
             if closing {

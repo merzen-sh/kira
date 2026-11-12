@@ -12,6 +12,8 @@ use kira_config::ServerConfig;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    kira_core::logging::init();
+
     let mut args = env::args().skip(1);
 
     match args.next().as_deref() {
@@ -24,14 +26,14 @@ async fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some(other) => {
-            eprintln!("Unknown argument: {other}");
-            eprintln!("Usage: kira [--version] [--help]");
+            tracing::error!("Unknown argument: {other}");
+            tracing::error!("Usage: kira [--version] [--help]");
             ExitCode::from(2)
         }
         None => match run().await {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
-                eprintln!("error: {error:#}");
+                tracing::error!("{error:#}");
                 ExitCode::FAILURE
             }
         },

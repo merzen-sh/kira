@@ -214,7 +214,7 @@ async fn publish_channels(ctx: &Context) {
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
         if let Err(error) = commands::register(&ctx, target_guild(&ctx).await).await {
-            eprintln!("Failed to register slash commands: {error}");
+            tracing::error!("Failed to register slash commands: {error}");
         }
 
         if let Some(sender) = guild_sender(&ctx).await {
@@ -282,7 +282,7 @@ impl EventHandler for Handler {
         };
 
         if let Err(error) = commands::handle(&ctx, &command).await {
-            eprintln!("Failed to respond to slash command: {error}");
+            tracing::error!("Failed to respond to slash command: {error}");
         }
     }
 
@@ -301,11 +301,11 @@ impl EventHandler for Handler {
         };
 
         if config.is_some() {
-            println!("Responding to ping!");
+            tracing::info!("Responding to ping!");
         }
 
         if let Err(error) = msg.channel_id.say(&ctx.http, "Pong!").await {
-            eprintln!("Failed to send message: {error}");
+            tracing::error!("Failed to send message: {error}");
         }
     }
 }
