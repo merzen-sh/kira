@@ -3,10 +3,10 @@
 use std::future::Future;
 
 use axum::Json;
-use axum::extract::State;
 use axum::extract::ws::{
     CloseFrame as AxumCloseFrame, Message as AxumMessage, WebSocket, WebSocketUpgrade,
 };
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use futures_util::{SinkExt, StreamExt};
@@ -52,6 +52,25 @@ pub(crate) async fn channels(State(state): State<AppState>) -> Response {
             .map(|channels| channels.map(Json))
     })
     .await
+}
+
+/// Proxy a message posted to a guild channel.
+pub(crate) async fn send_message(
+    State(state): State<AppState>,
+    Path(channel_id): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Response {
+    match state.client.send_message(&channel_id, &payload).await {
+        Ok(message) => (StatusCode::CREATED, Json(message)).into_response(),
+        Err(error) => {
+            eprintln!("message proxy failed: {error}");
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse::new("upstream service unavailable")),
+            )
+                .into_response()
+        }
+    }
 }
 
 /// Proxy an endpoint that returns `503` when its data is not available.

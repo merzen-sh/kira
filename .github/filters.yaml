@@ -7,3 +7,11 @@ rust:
   - ".cargo/**"
   - ".github/workflows/ci.yml"
   - ".github/filters.yaml"
+
+dashboard:
+  - "apps/dashboard/**"
+  - "packages/**"
+  - "package.json"
+  - "package-lock.json"
+  - ".github/workflows/ci.yml"
+  - ".github/filters.yaml"

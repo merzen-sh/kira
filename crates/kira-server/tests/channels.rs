@@ -7,7 +7,7 @@ use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails};
 use kira_server::{AppState, router};
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use tower::ServiceExt;
 
 async fn get_channels(state: AppState) -> Result<axum::response::Response, Box<dyn Error>> {
@@ -36,7 +36,8 @@ async fn channels_return_503_without_data() -> Result<(), Box<dyn Error>> {
 async fn channels_return_the_configured_server_channels() -> Result<(), Box<dyn Error>> {
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
-    let state = AppState::new(Some(1), guilds, channels);
+    let (messages, _message_receiver) = mpsc::channel(1);
+    let state = AppState::new(Some(1), guilds, channels, messages);
 
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
     channel_sender.send_replace(vec![

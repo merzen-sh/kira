@@ -4,7 +4,7 @@ use std::error::Error;
 
 use axum::http::StatusCode;
 use axum::{Json, Router, routing};
-use kira_protocol::{ChannelDetails, GuildDetails, HealthResponse};
+use kira_protocol::{ChannelDetails, GuildDetails, HealthResponse, SentMessage};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
@@ -93,6 +93,27 @@ async fn spawn_channels_unavailable() -> Result<(kira_client::Client, TestServer
     );
     let server = spawn(app).await?;
     Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+async fn spawn_send_message() -> Result<(kira_client::Client, TestServer), Box<dyn Error>> {
+    let app = Router::new().route(
+        "/guild/channels/{channel_id}/messages",
+        routing::post(|| async { Json(SentMessage::new("99", "10")) }),
+    );
+    let server = spawn(app).await?;
+    Ok((kira_client::Client::new(server.base_url.clone()), server))
+}
+
+#[tokio::test]
+async fn message_is_posted_to_the_channel() -> Result<(), Box<dyn Error>> {
+    let (client, _server) = spawn_send_message().await?;
+
+    let message = client
+        .send_message("10", &serde_json::json!({ "content": "Hello" }))
+        .await?;
+    assert_eq!(message.id, "99");
+    assert_eq!(message.channel_id, "10");
+    Ok(())
 }
 
 #[tokio::test]

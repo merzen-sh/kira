@@ -8,18 +8,19 @@
 use std::future::Future;
 use std::net::SocketAddr;
 
-use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 #[cfg(debug_assertions)]
 use axum::response::Html;
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router, routing};
 use kira_config::ServerConfig;
-use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse};
+use kira_core::messaging::{MessageSender, OutgoingMessage};
+use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, SentMessage};
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 #[cfg(debug_assertions)]
 use utoipa::OpenApi;
 
@@ -48,6 +49,7 @@ pub struct AppState {
     guild_id: Option<String>,
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
+    messages: MessageSender,
 }
 
 impl AppState {
@@ -57,11 +59,13 @@ impl AppState {
         guild_id: Option<u64>,
         guilds: watch::Receiver<Vec<GuildDetails>>,
         channels: watch::Receiver<Vec<ChannelDetails>>,
+        messages: MessageSender,
     ) -> Self {
         Self {
             guild_id: guild_id.map(|id| id.to_string()),
             guilds,
             channels,
+            messages,
         }
     }
 
@@ -94,7 +98,8 @@ impl Default for AppState {
     fn default() -> Self {
         let (_guild_sender, guilds) = watch::channel(Vec::new());
         let (_channel_sender, channels) = watch::channel(Vec::new());
-        Self::new(None, guilds, channels)
+        let (messages, _receiver) = mpsc::channel(1);
+        Self::new(None, guilds, channels, messages)
     }
 }
 
@@ -151,6 +156,88 @@ pub async fn get_guild_channels(State(state): State<AppState>) -> Response {
     }
 }
 
+fn validate_message(payload: &serde_json::Value) -> Result<(), &'static str> {
+    let object = payload.as_object().ok_or("message must be a JSON object")?;
+    let content = object.get("content").and_then(|value| value.as_str());
+    let has_embeds = object
+        .get("embeds")
+        .and_then(|value| value.as_array())
+        .is_some_and(|embeds| !embeds.is_empty());
+
+    if content.is_none_or(|content| content.trim().is_empty()) && !has_embeds {
+        return Err("content or embeds is required");
+    }
+
+    if content.is_some_and(|content| content.chars().count() > 2000) {
+        return Err("content must be 2000 characters or fewer");
+    }
+
+    Ok(())
+}
+
+/// Post a message to one of the configured Discord server's channels.
+#[utoipa::path(
+    post,
+    path = "/guild/channels/{channel_id}/messages",
+    tag = "guild",
+    params(("channel_id" = String, Path, description = "Discord channel ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 201, body = SentMessage),
+        (status = 400, body = ErrorResponse),
+        (status = 404, body = ErrorResponse),
+        (status = 502, body = ErrorResponse),
+        (status = 503, body = ErrorResponse)
+    )
+)]
+pub async fn send_guild_message(
+    State(state): State<AppState>,
+    Path(channel_id): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Response {
+    let Some(channels) = state.guild_channels() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse::new("guild data is not available")),
+        )
+            .into_response();
+    };
+
+    if !channels.iter().any(|channel| channel.id == channel_id) {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("channel is not available")),
+        )
+            .into_response();
+    }
+
+    if let Err(error) = validate_message(&payload) {
+        return (StatusCode::BAD_REQUEST, Json(ErrorResponse::new(error))).into_response();
+    }
+
+    let (message, response) = OutgoingMessage::new(channel_id.clone(), payload);
+
+    if state.messages.send(message).await.is_err() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ErrorResponse::new("message delivery is not available")),
+        )
+            .into_response();
+    }
+
+    match response.await {
+        Ok(Ok(id)) => (StatusCode::CREATED, Json(SentMessage::new(id, channel_id))).into_response(),
+        Ok(Err(error)) => {
+            (StatusCode::BAD_GATEWAY, Json(ErrorResponse::new(error))).into_response()
+        }
+        Err(_) => (
+            StatusCode::BAD_GATEWAY,
+            Json(ErrorResponse::new("message delivery failed")),
+        )
+            .into_response(),
+    }
+}
+
 /// OpenAPI document assembled from the server's route annotations.
 #[derive(utoipa::OpenApi)]
 #[non_exhaustive]
@@ -160,11 +247,12 @@ pub async fn get_guild_channels(State(state): State<AppState>) -> Response {
         (name = "health", description = "Service health"),
         (name = "guild", description = "Discord server and channels")
     ),
-    paths(health, get_guild, get_guild_channels),
+    paths(health, get_guild, get_guild_channels, send_guild_message),
     components(schemas(
         kira_protocol::HealthResponse,
         kira_protocol::GuildDetails,
         kira_protocol::ChannelDetails,
+        kira_protocol::SentMessage,
         kira_protocol::ErrorResponse
     ))
 )]
@@ -176,6 +264,10 @@ pub fn router(state: AppState) -> Router {
         .route("/health", routing::get(health))
         .route("/guild", routing::get(get_guild))
         .route("/guild/channels", routing::get(get_guild_channels))
+        .route(
+            "/guild/channels/{channel_id}/messages",
+            routing::post(send_guild_message),
+        )
         .route("/ws", routing::get(ws_upgrade))
         .with_state(state);
 
@@ -217,6 +309,7 @@ pub async fn serve(
     config: &ServerConfig,
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
+    messages: MessageSender,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
     let listener = TcpListener::bind(config.bind)
@@ -228,7 +321,7 @@ pub async fn serve(
     println!("Listening on http://{}", listener.local_addr()?);
     serve_with_listener(
         listener,
-        AppState::new(config.guild_id, guilds, channels),
+        AppState::new(config.guild_id, guilds, channels, messages),
         shutdown,
     )
     .await

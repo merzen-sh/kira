@@ -7,7 +7,7 @@ use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
 use kira_protocol::{ErrorResponse, GuildDetails};
 use kira_server::{AppState, router};
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use tower::ServiceExt;
 
 fn details(id: &str, name: &str) -> GuildDetails {
@@ -44,7 +44,8 @@ async fn guild_returns_503_without_data() -> Result<(), Box<dyn Error>> {
 async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
-    let state = AppState::new(Some(1), receiver, channels);
+    let (messages, _message_receiver) = mpsc::channel(1);
+    let state = AppState::new(Some(1), receiver, channels, messages);
 
     sender.send_replace(vec![details("1", "Alpha"), details("2", "Beta")]);
 
@@ -70,7 +71,8 @@ async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
 async fn guild_returns_503_when_the_target_is_missing() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
-    let state = AppState::new(Some(9), receiver, channels);
+    let (messages, _message_receiver) = mpsc::channel(1);
+    let state = AppState::new(Some(9), receiver, channels, messages);
 
     sender.send_replace(vec![details("1", "Alpha")]);
 

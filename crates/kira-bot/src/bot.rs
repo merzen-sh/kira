@@ -4,11 +4,14 @@ use std::future::Future;
 use std::sync::Arc;
 
 use kira_config::DiscordConfig;
+use kira_core::messaging::OutgoingMessage;
 use kira_protocol::{ChannelDetails, GuildDetails};
 use serenity::Client;
+use serenity::http::Http;
+use serenity::model::id::ChannelId;
 use serenity::prelude::GatewayIntents;
 use thiserror::Error;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
 use crate::handler::{ChannelsKey, ConfigKey, GuildsKey, Handler};
 
@@ -32,6 +35,7 @@ pub async fn run(
     config: DiscordConfig,
     guilds: watch::Sender<Vec<GuildDetails>>,
     channels: watch::Sender<Vec<ChannelDetails>>,
+    messages: mpsc::Receiver<OutgoingMessage>,
     shutdown: impl Future<Output = ()> + Send,
 ) -> Result<(), BotError> {
     let config = Arc::new(config);
@@ -52,6 +56,8 @@ pub async fn run(
         data.insert::<GuildsKey>(guilds);
         data.insert::<ChannelsKey>(channels);
     }
+
+    spawn_message_sender(client.http.clone(), messages);
 
     // Keep a reference to the shard manager.
     let shard_manager = Arc::clone(&client.shard_manager);
@@ -85,6 +91,29 @@ pub async fn run(
     }
 
     Ok(())
+}
+
+fn spawn_message_sender(http: Arc<Http>, mut messages: mpsc::Receiver<OutgoingMessage>) {
+    tokio::spawn(async move {
+        while let Some(message) = messages.recv().await {
+            let result = send_message(&http, &message).await;
+            let _ = message.reply.send(result);
+        }
+    });
+}
+
+async fn send_message(http: &Http, message: &OutgoingMessage) -> Result<String, String> {
+    let channel_id = message
+        .channel_id
+        .parse::<u64>()
+        .map_err(|error| format!("invalid channel ID: {error}"))?;
+    let body = &message.payload;
+    let sent = http
+        .send_message(ChannelId::new(channel_id), Vec::new(), &body)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    Ok(sent.id.to_string())
 }
 
 async fn wait_for_gateway<F>(shards_running: bool, start: F) -> Result<(), BotError>

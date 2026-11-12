@@ -12,7 +12,7 @@ use futures_util::{SinkExt, StreamExt};
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
 use kira_client::Client;
-use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse};
+use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, SentMessage};
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -93,6 +93,14 @@ async fn spawn_channels_unavailable() -> Result<TestServer> {
     spawn(app).await
 }
 
+async fn spawn_send_message() -> Result<TestServer> {
+    let app = Router::new().route(
+        "/guild/channels/{channel_id}/messages",
+        routing::post(|| async { Json(SentMessage::new("99", "10")) }),
+    );
+    spawn(app).await
+}
+
 async fn spawn_echo() -> Result<TestServer> {
     let app = Router::new().route("/ws", routing::get(echo_upgrade));
     spawn(app).await
@@ -125,6 +133,18 @@ async fn echo(mut socket: WebSocket) {
 async fn cli_get(client: Client, path: &str) -> Result<axum::response::Response> {
     Ok(router(AppState::new(client, None))
         .oneshot(Request::builder().uri(path).body(Body::empty())?)
+        .await?)
+}
+
+async fn cli_post(client: Client, path: &str, body: &str) -> Result<axum::response::Response> {
+    Ok(router(AppState::new(client, None))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(path)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(body.to_owned()))?,
+        )
         .await?)
 }
 
@@ -204,6 +224,26 @@ async fn unavailable_channels_are_503() -> Result<()> {
     let bytes = res.into_body().collect().await?.to_bytes();
     let error: ErrorResponse = serde_json::from_slice(&bytes)?;
     assert_eq!(error.error, "guild data is not available");
+    Ok(())
+}
+
+#[tokio::test]
+async fn message_is_proxied() -> Result<()> {
+    let upstream = spawn_send_message().await?;
+    let res = cli_post(
+        Client::new(upstream.base_url.clone()),
+        "/api/guild/channels/10/messages",
+        r#"{"content":"Hello"}"#,
+    )
+    .await?;
+
+    assert_eq!(res.status(), StatusCode::CREATED);
+    assert_eq!(res.headers()[header::CONTENT_TYPE], "application/json");
+
+    let bytes = res.into_body().collect().await?.to_bytes();
+    let message: SentMessage = serde_json::from_slice(&bytes)?;
+    assert_eq!(message.id, "99");
+    assert_eq!(message.channel_id, "10");
     Ok(())
 }
 

@@ -53,6 +53,7 @@ check: node_modules
 	$(CARGO) xtask openapi check
 	npm run check:api-types
 	npm run typecheck
+	npm run test -w @kira/dashboard
 	@$(CARGO) tree -p kira-cli >/dev/null
 	@$(CARGO) tree -p kira --all-features >/dev/null
 	@! $(CARGO) tree -p kira-cli | grep -q kira-server

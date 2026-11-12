@@ -71,6 +71,27 @@ impl Client {
         Ok(Some(response.json().await?))
     }
 
+    /// Post a raw Discord message payload to a guild channel.
+    pub async fn send_message(
+        &self,
+        channel_id: &str,
+        message: &serde_json::Value,
+    ) -> Result<kira_protocol::SentMessage, ClientError> {
+        let url = format!(
+            "{}/guild/channels/{channel_id}/messages",
+            self.base_url.trim_end_matches('/')
+        );
+        let response = self
+            .http
+            .post(url)
+            .json(message)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.json().await?)
+    }
+
     /// Get a response, mapping `503` to `None`.
     async fn get_optional(&self, path: &str) -> Result<Option<reqwest::Response>, ClientError> {
         let url = format!("{}{path}", self.base_url.trim_end_matches('/'));

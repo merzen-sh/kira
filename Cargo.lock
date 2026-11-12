@@ -1094,6 +1094,7 @@ name = "kira-bot"
 version = "0.1.0"
 dependencies = [
  "kira-config",
+ "kira-core",
  "kira-protocol",
  "serenity",
  "thiserror 2.0.21",
@@ -1129,6 +1130,7 @@ dependencies = [
  "futures-util",
  "kira-protocol",
  "reqwest 0.13.5",
+ "serde_json",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite 0.30.0",
@@ -1148,6 +1150,7 @@ dependencies = [
 name = "kira-core"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "tokio",
 ]
 
@@ -1168,6 +1171,7 @@ dependencies = [
  "futures-util",
  "http-body-util",
  "kira-config",
+ "kira-core",
  "kira-protocol",
  "serde_json",
  "thiserror 2.0.21",
