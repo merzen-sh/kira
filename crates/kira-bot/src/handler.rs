@@ -5,12 +5,15 @@ use std::sync::Arc;
 use kira_config::DiscordConfig;
 use kira_protocol::{ChannelDetails, GuildDetails};
 use serenity::async_trait;
+use serenity::model::application::Interaction;
 use serenity::model::channel::{GuildChannel, Message};
 use serenity::model::gateway::Ready;
 use serenity::model::guild::{Guild, PartialGuild, UnavailableGuild};
 use serenity::model::id::GuildId;
 use serenity::prelude::{Context, EventHandler, TypeMapKey};
 use tokio::sync::watch;
+
+use crate::commands;
 
 /// Type-map key holding the shared Discord configuration.
 #[non_exhaustive]
@@ -210,6 +213,10 @@ async fn publish_channels(ctx: &Context) {
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
+        if let Err(error) = commands::register(&ctx, target_guild(&ctx).await).await {
+            eprintln!("Failed to register slash commands: {error}");
+        }
+
         if let Some(sender) = guild_sender(&ctx).await {
             let target = target_guild(&ctx).await;
             sender.send_replace(guild_snapshot(&ctx.cache, target));
@@ -267,6 +274,16 @@ impl EventHandler for Handler {
         _messages: Option<Vec<Message>>,
     ) {
         publish_channels(&ctx).await;
+    }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        let Interaction::Command(command) = interaction else {
+            return;
+        };
+
+        if let Err(error) = commands::handle(&ctx, &command).await {
+            eprintln!("Failed to respond to slash command: {error}");
+        }
     }
 
     async fn message(&self, ctx: Context, msg: Message) {

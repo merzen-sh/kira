@@ -17,7 +17,7 @@ flowchart TB
     GW["Discord Gateway"]
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
-        BOT["kira-bot<br/>Serenity gateway + !ping"]
+        BOT["kira-bot<br/>Serenity gateway + !ping and /ping"]
         SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>GET /health<br/>GET /ws (echo scaffold)"]
     end
 
@@ -472,6 +472,7 @@ Implemented:
 
 - Workspace, crate boundaries, and feature topology.
 - Discord `!ping` → `Pong!`.
+- Discord `/ping` slash command → `pong` (registered per guild, or globally in bot-only builds).
 - `GET /health`, guild/channel reads, and guild message posting.
 - Local dashboard hosting, SPA fallback, asset caching, HTTP/WS proxying.
 - Dashboard navigation, health, guild header, theme toggle, and announcements.
