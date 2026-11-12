@@ -483,8 +483,6 @@ Not implemented yet:
 
 - Authentication, persistence, or broader domain models.
 - A WebSocket protocol beyond the echo/bridge scaffold.
-- Logging/tracing infrastructure; the code uses `println!`/`eprintln!`.
-- CI provider configuration; `make check` is the intended CI entry point.
 - TLS acceptance testing. The client features support `https`/`wss`, but tests
   are localhost HTTP/WS only.
 

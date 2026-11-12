@@ -45,7 +45,7 @@ pub(crate) fn serve(path: &str) -> Response {
     let content_type = match header::HeaderValue::from_str(&content_type_for(path)) {
         Ok(value) => value,
         Err(error) => {
-            eprintln!("invalid content type for {path}: {error}");
+            tracing::error!("invalid content type for {path}: {error}");
             header::HeaderValue::from_static("application/octet-stream")
         }
     };

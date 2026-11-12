@@ -382,7 +382,7 @@ pub async fn serve(
             addr: config.bind,
             source,
         })?;
-    println!("Listening on http://{}", listener.local_addr()?);
+    tracing::info!("Listening on http://{}", listener.local_addr()?);
     serve_with_listener(
         listener,
         AppState::new(
@@ -426,7 +426,7 @@ async fn handle_socket(mut socket: WebSocket) {
         let message = match result {
             Ok(message) => message,
             Err(error) => {
-                eprintln!("websocket receive failed: {error}");
+                tracing::error!("websocket receive failed: {error}");
                 break;
             }
         };
@@ -434,13 +434,13 @@ async fn handle_socket(mut socket: WebSocket) {
         match message {
             Message::Text(text) => {
                 if let Err(error) = socket.send(Message::Text(text)).await {
-                    eprintln!("websocket send failed: {error}");
+                    tracing::error!("websocket send failed: {error}");
                     break;
                 }
             }
             Message::Binary(bytes) => {
                 if let Err(error) = socket.send(Message::Binary(bytes)).await {
-                    eprintln!("websocket send failed: {error}");
+                    tracing::error!("websocket send failed: {error}");
                     break;
                 }
             }

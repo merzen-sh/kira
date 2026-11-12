@@ -16,6 +16,7 @@ kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
 kira-server = { path = "../kira-server", optional = true }
 tokio.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
