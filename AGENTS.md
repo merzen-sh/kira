@@ -1,13 +1,13 @@
 # AGENTS.md
 
-Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local dashboard host that proxies to a remote `kira`). Deeper design notes live in `docs/`; start at `docs/README.md`.
+Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local host for the embedded dashboard). Deeper design notes live in `docs/`; start at `docs/README.md`.
 
 ## Setup
 
 - Rust 1.88 (edition 2024) and Node/npm.
 - `mprocs` and `cargo-watch` are needed for `make dev`.
 - Run `npm ci` before `make check` or any OpenAPI/type generation; the Make target requires `node_modules`.
-- Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime, and `KIRA_GUILD_ID` is required whenever the server is built. A missing `.env` is tolerated and real environment variables take precedence.
+- Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime, and `KIRA_GUILD_ID` is required whenever the server is built. `KIRA_PASSWORD` sets the dashboard PIN; when unset, `kira` prints a generated PIN at startup. A missing `.env` is tolerated and real environment variables take precedence.
 
 ## Commands
 
@@ -17,7 +17,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 - `make dev` — start Vite, `kira`, and `kira-cli` together under `mprocs`.
 - `cargo run -p kira` — bot + API on `127.0.0.1:8080`.
 - `make build-cli` — builds the dashboard, then release `kira-cli`; run `target/release/kira-cli` for the local host on `:3000`.
-- `npm run dev -w @kira/dashboard` — Vite dev server on `127.0.0.1:5173`; proxies `/api` and `/ws` to `kira-cli` on `127.0.0.1:3000`. A debug `kira-cli` proxies non-API requests to Vite instead of serving embedded assets.
+- `npm run dev -w @kira/dashboard` — Vite dev server on `127.0.0.1:5173`. The browser calls `kira` on `:8080` directly; a debug `kira-cli` proxies non-API requests to Vite instead of serving embedded assets.
 - `make openapi` — regenerate `openapi/openapi.yaml` and `packages/api-types/src/schema.d.ts` after any route or DTO change.
 - `cargo xtask openapi generate|check` — the alias is defined in `.cargo/config.toml`.
 
@@ -30,7 +30,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 
 ## Architecture and conventions
 
-- Layers: leaves `kira-core`, `kira-config`, `kira-protocol`; libraries `kira-bot`, `kira-server`, `kira-client`; applications `kira`, `kira-cli`; dev-only `kira-api-docs` (capstone over `kira-server`) and `xtask`.
+- Layers: leaves `kira-core`, `kira-config`, `kira-protocol`; libraries `kira-bot`, `kira-server`; applications `kira`, `kira-cli`; dev-only `kira-api-docs` (capstone over `kira-server`) and `xtask`.
 - Binaries use `anyhow::Result` with context at operational boundaries; reusable crates expose typed `thiserror` errors.
 - OpenAPI ownership: `#[utoipa::path]` handlers and the `ApiDoc` assembly live in `kira-server`, `ToSchema` DTOs in `kira-protocol`, and YAML serialization for the committed contract in `kira-api-docs`. Debug builds serve `ApiDoc` at `/openapi.json` with the Scalar UI at `/docs`; release builds expose neither. Never hand-edit generated contracts — run `make openapi`.
 - Dashboard uses file-based TanStack Router (`src/routes/`, with committed `routeTree.gen.ts`) and a single `openapi-fetch` client in `src/data/fetcher.ts`. Add API domains by copying `src/data/__templates/` (excluded from `tsc` until copied). Components must consume hooks, not call `fetch` directly.

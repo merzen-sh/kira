@@ -19,14 +19,23 @@ Routing is file-based:
 
 The API layer lives in `src/data/`:
 
-- `fetcher.ts` owns the single `openapi-fetch` client, the base URL, bearer
-  token injection, and `unwrap` error normalization. Its `paths` type comes
-  from `@kira/api-types`.
+- `fetcher.ts` owns the single `openapi-fetch` client, the API base URL,
+  credentialed requests, and `unwrap` error normalization. Its `paths` type
+  comes from `@kira/api-types`. The base URL defaults to
+  `${location.protocol}//${location.hostname}:8080` and can be overridden at
+  build time with `VITE_API_BASE_URL`.
+- The browser calls `kira` directly; `kira-cli` never proxies API traffic. The
+  session lives in an `HttpOnly` cookie, so no token is stored in JavaScript.
+- `auth/` holds the session query plus login and logout mutations. The session
+  query treats `401` as signed out.
 - Each API domain owns `keys.ts` and `query.ts` (plus `mutation.ts` when
   needed). `health/` is the first domain.
 - TanStack Query owns server state. Components consume exported query hooks;
   they do not call `fetch` directly.
 - `__templates/` holds copyable conventions for new domains.
+
+`src/routes/__root.tsx` gates the dashboard on the session query: loading
+state, then the PIN login screen, then the shell. The sidebar exposes sign-out.
 
 Shared presentational components live in `packages/ui` (`@kira/ui`) and are
 generated with the shadcn CLI. The global stylesheet is
@@ -37,15 +46,17 @@ generated with the shadcn CLI. The global stylesheet is
 
 ## Development path
 
-In development, Vite runs on its own port and proxies `/api` and `/ws` to
-`kira-cli` on `127.0.0.1:3000`. A debug `kira-cli` also proxies non-API
-requests back to Vite on `127.0.0.1:5173`, so either entrypoint works:
+In development, Vite serves assets on `127.0.0.1:5173` and a debug `kira-cli`
+proxies non-API requests to it. The browser still calls `kira` on `:8080`
+directly for API and WebSocket traffic, so either entrypoint works:
 
 ```
-Browser → Vite dev server :5173 → kira-cli :3000 → remote kira :8080
+Browser → Vite :5173 (assets) ──────────────┐
+Browser → kira-cli :3000 (debug asset proxy)┴→ kira :8080 (API + WS)
 ```
 
-In production, `kira-cli` serves the built assets itself.
+In production, `kira-cli` serves the built assets itself and `kira` handles
+all API and WebSocket traffic.
 
 ## Build and embedding
 
@@ -72,5 +83,5 @@ In production, `kira-cli` serves the built assets itself.
 `cargo build --release -p kira-cli` is independent of the `kira` application,
 but it requires `make dashboard` first. `make build-cli` performs both steps.
 
-See [API.md](API.md) for the proxied routes and
+See [API.md](API.md) for the API routes and
 [DEVELOPMENT.md](DEVELOPMENT.md) for commands.
