@@ -1,6 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, toResourceError, unwrap } from "./fetcher";
+import {
+  ApiError,
+  GET,
+  setUnauthorizedHandler,
+  toResourceError,
+  unwrap,
+} from "./fetcher";
+
+afterEach(() => {
+  setUnauthorizedHandler(undefined);
+  vi.unstubAllGlobals();
+});
+
+describe("unauthorized responses", () => {
+  it("notifies the app when a request returns 401", async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    );
+
+    await GET("/auth/session");
+
+    expect(handler).toHaveBeenCalledOnce();
+  });
+});
 
 describe("unwrap", () => {
   it("returns response data", async () => {

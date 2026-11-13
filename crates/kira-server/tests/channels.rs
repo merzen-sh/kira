@@ -1,5 +1,7 @@
 //! Guild channels integration tests.
 
+mod common;
+
 use std::error::Error;
 
 use axum::body::Body;
@@ -10,19 +12,25 @@ use kira_server::{AppState, router};
 use tokio::sync::{mpsc, watch};
 use tower::ServiceExt;
 
-async fn get_channels(state: AppState) -> Result<axum::response::Response, Box<dyn Error>> {
+async fn get_channels(
+    state: AppState,
+    cookie: &str,
+) -> Result<axum::response::Response, Box<dyn Error>> {
     Ok(router(state)
-        .oneshot(
+        .oneshot(common::with_cookie(
             Request::builder()
                 .uri("/guild/channels")
                 .body(Body::empty())?,
-        )
+            cookie,
+        ))
         .await?)
 }
 
 #[tokio::test]
 async fn channels_return_503_without_data() -> Result<(), Box<dyn Error>> {
-    let res = get_channels(AppState::default()).await?;
+    let state = common::empty_state();
+    let cookie = common::login_cookie(&state).await?;
+    let res = get_channels(state, &cookie).await?;
 
     assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
 
@@ -37,7 +45,8 @@ async fn channels_return_the_configured_server_channels() -> Result<(), Box<dyn 
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(1, guilds, channels, messages, None);
+    let state = AppState::new(1, guilds, channels, messages, common::auth());
+    let cookie = common::login_cookie(&state).await?;
 
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
     channel_sender.send_replace(vec![
@@ -45,7 +54,7 @@ async fn channels_return_the_configured_server_channels() -> Result<(), Box<dyn 
         ChannelDetails::new("11", "2", "other", "text"),
     ]);
 
-    let res = get_channels(state).await?;
+    let res = get_channels(state, &cookie).await?;
     assert_eq!(res.status(), StatusCode::OK);
 
     let bytes = res.into_body().collect().await?.to_bytes();

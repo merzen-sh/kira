@@ -79,11 +79,11 @@ make dev
 # Run the main service (bot + API on :8080)
 cargo run -p kira
 
-# Run the local dashboard host (API on :3000)
+# Run the local dashboard host (assets on :3000)
 make build-cli
 target/release/kira-cli
 
-# Frontend development (Vite on :5173 proxies to kira-cli :3000)
+# Frontend development (Vite on :5173; browser calls kira :8080 directly)
 npm run dev -w @kira/dashboard
 
 # Contract update after changing a route
@@ -92,6 +92,9 @@ make openapi
 # Full verification before merging
 make check
 ```
+
+When `KIRA_PASSWORD` is unset, `kira` prints a generated PIN at startup; enter
+it in the dashboard login screen.
 
 ## Logging
 

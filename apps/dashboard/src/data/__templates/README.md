@@ -23,8 +23,8 @@ Copy this directory to `src/data/<domain>/` and rename the exports. The
    owns `queryKey` and `queryFn`.
 7. Keep React components out of this layer. Components consume the exported
    hooks or mutation options.
-8. Add cross-cutting request behavior once in `fetcher.ts` (`setAuthToken`, or
-   `client.use(...)`). Do not duplicate it in domain files.
+8. Add cross-cutting request behavior once in `fetcher.ts` (`client.use(...)`).
+   Do not duplicate it in domain files.
 
 ## Query shape
 

@@ -6,11 +6,10 @@ use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
-use kira_client::Client;
 use tower::ServiceExt;
 
 fn app() -> axum::Router {
-    router(AppState::new(Client::new("http://127.0.0.1:1"), None))
+    router(AppState::new(None))
 }
 
 async fn get(path: &str) -> Result<Response> {

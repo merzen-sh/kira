@@ -1,8 +1,8 @@
 # Kira documentation
 
 Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira`
-(Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local
-dashboard host that proxies to a remote `kira`).
+(Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local host for
+the embedded dashboard).
 
 Start with the document that matches the task:
 

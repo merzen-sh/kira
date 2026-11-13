@@ -30,18 +30,20 @@ flowchart TB
     end
 
     subgraph LOCAL["kira-cli — local process"]
-        CLI["Axum on 127.0.0.1:3000<br/>GET /api/health → remote /health<br/>GET /ws → remote /ws<br/>GET /* → Vite dev server (debug) / embedded SPA (release)"]
+        CLI["Axum on 127.0.0.1:3000<br/>embedded SPA (release)<br/>Vite dev server proxy (debug)"]
     end
 
     BROWSER["Browser<br/>embedded dashboard"]
 
     GW <--> BOT
-    SERVER <-->|"HTTP + WebSocket"| CLI
-    CLI <--> BROWSER
+    SERVER <-->|"HTTP + WebSocket<br/>session cookie"| BROWSER
+    CLI -->|"assets"| BROWSER
+    CLI -.->|"debug assets"| VITE["Vite :5173"]
 ```
 
 Ports are configurable; the defaults above are what the Makefile and Vite dev
-proxy assume.
+proxy assume. The browser talks to `kira` directly for API and WebSocket
+traffic; `kira-cli` only serves assets.
 
 ## 2. Repository layout
 
@@ -57,13 +59,12 @@ kira/
 │   └── openapi.yaml              generated + committed API contract
 ├── crates/
 │   ├── kira/                     binary: bot + server composition
-│   ├── kira-cli/                 binary: local dashboard host + proxy
+│   ├── kira-cli/                 binary: local dashboard host (embedded SPA)
 │   ├── kira-core/                shared runtime utilities (logging, messaging, shutdown)
 │   ├── kira-config/              environment configuration
 │   ├── kira-protocol/            shared HTTP/WS DTOs
 │   ├── kira-bot/                 Serenity client, event handler, slash commands
-│   ├── kira-server/              Axum router, handlers, utoipa annotations
-│   ├── kira-client/              HTTP + WebSocket client
+│   ├── kira-server/              Axum router, auth, handlers, utoipa annotations
 │   └── kira-api-docs/            OpenAPI YAML serialization (dev-only)
 ├── xtask/                        OpenAPI generate/check tooling
 ├── apps/
@@ -91,7 +92,6 @@ flowchart RL
     subgraph L1["L1 · libraries"]
         BOT["kira-bot"]
         SERVER["kira-server"]
-        CLIENT["kira-client"]
     end
 
     subgraph L2["L2 · applications"]
@@ -107,13 +107,11 @@ flowchart RL
     BOT --> CONFIG
     SERVER --> CONFIG
     SERVER --> PROTOCOL
-    CLIENT --> PROTOCOL
 
     KIRA --> BOT
     KIRA --> SERVER
     KIRA --> CONFIG
     KIRA --> CORE
-    CLI --> CLIENT
     CLI --> CONFIG
     CLI --> CORE
     CLI --> PROTOCOL
@@ -127,13 +125,12 @@ Rules:
 
 1. Leaf crates never depend upward.
 2. `kira-bot` and `kira-server` never depend on each other.
-3. `kira-client` never depends on the bot or server.
-4. `kira` and `kira-cli` never depend on `kira-api-docs` or `xtask`.
-5. `kira-api-docs` is a capstone over `kira-server`; it is never a dependency of
+3. `kira` and `kira-cli` never depend on `kira-api-docs` or `xtask`.
+4. `kira-api-docs` is a capstone over `kira-server`; it is never a dependency of
    an application. This keeps OpenAPI YAML serialization out of production
    binaries. The document itself is assembled in `kira-server` so debug builds
    can serve it live.
-6. `xtask` is never a dependency of any shipped crate.
+5. `xtask` is never a dependency of any shipped crate.
 
 `make check` enforces the most important boundaries with `cargo tree`
 assertions.
@@ -144,10 +141,10 @@ assertions.
   context at each operational boundary: configuration, binding, serving, and
   the bot/server join.
 - **Reusable crates** expose typed `thiserror` errors: `ConfigError`,
-  `BotError`, `ServerError`, `ClientError`, and `ApiDocsError`.
-- The CLI's read proxies log upstream failures locally and return a generic
-  `502` JSON body. The message proxy forwards the upstream status and error
-  message so the dashboard can explain a rejected payload.
+  `BotError`, `ServerError`, and `ApiDocsError`.
+- Authentication failures are typed separately: `LoginError` distinguishes a
+  wrong PIN from a rate-limited caller, and `ServerError` covers configuration
+  and startup failures such as an invalid origin allowlist.
 
 ## 4. Runtime architecture
 
@@ -160,7 +157,9 @@ and waits for Ctrl-C/SIGTERM.
   work; `RUST_LOG` controls the filter (default `info`) and logs go to stderr.
 - `kira-config::DiscordConfig` requires `DISCORD_TOKEN`.
 - `kira-config::ServerConfig` requires `KIRA_GUILD_ID` and supplies `KIRA_BIND`
-  (default `127.0.0.1:8080`) plus optional `KIRA_API_TOKEN`.
+  (default `127.0.0.1:8080`), `KIRA_PASSWORD`, `KIRA_ALLOWED_ORIGINS`,
+  `KIRA_HTTPS`, `KIRA_COOKIE_SECURE`, `KIRA_COOKIE_SAMESITE`, and the dashboard
+  bind used to derive default origins (`KIRA_CLI_BIND`).
 - `kira-bot::run` builds the Serenity client with the
   `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents, registers the
   config in Serenity's type map, and starts the gateway. It caches only the
@@ -192,28 +191,19 @@ test cannot accidentally start the gateway.
 
 ### 4.2 `kira-cli`
 
-`kira-cli` is a local dashboard host and reverse proxy.
+`kira-cli` is a local static host for the built dashboard.
 
-- `kira-config::CliConfig` reads `KIRA_CLI_BIND` (default `127.0.0.1:3000`),
-  `KIRA_REMOTE_URL` (default `http://127.0.0.1:8080`), and `KIRA_API_TOKEN`
-  (forwarded to the remote server when set).
-- `kira-client::Client` talks to the remote server over `reqwest` (HTTP) and
-  `tokio-tungstenite` (WebSocket). Requests time out after 10 seconds.
-  WebSocket URLs are derived from the remote base: `http` → `ws`,
-  `https` → `wss`.
-- The local Axum router serves:
-  - `GET /api/health` — proxies the remote health endpoint. Upstream failure
-    returns `502` with an `ErrorResponse` JSON body.
-  - `GET /ws` — upgrades and bridges frames to the remote `/ws`. Axum and
-    tungstenite message types are converted explicitly; payloads are not
-    interpreted.
-  - Everything else — served from the embedded dashboard with SPA fallback in
-    release builds. Debug builds proxy these requests to Vite on
-    `127.0.0.1:5173` instead, so frontend changes are visible without a Rust
-    rebuild.
+- `kira-config::CliConfig` reads `KIRA_CLI_BIND` (default `127.0.0.1:3000`).
+- The local Axum router only has a fallback:
+  - Release builds serve the embedded dashboard with SPA fallback and asset
+    caching.
+  - Debug builds proxy non-API requests to Vite on `127.0.0.1:5173`, so
+    frontend changes are visible without a Rust rebuild.
+- `/api/*` paths always return `404`; `kira-cli` never forwards API or
+  WebSocket traffic.
 - The process shuts down gracefully on Ctrl-C/SIGTERM.
 
-See [API.md](API.md) for the full route tables and [DASHBOARD.md](DASHBOARD.md)
+See [API.md](API.md) for the server route tables and [DASHBOARD.md](DASHBOARD.md)
 for the frontend.
 
 ## 5. Design decisions and rationale

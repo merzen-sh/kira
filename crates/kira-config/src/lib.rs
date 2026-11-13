@@ -72,9 +72,65 @@ pub struct ServerConfig {
     /// Discord server exposed by the API (`KIRA_GUILD_ID`).
     pub guild_id: u64,
 
-    /// Bearer token required by the API (`KIRA_API_TOKEN`).
+    /// Dashboard PIN or password (`KIRA_PASSWORD`).
+    ///
+    /// When unset, the server generates one at startup and prints it.
     #[serde(default)]
-    pub api_token: Option<String>,
+    pub password: Option<String>,
+
+    /// Comma-separated dashboard origins allowed to call the API
+    /// (`KIRA_ALLOWED_ORIGINS`).
+    ///
+    /// Required for non-loopback binds. Loopback deployments default to the
+    /// dashboard host address plus the Vite dev server origins.
+    #[serde(default)]
+    pub allowed_origins: Option<String>,
+
+    /// Set the `Secure` attribute on the session cookie (`KIRA_COOKIE_SECURE`).
+    #[serde(default)]
+    pub cookie_secure: bool,
+
+    /// Assert that the server is served over HTTPS (`KIRA_HTTPS`).
+    ///
+    /// TLS is terminated by a reverse proxy; this flag makes that deployment
+    /// explicit. Required for non-loopback binds.
+    #[serde(default)]
+    pub https: bool,
+
+    /// Address the dashboard host binds to (`KIRA_CLI_BIND`).
+    ///
+    /// Used to derive default allowed origins for loopback deployments.
+    #[serde(default = "default_cli_bind", rename = "cli_bind")]
+    pub cli_bind: SocketAddr,
+
+    /// `SameSite` policy for the session cookie (`KIRA_COOKIE_SAMESITE`).
+    #[serde(default)]
+    pub cookie_samesite: SameSite,
+}
+
+/// `SameSite` policy for the session cookie.
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum SameSite {
+    /// `SameSite=Lax`: sent on same-site requests and top-level navigations.
+    #[default]
+    Lax,
+    /// `SameSite=Strict`: sent only on same-site requests.
+    Strict,
+    /// `SameSite=None`: sent on cross-site requests; requires `Secure`.
+    None,
+}
+
+impl std::fmt::Display for SameSite {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            Self::Lax => "Lax",
+            Self::Strict => "Strict",
+            Self::None => "None",
+        };
+        f.write_str(value)
+    }
 }
 
 /// Local dashboard settings read from `KIRA_*` variables.
@@ -84,14 +140,6 @@ pub struct CliConfig {
     /// Address the local dashboard binds to (`KIRA_CLI_BIND`).
     #[serde(default = "default_cli_bind", rename = "cli_bind")]
     pub bind: SocketAddr,
-
-    /// Base URL of the remote Kira server (`KIRA_REMOTE_URL`).
-    #[serde(default = "default_remote_url")]
-    pub remote_url: String,
-
-    /// Bearer token sent to the remote Kira server (`KIRA_API_TOKEN`).
-    #[serde(default)]
-    pub api_token: Option<String>,
 }
 
 fn default_bind() -> SocketAddr {
@@ -100,10 +148,6 @@ fn default_bind() -> SocketAddr {
 
 fn default_cli_bind() -> SocketAddr {
     SocketAddr::from(([127, 0, 0, 1], 3000))
-}
-
-fn default_remote_url() -> String {
-    "http://127.0.0.1:8080".to_owned()
 }
 
 impl DiscordConfig {
@@ -242,11 +286,36 @@ mod tests {
     }
 
     #[test]
-    fn server_config_reads_api_token() -> Result<(), ConfigError> {
-        let c =
-            ServerConfig::try_from_iter([("KIRA_GUILD_ID", "1"), ("KIRA_API_TOKEN", "secret")])?;
+    fn server_config_reads_password_and_cookie_settings() -> Result<(), ConfigError> {
+        let c = ServerConfig::try_from_iter([
+            ("KIRA_GUILD_ID", "1"),
+            ("KIRA_PASSWORD", "secret"),
+            ("KIRA_ALLOWED_ORIGINS", "http://127.0.0.1:3000"),
+            ("KIRA_COOKIE_SECURE", "true"),
+            ("KIRA_CLI_BIND", "127.0.0.1:4000"),
+            ("KIRA_HTTPS", "true"),
+            ("KIRA_COOKIE_SAMESITE", "strict"),
+        ])?;
 
-        assert_eq!(c.api_token.as_deref(), Some("secret"));
+        assert_eq!(c.password.as_deref(), Some("secret"));
+        assert_eq!(c.allowed_origins.as_deref(), Some("http://127.0.0.1:3000"));
+        assert!(c.cookie_secure);
+        assert!(c.https);
+        assert_eq!(c.cli_bind, SocketAddr::from(([127, 0, 0, 1], 4000)));
+        assert_eq!(c.cookie_samesite, SameSite::Strict);
+        Ok(())
+    }
+
+    #[test]
+    fn server_config_defaults_cookie_settings() -> Result<(), ConfigError> {
+        let c = ServerConfig::try_from_iter([("KIRA_GUILD_ID", "1")])?;
+
+        assert_eq!(c.password, None);
+        assert_eq!(c.allowed_origins, None);
+        assert!(!c.cookie_secure);
+        assert!(!c.https);
+        assert_eq!(c.cli_bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
+        assert_eq!(c.cookie_samesite, SameSite::Lax);
         Ok(())
     }
 
@@ -255,22 +324,14 @@ mod tests {
         let c = CliConfig::try_from_iter(std::iter::empty::<(&str, &str)>())?;
 
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
-        assert_eq!(c.remote_url, "http://127.0.0.1:8080");
-        assert_eq!(c.api_token, None);
         Ok(())
     }
 
     #[test]
-    fn cli_config_reads_env() -> Result<(), ConfigError> {
-        let c = CliConfig::try_from_iter([
-            ("KIRA_CLI_BIND", "127.0.0.1:4001"),
-            ("KIRA_REMOTE_URL", "http://example.test:9000"),
-            ("KIRA_API_TOKEN", "secret"),
-        ])?;
+    fn cli_config_reads_bind() -> Result<(), ConfigError> {
+        let c = CliConfig::try_from_iter([("KIRA_CLI_BIND", "127.0.0.1:4001")])?;
 
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 4001)));
-        assert_eq!(c.remote_url, "http://example.test:9000");
-        assert_eq!(c.api_token.as_deref(), Some("secret"));
         Ok(())
     }
 }

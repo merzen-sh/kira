@@ -8,7 +8,6 @@ use axum::response::{IntoResponse, Response};
 use axum::{Router, routing};
 use http_body_util::BodyExt;
 use kira_cli::{AppState, router};
-use kira_client::Client;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tower::ServiceExt;
@@ -65,10 +64,7 @@ async fn vite_fallback(request: Request) -> Response {
 }
 
 fn app(dev_server_url: Option<String>) -> Router {
-    router(AppState::new(
-        Client::new("http://127.0.0.1:1"),
-        dev_server_url,
-    ))
+    router(AppState::new(dev_server_url))
 }
 
 async fn request(app: Router, path: &str) -> Result<Response> {

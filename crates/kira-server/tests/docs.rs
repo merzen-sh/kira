@@ -2,17 +2,19 @@
 
 #![cfg(debug_assertions)]
 
+mod common;
+
 use std::error::Error;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
-use kira_server::{AppState, router};
+use kira_server::router;
 use tower::ServiceExt;
 
 #[tokio::test]
 async fn docs_serves_scalar_reference_ui() -> Result<(), Box<dyn Error>> {
-    let res = router(AppState::default())
+    let res = router(common::empty_state())
         .oneshot(Request::builder().uri("/docs").body(Body::empty())?)
         .await?;
 
@@ -39,7 +41,7 @@ async fn docs_serves_scalar_reference_ui() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn openapi_json_serves_the_live_spec() -> Result<(), Box<dyn Error>> {
-    let res = router(AppState::default())
+    let res = router(common::empty_state())
         .oneshot(
             Request::builder()
                 .uri("/openapi.json")
