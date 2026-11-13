@@ -1,5 +1,7 @@
 //! Vite dev proxy integration tests.
 
+#![cfg(feature = "dev-proxy")]
+
 use anyhow::Result;
 use axum::body::Body;
 use axum::extract::Request;

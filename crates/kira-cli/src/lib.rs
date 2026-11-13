@@ -2,6 +2,7 @@
 
 pub mod assets;
 
+#[cfg(feature = "dev-proxy")]
 mod dev_proxy;
 
 use axum::Router;
