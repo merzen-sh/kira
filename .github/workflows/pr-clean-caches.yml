@@ -2,9 +2,13 @@ name: Clean PR caches
 
 on:
   pull_request:
-    types: [opened, closed, reopened, synchronize]
-  push:
+    types: [closed]
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to clean
+        required: true
+        type: number
 
 permissions:
   actions: write
@@ -12,29 +16,36 @@ permissions:
 
 jobs:
   clean:
-    name: Clean caches for the current ref
-    if: ${{ github.ref != 'refs/heads/main' }}
+    name: Clean caches for the closed PR
     runs-on: ubuntu-latest
     steps:
-      - name: Delete caches for this ref
+      - name: Delete caches scoped to the pull request
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          BRANCH: ${{ github.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
           set -euo pipefail
 
-          cacheIdsForBranch=$(gh api --paginate --method GET "repos/${REPO}/actions/caches" \
-            -f ref="${BRANCH}" \
-            -f per_page=100 \
-            --jq '.actions_caches[].id')
-
-          if [ -z "${cacheIdsForBranch}" ]; then
-            echo "No caches found for ${BRANCH}."
-            exit 0
+          if [ -z "${PR_NUMBER}" ] || [ "${PR_NUMBER}" = "null" ]; then
+            echo "No pull request number supplied."
+            exit 1
           fi
 
-          while IFS= read -r cacheId; do
-            echo "Deleting cache ${cacheId} for ${BRANCH}."
-            gh api --method DELETE "repos/${REPO}/actions/caches/${cacheId}"
-          done <<< "${cacheIdsForBranch}"
+          # Pull request workflows save caches under refs/pull/<number>/merge.
+          # Do not clean on synchronize: that cleanup races with CI and sees
+          # the previous run's caches before the new ones are uploaded.
+          for ref in "refs/pull/${PR_NUMBER}/merge" "refs/pull/${PR_NUMBER}/head"; do
+            cacheIds=$(gh cache list --repo "${REPO}" --ref "${ref}" \
+              --limit 1000 --json id --jq '.[].id')
+
+            if [ -z "${cacheIds}" ]; then
+              echo "No caches found for ${ref}."
+              continue
+            fi
+
+            while IFS= read -r cacheId; do
+              echo "Deleting cache ${cacheId} for ${ref}."
+              gh cache delete "${cacheId}" --repo "${REPO}"
+            done <<< "${cacheIds}"
+          done
