@@ -1,5 +1,7 @@
 //! Guild message integration tests.
 
+mod common;
+
 use std::error::Error;
 
 use axum::body::Body;
@@ -17,7 +19,7 @@ fn state() -> (
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
     let (messages, receiver) = mpsc::channel(1);
-    let state = AppState::new(1, guilds, channels, messages, None);
+    let state = AppState::new(1, guilds, channels, messages, common::auth());
 
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
     channel_sender.send_replace(vec![ChannelDetails::new("10", "1", "general", "text")]);
@@ -27,23 +29,26 @@ fn state() -> (
 
 async fn post(
     state: AppState,
+    cookie: &str,
     channel_id: &str,
     body: &str,
 ) -> Result<axum::response::Response, Box<dyn Error>> {
     Ok(router(state)
-        .oneshot(
+        .oneshot(common::with_cookie(
             Request::builder()
                 .method("POST")
                 .uri(format!("/guild/channels/{channel_id}/messages"))
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(body.to_owned()))?,
-        )
+            cookie,
+        ))
         .await?)
 }
 
 #[tokio::test]
 async fn message_is_sent_to_the_selected_channel() -> Result<(), Box<dyn Error>> {
     let (state, mut messages) = state();
+    let cookie = common::login_cookie(&state).await?;
     tokio::spawn(async move {
         let Some(message) = messages.recv().await else {
             return;
@@ -51,7 +56,7 @@ async fn message_is_sent_to_the_selected_channel() -> Result<(), Box<dyn Error>>
         let _ = message.reply.send(Ok("99".into()));
     });
 
-    let res = post(state, "10", r#"{"content":"Hello"}"#).await?;
+    let res = post(state, &cookie, "10", r#"{"content":"Hello"}"#).await?;
     assert_eq!(res.status(), StatusCode::CREATED);
 
     let bytes = res.into_body().collect().await?.to_bytes();
@@ -64,6 +69,7 @@ async fn message_is_sent_to_the_selected_channel() -> Result<(), Box<dyn Error>>
 #[tokio::test]
 async fn raw_message_is_forwarded() -> Result<(), Box<dyn Error>> {
     let (state, mut messages) = state();
+    let cookie = common::login_cookie(&state).await?;
     let handle = tokio::spawn(async move {
         let message = messages.recv().await?;
         let _ = message.reply.send(Ok("99".into()));
@@ -71,7 +77,7 @@ async fn raw_message_is_forwarded() -> Result<(), Box<dyn Error>> {
     });
     let body = r#"{"content":"Hey","embeds":[{"title":"Update"}],"attachments":[]}"#;
 
-    let res = post(state, "10", body).await?;
+    let res = post(state, &cookie, "10", body).await?;
     assert_eq!(res.status(), StatusCode::CREATED);
 
     let payload = handle.await?;
@@ -85,8 +91,9 @@ async fn raw_message_is_forwarded() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn empty_message_is_rejected() -> Result<(), Box<dyn Error>> {
     let (state, _messages) = state();
+    let cookie = common::login_cookie(&state).await?;
 
-    let res = post(state, "10", "{}").await?;
+    let res = post(state, &cookie, "10", "{}").await?;
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
 
     let bytes = res.into_body().collect().await?.to_bytes();
@@ -98,8 +105,9 @@ async fn empty_message_is_rejected() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn unknown_channel_is_rejected() -> Result<(), Box<dyn Error>> {
     let (state, _messages) = state();
+    let cookie = common::login_cookie(&state).await?;
 
-    let res = post(state, "11", r#"{"content":"Hello"}"#).await?;
+    let res = post(state, &cookie, "11", r#"{"content":"Hello"}"#).await?;
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
     Ok(())
 }
@@ -109,11 +117,12 @@ async fn non_text_channel_is_rejected() -> Result<(), Box<dyn Error>> {
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(1, guilds, channels, messages, None);
+    let state = AppState::new(1, guilds, channels, messages, common::auth());
+    let cookie = common::login_cookie(&state).await?;
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
     channel_sender.send_replace(vec![ChannelDetails::new("10", "1", "voice", "voice")]);
 
-    let res = post(state, "10", r#"{"content":"Hello"}"#).await?;
+    let res = post(state, &cookie, "10", r#"{"content":"Hello"}"#).await?;
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     Ok(())
 }
@@ -121,9 +130,10 @@ async fn non_text_channel_is_rejected() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn content_over_the_limit_is_rejected() -> Result<(), Box<dyn Error>> {
     let (state, _messages) = state();
+    let cookie = common::login_cookie(&state).await?;
     let body = serde_json::json!({ "content": "x".repeat(2001) }).to_string();
 
-    let res = post(state, "10", &body).await?;
+    let res = post(state, &cookie, "10", &body).await?;
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     Ok(())
 }
@@ -131,13 +141,14 @@ async fn content_over_the_limit_is_rejected() -> Result<(), Box<dyn Error>> {
 #[tokio::test]
 async fn embeds_only_payload_is_accepted() -> Result<(), Box<dyn Error>> {
     let (state, mut messages) = state();
+    let cookie = common::login_cookie(&state).await?;
     tokio::spawn(async move {
         if let Some(message) = messages.recv().await {
             let _ = message.reply.send(Ok("99".into()));
         }
     });
 
-    let res = post(state, "10", r#"{"embeds":[{"title":"x"}]}"#).await?;
+    let res = post(state, &cookie, "10", r#"{"embeds":[{"title":"x"}]}"#).await?;
     assert_eq!(res.status(), StatusCode::CREATED);
     Ok(())
 }
@@ -145,6 +156,7 @@ async fn embeds_only_payload_is_accepted() -> Result<(), Box<dyn Error>> {
 #[tokio::test(start_paused = true)]
 async fn stalled_delivery_times_out() -> Result<(), Box<dyn Error>> {
     let (state, mut messages) = state();
+    let cookie = common::login_cookie(&state).await?;
     let _hold = tokio::spawn(async move {
         if let Some(message) = messages.recv().await {
             let _reply = message.reply;
@@ -152,7 +164,7 @@ async fn stalled_delivery_times_out() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    let res = post(state, "10", r#"{"content":"Hello"}"#).await?;
+    let res = post(state, &cookie, "10", r#"{"content":"Hello"}"#).await?;
     assert_eq!(res.status(), StatusCode::GATEWAY_TIMEOUT);
     Ok(())
 }

@@ -6,6 +6,66 @@ info:
     name: ''
   version: 0.1.0
 paths:
+  /auth/login:
+    post:
+      tags:
+      - auth
+      summary: Authenticate with the dashboard PIN and receive a session cookie.
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '204':
+          description: Session cookie issued
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Clear the session cookie.
+      operationId: logout
+      responses:
+        '204':
+          description: Session cookie cleared
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/session:
+    get:
+      tags:
+      - auth
+      summary: Report whether the request carries a valid session.
+      operationId: session
+      responses:
+        '204':
+          description: Session is valid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /guild:
     get:
       tags:
@@ -28,6 +88,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /guild/channels:
     get:
       tags:
@@ -52,6 +114,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /guild/channels/{channel_id}/messages:
     post:
       tags:
@@ -106,6 +170,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /health:
     get:
       tags:
@@ -224,6 +290,15 @@ components:
         version:
           type: string
           description: Version of the running `kira` binary.
+    LoginRequest:
+      type: object
+      description: Credentials submitted to `POST /auth/login`.
+      required:
+      - pin
+      properties:
+        pin:
+          type: string
+          description: Dashboard PIN or password.
     SentMessage:
       type: object
       description: A message posted to a Discord channel.
@@ -237,7 +312,14 @@ components:
         id:
           type: string
           description: Discord message ID.
+  securitySchemes:
+    cookie_auth:
+      type: apiKey
+      in: cookie
+      name: kira_session
 tags:
+- name: auth
+  description: Dashboard session authentication
 - name: health
   description: Service health
 - name: guild

@@ -10,9 +10,12 @@ axum.workspace = true
 kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
 kira-protocol = { path = "../kira-protocol" }
+ring.workspace = true
 serde_json.workspace = true
+subtle.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tower-http.workspace = true
 tracing.workspace = true
 utoipa.workspace = true
 

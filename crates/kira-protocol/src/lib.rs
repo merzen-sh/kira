@@ -125,6 +125,14 @@ impl SentMessage {
     }
 }
 
+/// Credentials submitted to `POST /auth/login`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct LoginRequest {
+    /// Dashboard PIN or password.
+    pub pin: String,
+}
+
 /// Error payload returned when a request fails.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]

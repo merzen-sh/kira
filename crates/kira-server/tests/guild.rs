@@ -1,5 +1,7 @@
 //! Guild details integration tests.
 
+mod common;
+
 use std::error::Error;
 
 use axum::body::Body;
@@ -22,15 +24,23 @@ fn details(id: &str, name: &str) -> GuildDetails {
     guild
 }
 
-async fn get_guild(state: AppState) -> Result<axum::response::Response, Box<dyn Error>> {
+async fn get_guild(
+    state: AppState,
+    cookie: &str,
+) -> Result<axum::response::Response, Box<dyn Error>> {
     Ok(router(state)
-        .oneshot(Request::builder().uri("/guild").body(Body::empty())?)
+        .oneshot(common::with_cookie(
+            Request::builder().uri("/guild").body(Body::empty())?,
+            cookie,
+        ))
         .await?)
 }
 
 #[tokio::test]
 async fn guild_returns_503_without_data() -> Result<(), Box<dyn Error>> {
-    let res = get_guild(AppState::default()).await?;
+    let state = common::empty_state();
+    let cookie = common::login_cookie(&state).await?;
+    let res = get_guild(state, &cookie).await?;
 
     assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
 
@@ -45,11 +55,12 @@ async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(1, receiver, channels, messages, None);
+    let state = AppState::new(1, receiver, channels, messages, common::auth());
+    let cookie = common::login_cookie(&state).await?;
 
     sender.send_replace(vec![details("1", "Alpha"), details("2", "Beta")]);
 
-    let res = get_guild(state).await?;
+    let res = get_guild(state, &cookie).await?;
     assert_eq!(res.status(), StatusCode::OK);
 
     let content_type = res.headers()[header::CONTENT_TYPE].to_str()?;
@@ -72,11 +83,12 @@ async fn guild_returns_503_when_the_target_is_missing() -> Result<(), Box<dyn Er
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(9, receiver, channels, messages, None);
+    let state = AppState::new(9, receiver, channels, messages, common::auth());
+    let cookie = common::login_cookie(&state).await?;
 
     sender.send_replace(vec![details("1", "Alpha")]);
 
-    let res = get_guild(state).await?;
+    let res = get_guild(state, &cookie).await?;
     assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
     Ok(())
 }

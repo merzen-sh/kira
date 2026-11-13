@@ -6,12 +6,12 @@
 )]
 
 use std::future::Future;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, Request, State};
-use axum::http::{StatusCode, header};
+use axum::extract::{ConnectInfo, Extension, Path, Request, State};
+use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::middleware::{self, Next};
 #[cfg(debug_assertions)]
 use axum::response::Html;
@@ -19,12 +19,19 @@ use axum::response::{IntoResponse, Response};
 use axum::{Json, Router, routing};
 use kira_config::ServerConfig;
 use kira_core::messaging::{MessageSender, OutgoingMessage};
-use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, SentMessage};
+use kira_protocol::{
+    ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, LoginRequest, SentMessage,
+};
 use thiserror::Error;
 use tokio::net::TcpListener;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 #[cfg(debug_assertions)]
 use utoipa::OpenApi;
+
+mod auth;
+
+pub use auth::{Auth, AuthConfig, COOKIE_NAME, LoginError, SESSION_TTL};
 
 /// How long a message POST waits for the bot to report a send result.
 const MESSAGE_TIMEOUT: Duration = Duration::from_secs(15);
@@ -46,12 +53,24 @@ pub enum ServerError {
         source: std::io::Error,
     },
 
-    /// A non-loopback bind was requested without an API token.
-    #[error("refusing to bind {addr} without KIRA_API_TOKEN")]
+    /// A non-loopback bind was requested without an origin allowlist.
+    #[error("refusing to bind {addr} without KIRA_ALLOWED_ORIGINS")]
     InsecureBind {
         /// Address the server refused to bind.
         addr: SocketAddr,
     },
+
+    /// The configured origin allowlist is empty or malformed.
+    #[error("KIRA_ALLOWED_ORIGINS must be a comma-separated list of http(s) origins")]
+    InvalidOrigin,
+
+    /// `SameSite=None` was requested without the `Secure` attribute.
+    #[error("KIRA_COOKIE_SAMESITE=none requires KIRA_COOKIE_SECURE=true")]
+    InsecureCookie,
+
+    /// A random secret could not be generated.
+    #[error("failed to generate a random secret")]
+    Random,
 
     /// The server failed while accepting or serving connections.
     #[error("server I/O error")]
@@ -65,25 +84,26 @@ pub struct AppState {
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
     messages: MessageSender,
-    api_token: Option<String>,
+    auth: Auth,
 }
 
 impl AppState {
-    /// Build state from the configured guild ID and the bot's cached state.
+    /// Build state from the configured guild ID, the bot's cached state, and
+    /// the authentication settings.
     #[must_use]
     pub fn new(
         guild_id: u64,
         guilds: watch::Receiver<Vec<GuildDetails>>,
         channels: watch::Receiver<Vec<ChannelDetails>>,
         messages: MessageSender,
-        api_token: Option<String>,
+        auth: Auth,
     ) -> Self {
         Self {
             guild_id: guild_id.to_string(),
             guilds,
             channels,
             messages,
-            api_token,
+            auth,
         }
     }
 
@@ -109,37 +129,71 @@ impl AppState {
     }
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        let (_guild_sender, guilds) = watch::channel(Vec::new());
-        let (_channel_sender, channels) = watch::channel(Vec::new());
-        let (messages, _receiver) = mpsc::channel(1);
-        Self::new(0, guilds, channels, messages, None)
-    }
+/// Peer address captured from the TCP connection, when available.
+#[doc(hidden)]
+#[derive(Clone, Copy)]
+pub struct PeerAddress(Option<IpAddr>);
+
+/// Record the connection peer for the login rate limiter.
+async fn record_peer(mut request: Request, next: Next) -> Response {
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|connect| connect.0.ip());
+    request.extensions_mut().insert(PeerAddress(peer));
+    next.run(request).await
 }
 
-/// Reject requests that do not carry the configured bearer token.
-async fn require_token(State(state): State<AppState>, request: Request, next: Next) -> Response {
-    let Some(token) = state.api_token.as_deref() else {
-        return next.run(request).await;
-    };
-
-    let authorized = request
+/// Reject requests whose `Origin` header is not allowlisted.
+async fn require_origin(State(state): State<AppState>, request: Request, next: Next) -> Response {
+    let origin = request
         .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .is_some_and(|value| value == token);
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok());
+
+    if origin.is_some_and(|origin| !state.auth.origin_allowed(origin)) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(ErrorResponse::new("origin is not allowed")),
+        )
+            .into_response();
+    }
+
+    next.run(request).await
+}
+
+/// Reject requests without a valid session cookie.
+async fn require_session(State(state): State<AppState>, request: Request, next: Next) -> Response {
+    let authorized = state
+        .auth
+        .token_from_headers(request.headers())
+        .is_some_and(|token| state.auth.verify_token(&token));
 
     if authorized {
         next.run(request).await
     } else {
         (
             StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse::new("missing or invalid API token")),
+            Json(ErrorResponse::new("authentication required")),
         )
             .into_response()
     }
+}
+
+fn cors_layer(state: &AppState) -> CorsLayer {
+    let origins = state
+        .auth
+        .allowed_origins()
+        .iter()
+        .filter_map(|origin| origin.parse::<HeaderValue>().ok())
+        .collect::<Vec<_>>();
+
+    CorsLayer::new()
+        .allow_credentials(true)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::ACCEPT])
+        .allow_origin(AllowOrigin::list(origins))
+        .max_age(Duration::from_secs(600))
 }
 
 /// Return the service health payload.
@@ -153,11 +207,95 @@ pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse::ok())
 }
 
+/// Authenticate with the dashboard PIN and receive a session cookie.
+#[utoipa::path(
+    post,
+    path = "/auth/login",
+    tag = "auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 204, description = "Session cookie issued"),
+        (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
+        (status = 429, body = ErrorResponse)
+    )
+)]
+pub async fn login(
+    State(state): State<AppState>,
+    Extension(peer): Extension<PeerAddress>,
+    Json(body): Json<LoginRequest>,
+) -> Response {
+    let mut response = match state.auth.login(&body.pin, peer.0) {
+        Ok(cookie) => (StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response(),
+        Err(LoginError::InvalidPin) => (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse::new("invalid PIN")),
+        )
+            .into_response(),
+        Err(LoginError::TooManyAttempts { retry_after }) => {
+            let seconds = retry_after.as_secs().max(1);
+            let mut response = (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(ErrorResponse::new("too many login attempts")),
+            )
+                .into_response();
+
+            if let Ok(value) = HeaderValue::from_str(&seconds.to_string()) {
+                response.headers_mut().insert(header::RETRY_AFTER, value);
+            }
+
+            response
+        }
+    };
+
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+/// Clear the session cookie.
+#[utoipa::path(
+    post,
+    path = "/auth/logout",
+    tag = "auth",
+    responses(
+        (status = 204, description = "Session cookie cleared"),
+        (status = 403, body = ErrorResponse)
+    )
+)]
+pub async fn logout(State(state): State<AppState>) -> Response {
+    (
+        StatusCode::NO_CONTENT,
+        [
+            (header::SET_COOKIE, state.auth.clear_cookie()),
+            (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
+        ],
+    )
+        .into_response()
+}
+
+/// Report whether the request carries a valid session.
+#[utoipa::path(
+    get,
+    path = "/auth/session",
+    tag = "auth",
+    security(("cookie_auth" = [])),
+    responses(
+        (status = 204, description = "Session is valid"),
+        (status = 401, body = ErrorResponse)
+    )
+)]
+pub async fn session() -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
 /// Return the configured Discord server's details.
 #[utoipa::path(
     get,
     path = "/guild",
     tag = "guild",
+    security(("cookie_auth" = [])),
     responses(
         (status = 200, body = GuildDetails),
         (status = 401, body = ErrorResponse),
@@ -180,6 +318,7 @@ pub async fn get_guild(State(state): State<AppState>) -> Response {
     get,
     path = "/guild/channels",
     tag = "guild",
+    security(("cookie_auth" = [])),
     responses(
         (status = 200, body = [ChannelDetails]),
         (status = 401, body = ErrorResponse),
@@ -221,6 +360,7 @@ fn validate_message(payload: &serde_json::Value) -> Result<(), &'static str> {
     post,
     path = "/guild/channels/{channel_id}/messages",
     tag = "guild",
+    security(("cookie_auth" = [])),
     params(("channel_id" = String, Path, description = "Discord channel ID")),
     request_body = serde_json::Value,
     responses(
@@ -302,35 +442,73 @@ pub async fn send_guild_message(
 #[openapi(
     info(title = "Kira API", version = env!("CARGO_PKG_VERSION"), description = "Kira service API"),
     tags(
+        (name = "auth", description = "Dashboard session authentication"),
         (name = "health", description = "Service health"),
         (name = "guild", description = "Discord server and channels")
     ),
-    paths(health, get_guild, get_guild_channels, send_guild_message),
+    paths(
+        health,
+        login,
+        logout,
+        session,
+        get_guild,
+        get_guild_channels,
+        send_guild_message
+    ),
     components(schemas(
-        kira_protocol::HealthResponse,
-        kira_protocol::GuildDetails,
-        kira_protocol::ChannelDetails,
-        kira_protocol::SentMessage,
-        kira_protocol::ErrorResponse
-    ))
+            kira_protocol::HealthResponse,
+            kira_protocol::GuildDetails,
+            kira_protocol::ChannelDetails,
+            kira_protocol::SentMessage,
+            kira_protocol::LoginRequest,
+            kira_protocol::ErrorResponse
+        )),
+    modifiers(&SecurityAddon)
 )]
 pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
+
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "cookie_auth",
+                SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new(COOKIE_NAME))),
+            );
+        }
+    }
+}
 
 /// Build the HTTP router for the Kira API.
 pub fn router(state: AppState) -> Router {
     let protected = Router::new()
+        .route("/auth/session", routing::get(session))
         .route("/guild", routing::get(get_guild))
         .route("/guild/channels", routing::get(get_guild_channels))
         .route(
             "/guild/channels/{channel_id}/messages",
             routing::post(send_guild_message),
         )
-        .route_layer(middleware::from_fn_with_state(state.clone(), require_token));
+        .route("/ws", routing::get(ws_upgrade))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_session,
+        ));
 
     let router = Router::new()
         .route("/health", routing::get(health))
-        .route("/ws", routing::get(ws_upgrade))
+        .route("/auth/login", routing::post(login))
+        .route("/auth/logout", routing::post(logout))
         .merge(protected)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_origin,
+        ))
+        .layer(middleware::from_fn(record_peer))
+        .layer(cors_layer(&state))
         .with_state(state);
 
     #[cfg(debug_assertions)]
@@ -374,7 +552,17 @@ pub async fn serve(
     messages: MessageSender,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
-    ensure_secure_bind(config.bind, config.api_token.as_deref())?;
+    ensure_secure_bind(config.bind, config.allowed_origins.as_deref())?;
+
+    let auth = Auth::new(AuthConfig::from_server_config(config)?)?;
+    if let Some(pin) = auth.generated_pin() {
+        tracing::warn!("KIRA_PASSWORD is not set; generated dashboard PIN: {pin}");
+    }
+    if !config.bind.ip().is_loopback() && !config.cookie_secure {
+        tracing::warn!(
+            "KIRA_COOKIE_SECURE is not enabled; session cookies will be sent over plaintext"
+        );
+    }
 
     let listener = TcpListener::bind(config.bind)
         .await
@@ -385,20 +573,14 @@ pub async fn serve(
     tracing::info!("Listening on http://{}", listener.local_addr()?);
     serve_with_listener(
         listener,
-        AppState::new(
-            config.guild_id,
-            guilds,
-            channels,
-            messages,
-            config.api_token.clone(),
-        ),
+        AppState::new(config.guild_id, guilds, channels, messages, auth),
         shutdown,
     )
     .await
 }
 
-fn ensure_secure_bind(bind: SocketAddr, api_token: Option<&str>) -> Result<(), ServerError> {
-    if bind.ip().is_loopback() || api_token.is_some() {
+fn ensure_secure_bind(bind: SocketAddr, allowed_origins: Option<&str>) -> Result<(), ServerError> {
+    if bind.ip().is_loopback() || allowed_origins.is_some() {
         return Ok(());
     }
 
@@ -411,9 +593,12 @@ pub async fn serve_with_listener(
     state: AppState,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
-    axum::serve(listener, router(state))
-        .with_graceful_shutdown(shutdown)
-        .await?;
+    axum::serve(
+        listener,
+        router(state).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown)
+    .await?;
     Ok(())
 }
 
@@ -455,16 +640,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn loopback_bind_needs_no_token() {
+    fn loopback_bind_needs_no_origin_configuration() {
         assert!(ensure_secure_bind(SocketAddr::from(([127, 0, 0, 1], 8080)), None).is_ok());
     }
 
     #[test]
-    fn public_bind_requires_a_token() {
+    fn public_bind_requires_an_origin_allowlist() {
         assert!(matches!(
             ensure_secure_bind(SocketAddr::from(([0, 0, 0, 0], 8080)), None),
             Err(ServerError::InsecureBind { .. })
         ));
-        assert!(ensure_secure_bind(SocketAddr::from(([0, 0, 0, 0], 8080)), Some("secret")).is_ok());
+        assert!(
+            ensure_secure_bind(
+                SocketAddr::from(([0, 0, 0, 0], 8080)),
+                Some("http://127.0.0.1:3000")
+            )
+            .is_ok()
+        );
     }
 }
