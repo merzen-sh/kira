@@ -2,6 +2,7 @@ import { cn } from "@kira/ui/lib/utils";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
+  LogOut,
   Megaphone,
   Moon,
   PanelLeftClose,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useLogoutMutation } from "@/data/auth/mutation";
 import { useGuildQuery } from "@/data/guild/query";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -29,6 +31,7 @@ export function DashboardShell() {
     () => typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches,
   );
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const logout = useLogoutMutation();
 
   useEffect(() => {
     const media = window.matchMedia(MOBILE_QUERY);
@@ -120,6 +123,29 @@ export function DashboardShell() {
             );
           })}
         </nav>
+
+        <div className="border-t border-border/60 p-2">
+          <button
+            type="button"
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+            title="Sign out"
+            aria-label="Sign out"
+            className="flex h-10 w-full items-center text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none disabled:opacity-50"
+          >
+            <span className="flex h-10 w-14 shrink-0 items-center justify-center">
+              <LogOut className="size-5" />
+            </span>
+            <span
+              className={cn(
+                "min-w-0 truncate transition-opacity duration-200",
+                collapsed ? "opacity-0" : "pr-4 opacity-100",
+              )}
+            >
+              Sign out
+            </span>
+          </button>
+        </div>
       </aside>
 
       <div aria-hidden="true" className="w-14 shrink-0 md:hidden" />

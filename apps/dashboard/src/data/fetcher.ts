@@ -3,7 +3,20 @@ import createClient from "openapi-fetch";
 
 import type { ResourceError } from "./types";
 
-const DEFAULT_BASE_URL = "/api";
+const DEFAULT_API_PORT = "8080";
+
+function defaultBaseUrl(): string {
+  if (typeof window === "undefined") {
+    return `http://127.0.0.1:${DEFAULT_API_PORT}`;
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:${DEFAULT_API_PORT}`;
+}
+
+/** Base URL of the Kira API. Override with `VITE_API_BASE_URL` when the API
+ * lives on a different host or port than the dashboard. */
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? defaultBaseUrl();
 
 export interface ApiErrorOptions {
   status?: number;
@@ -30,35 +43,10 @@ export interface ApiResponse<T> {
   response: Response;
 }
 
-let authToken: string | null = null;
-
-/**
- * Set the bearer token used by subsequent requests. Pass `null` to clear it.
- * For cookie-based auth, the client already sends credentials.
- */
-export function setAuthToken(token: string | null): void {
-  authToken = token;
-}
-
-/**
- * The single API client for the dashboard.
- *
- * Add cross-cutting request behavior with `client.use(...)` instead of
- * constructing another client.
- */
 export const client = createClient<paths>({
-  baseUrl: import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BASE_URL,
+  baseUrl: API_BASE_URL,
   credentials: "include",
   headers: { Accept: "application/json" },
-});
-
-client.use({
-  onRequest({ request }) {
-    if (authToken) {
-      request.headers.set("Authorization", `Bearer ${authToken}`);
-    }
-    return request;
-  },
 });
 
 export const { GET, POST, PUT, PATCH, DELETE } = client;
