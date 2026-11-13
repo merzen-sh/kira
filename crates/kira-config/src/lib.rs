@@ -81,14 +81,27 @@ pub struct ServerConfig {
     /// Comma-separated dashboard origins allowed to call the API
     /// (`KIRA_ALLOWED_ORIGINS`).
     ///
-    /// Required for non-loopback binds; loopback binds default to the local
-    /// dashboard and Vite dev server origins.
+    /// Required for non-loopback binds. Loopback deployments default to the
+    /// dashboard host address plus the Vite dev server origins.
     #[serde(default)]
     pub allowed_origins: Option<String>,
 
     /// Set the `Secure` attribute on the session cookie (`KIRA_COOKIE_SECURE`).
     #[serde(default)]
     pub cookie_secure: bool,
+
+    /// Assert that the server is served over HTTPS (`KIRA_HTTPS`).
+    ///
+    /// TLS is terminated by a reverse proxy; this flag makes that deployment
+    /// explicit. Required for non-loopback binds.
+    #[serde(default)]
+    pub https: bool,
+
+    /// Address the dashboard host binds to (`KIRA_CLI_BIND`).
+    ///
+    /// Used to derive default allowed origins for loopback deployments.
+    #[serde(default = "default_cli_bind", rename = "cli_bind")]
+    pub cli_bind: SocketAddr,
 
     /// `SameSite` policy for the session cookie (`KIRA_COOKIE_SAMESITE`).
     #[serde(default)]
@@ -279,12 +292,16 @@ mod tests {
             ("KIRA_PASSWORD", "secret"),
             ("KIRA_ALLOWED_ORIGINS", "http://127.0.0.1:3000"),
             ("KIRA_COOKIE_SECURE", "true"),
+            ("KIRA_CLI_BIND", "127.0.0.1:4000"),
+            ("KIRA_HTTPS", "true"),
             ("KIRA_COOKIE_SAMESITE", "strict"),
         ])?;
 
         assert_eq!(c.password.as_deref(), Some("secret"));
         assert_eq!(c.allowed_origins.as_deref(), Some("http://127.0.0.1:3000"));
         assert!(c.cookie_secure);
+        assert!(c.https);
+        assert_eq!(c.cli_bind, SocketAddr::from(([127, 0, 0, 1], 4000)));
         assert_eq!(c.cookie_samesite, SameSite::Strict);
         Ok(())
     }
@@ -296,6 +313,8 @@ mod tests {
         assert_eq!(c.password, None);
         assert_eq!(c.allowed_origins, None);
         assert!(!c.cookie_secure);
+        assert!(!c.https);
+        assert_eq!(c.cli_bind, SocketAddr::from(([127, 0, 0, 1], 3000)));
         assert_eq!(c.cookie_samesite, SameSite::Lax);
         Ok(())
     }

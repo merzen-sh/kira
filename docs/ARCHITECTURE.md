@@ -158,7 +158,8 @@ and waits for Ctrl-C/SIGTERM.
 - `kira-config::DiscordConfig` requires `DISCORD_TOKEN`.
 - `kira-config::ServerConfig` requires `KIRA_GUILD_ID` and supplies `KIRA_BIND`
   (default `127.0.0.1:8080`), `KIRA_PASSWORD`, `KIRA_ALLOWED_ORIGINS`,
-  `KIRA_COOKIE_SECURE`, and `KIRA_COOKIE_SAMESITE`.
+  `KIRA_HTTPS`, `KIRA_COOKIE_SECURE`, `KIRA_COOKIE_SAMESITE`, and the dashboard
+  bind used to derive default origins (`KIRA_CLI_BIND`).
 - `kira-bot::run` builds the Serenity client with the
   `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents, registers the
   config in Serenity's type map, and starts the gateway. It caches only the

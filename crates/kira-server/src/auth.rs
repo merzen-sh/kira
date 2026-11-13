@@ -1,7 +1,7 @@
 //! PIN authentication, signed session cookies, and login rate limiting.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -35,13 +35,13 @@ const MAX_TRACKED_PEERS: usize = 4096;
 
 const TOKEN_VERSION: &str = "v1";
 
-/// Loopback dashboard origins allowed when none are configured.
-const DEFAULT_ORIGINS: [&str; 4] = [
-    "http://127.0.0.1:3000",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-];
+/// Vite dev server port used during local frontend development.
+const VITE_DEV_PORT: u16 = 5173;
+
+/// Default loopback dashboard address when no CLI bind is configured.
+fn default_cli_bind() -> SocketAddr {
+    SocketAddr::from(([127, 0, 0, 1], 3000))
+}
 
 /// Authentication settings for the server.
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ impl Default for AuthConfig {
     fn default() -> Self {
         Self {
             password: None,
-            allowed_origins: default_origins(),
+            allowed_origins: default_origins(default_cli_bind()),
             cookie_secure: false,
             cookie_samesite: SameSite::Lax,
         }
@@ -88,7 +88,12 @@ impl AuthConfig {
 
         let allowed_origins = match config.allowed_origins.as_deref() {
             Some(value) => parse_origins(value)?,
-            None => default_origins(),
+            None if config.cli_bind.ip().is_loopback() => default_origins(config.cli_bind),
+            None => {
+                return Err(ServerError::OriginsRequired {
+                    addr: config.cli_bind,
+                });
+            }
         };
 
         if config.cookie_samesite == SameSite::None && !config.cookie_secure {
@@ -104,11 +109,19 @@ impl AuthConfig {
     }
 }
 
-fn default_origins() -> Vec<String> {
-    DEFAULT_ORIGINS
-        .iter()
-        .map(|origin| (*origin).to_owned())
-        .collect()
+fn default_origins(cli_bind: SocketAddr) -> Vec<String> {
+    let port = cli_bind.port();
+    let mut origins = vec![
+        format!("http://127.0.0.1:{port}"),
+        format!("http://localhost:{port}"),
+    ];
+
+    if cli_bind.ip().is_loopback() && port != VITE_DEV_PORT {
+        origins.push(format!("http://127.0.0.1:{VITE_DEV_PORT}"));
+        origins.push(format!("http://localhost:{VITE_DEV_PORT}"));
+    }
+
+    origins
 }
 
 fn parse_origins(value: &str) -> Result<Vec<String>, ServerError> {
@@ -512,5 +525,29 @@ mod tests {
         assert!(parse_origins("*").is_err());
         assert!(parse_origins("http://").is_err());
         assert!(parse_origins("http://localhost:3000/path").is_err());
+    }
+
+    #[test]
+    fn default_origins_follow_the_configured_cli_port() {
+        let origins = default_origins(SocketAddr::from(([127, 0, 0, 1], 4000)));
+
+        assert!(origins.contains(&"http://127.0.0.1:4000".to_owned()));
+        assert!(origins.contains(&"http://localhost:4000".to_owned()));
+        assert!(!origins.iter().any(|origin| origin.contains(":3000")));
+        assert!(origins.contains(&format!("http://127.0.0.1:{VITE_DEV_PORT}")));
+    }
+
+    #[test]
+    fn non_loopback_dashboard_requires_explicit_origins() {
+        let config = ServerConfig::try_from_iter([
+            ("KIRA_GUILD_ID", "1"),
+            ("KIRA_CLI_BIND", "0.0.0.0:3000"),
+        ])
+        .expect("config");
+
+        assert!(matches!(
+            AuthConfig::from_server_config(&config),
+            Err(ServerError::OriginsRequired { .. })
+        ));
     }
 }

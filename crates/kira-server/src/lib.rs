@@ -53,10 +53,20 @@ pub enum ServerError {
         source: std::io::Error,
     },
 
-    /// A non-loopback bind was requested without an origin allowlist.
-    #[error("refusing to bind {addr} without KIRA_ALLOWED_ORIGINS")]
+    /// A non-loopback bind was requested without HTTPS, secure cookies, and
+    /// an origin allowlist.
+    #[error(
+        "refusing to bind {addr} without KIRA_HTTPS=true, KIRA_COOKIE_SECURE=true, and KIRA_ALLOWED_ORIGINS"
+    )]
     InsecureBind {
         /// Address the server refused to bind.
+        addr: SocketAddr,
+    },
+
+    /// The dashboard binds beyond loopback without an origin allowlist.
+    #[error("KIRA_ALLOWED_ORIGINS is required when the dashboard binds {addr}")]
+    OriginsRequired {
+        /// Address the dashboard host refused to derive origins for.
         addr: SocketAddr,
     },
 
@@ -201,7 +211,10 @@ fn cors_layer(state: &AppState) -> CorsLayer {
     get,
     path = "/health",
     tag = "health",
-    responses((status = 200, body = HealthResponse))
+    responses(
+        (status = 200, body = HealthResponse),
+        (status = 403, body = ErrorResponse)
+    )
 )]
 pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse::ok())
@@ -215,9 +228,12 @@ pub async fn health() -> Json<HealthResponse> {
     request_body = LoginRequest,
     responses(
         (status = 204, description = "Session cookie issued"),
+        (status = 400, body = ErrorResponse),
         (status = 401, body = ErrorResponse),
         (status = 403, body = ErrorResponse),
-        (status = 429, body = ErrorResponse)
+        (status = 415, body = ErrorResponse),
+        (status = 422, body = ErrorResponse),
+        (status = 429, body = ErrorResponse, headers(("Retry-After" = u64, description = "Seconds until another login attempt is allowed")))
     )
 )]
 pub async fn login(
@@ -283,7 +299,8 @@ pub async fn logout(State(state): State<AppState>) -> Response {
     security(("cookie_auth" = [])),
     responses(
         (status = 204, description = "Session is valid"),
-        (status = 401, body = ErrorResponse)
+        (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse)
     )
 )]
 pub async fn session() -> StatusCode {
@@ -299,6 +316,7 @@ pub async fn session() -> StatusCode {
     responses(
         (status = 200, body = GuildDetails),
         (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
         (status = 503, body = ErrorResponse)
     )
 )]
@@ -322,6 +340,7 @@ pub async fn get_guild(State(state): State<AppState>) -> Response {
     responses(
         (status = 200, body = [ChannelDetails]),
         (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
         (status = 503, body = ErrorResponse)
     )
 )]
@@ -367,7 +386,10 @@ fn validate_message(payload: &serde_json::Value) -> Result<(), &'static str> {
         (status = 201, body = SentMessage),
         (status = 400, body = ErrorResponse),
         (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
         (status = 404, body = ErrorResponse),
+        (status = 415, body = ErrorResponse),
+        (status = 422, body = ErrorResponse),
         (status = 502, body = ErrorResponse),
         (status = 503, body = ErrorResponse),
         (status = 504, body = ErrorResponse)
@@ -552,16 +574,16 @@ pub async fn serve(
     messages: MessageSender,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
-    ensure_secure_bind(config.bind, config.allowed_origins.as_deref())?;
+    ensure_secure_bind(
+        config.bind,
+        config.https,
+        config.cookie_secure,
+        config.allowed_origins.is_some(),
+    )?;
 
     let auth = Auth::new(AuthConfig::from_server_config(config)?)?;
     if let Some(pin) = auth.generated_pin() {
         tracing::warn!("KIRA_PASSWORD is not set; generated dashboard PIN: {pin}");
-    }
-    if !config.bind.ip().is_loopback() && !config.cookie_secure {
-        tracing::warn!(
-            "KIRA_COOKIE_SECURE is not enabled; session cookies will be sent over plaintext"
-        );
     }
 
     let listener = TcpListener::bind(config.bind)
@@ -579,8 +601,13 @@ pub async fn serve(
     .await
 }
 
-fn ensure_secure_bind(bind: SocketAddr, allowed_origins: Option<&str>) -> Result<(), ServerError> {
-    if bind.ip().is_loopback() || allowed_origins.is_some() {
+fn ensure_secure_bind(
+    bind: SocketAddr,
+    https: bool,
+    cookie_secure: bool,
+    has_allowed_origins: bool,
+) -> Result<(), ServerError> {
+    if bind.ip().is_loopback() || (https && cookie_secure && has_allowed_origins) {
         return Ok(());
     }
 
@@ -641,21 +668,36 @@ mod tests {
 
     #[test]
     fn loopback_bind_needs_no_origin_configuration() {
-        assert!(ensure_secure_bind(SocketAddr::from(([127, 0, 0, 1], 8080)), None).is_ok());
-    }
-
-    #[test]
-    fn public_bind_requires_an_origin_allowlist() {
-        assert!(matches!(
-            ensure_secure_bind(SocketAddr::from(([0, 0, 0, 0], 8080)), None),
-            Err(ServerError::InsecureBind { .. })
-        ));
         assert!(
             ensure_secure_bind(
-                SocketAddr::from(([0, 0, 0, 0], 8080)),
-                Some("http://127.0.0.1:3000")
+                SocketAddr::from(([127, 0, 0, 1], 8080)),
+                false,
+                false,
+                false
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn public_bind_requires_https_secure_cookies_and_an_allowlist() {
+        let public = SocketAddr::from(([0, 0, 0, 0], 8080));
+        assert!(matches!(
+            ensure_secure_bind(public, false, false, false),
+            Err(ServerError::InsecureBind { .. })
+        ));
+        assert!(matches!(
+            ensure_secure_bind(public, true, false, true),
+            Err(ServerError::InsecureBind { .. })
+        ));
+        assert!(matches!(
+            ensure_secure_bind(public, false, true, true),
+            Err(ServerError::InsecureBind { .. })
+        ));
+        assert!(matches!(
+            ensure_secure_bind(public, true, true, false),
+            Err(ServerError::InsecureBind { .. })
+        ));
+        assert!(ensure_secure_bind(public, true, true, true).is_ok());
     }
 }

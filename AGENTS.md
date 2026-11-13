@@ -27,6 +27,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 - `cargo build --release -p kira-cli` fails unless `apps/dashboard/dist/index.html` exists and is a real build, not the debug placeholder. Use `make build-cli`, or `make dashboard` first. Debug builds auto-create a placeholder.
 - `cargo build -p kira --no-default-features` is the bot-only build; `kira-server` must stay out of that dependency tree.
 - Boundary rules enforced by `make check` via `cargo tree`: `kira-cli` must not depend on `kira-server`, `kira-bot`, `serenity`, or `kira-api-docs`; `kira` must not depend on `kira-api-docs` or `xtask`. Do not add those dependencies casually.
+- A non-loopback `KIRA_BIND` is refused unless `KIRA_HTTPS=true`, `KIRA_COOKIE_SECURE=true`, and `KIRA_ALLOWED_ORIGINS` are all set. Loopback HTTP stays supported.
 
 ## Architecture and conventions
 

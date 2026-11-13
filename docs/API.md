@@ -10,7 +10,7 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | Method | Path | Auth | Behavior |
 |---|---|---|---|
 | `GET` | `/health` | public | `200 application/json` with `{ "status": "ok", "version": "0.1.0" }` |
-| `POST` | `/auth/login` | public | `204` + session cookie; `401` wrong PIN; `403` bad origin; `429` rate limited |
+| `POST` | `/auth/login` | public | `204` + session cookie; `400`/`415`/`422` malformed body; `401` wrong PIN; `403` bad origin; `429` rate limited (`Retry-After`) |
 | `POST` | `/auth/logout` | public | `204` + clearing cookie |
 | `GET` | `/auth/session` | cookie | `204` with a valid session, `401` otherwise |
 | `GET` | `/guild` | cookie | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
@@ -67,9 +67,12 @@ The server is stateless: it keeps no session store and supports no revocation.
 ### Origins and CORS
 
 `KIRA_ALLOWED_ORIGINS` is a comma-separated list of exact `scheme://host[:port]`
-origins. A loopback bind defaults to the local dashboard and Vite origins
-(`127.0.0.1` and `localhost` on ports `3000` and `5173`). A non-loopback bind
-is refused at startup without an explicit list.
+origins. A loopback deployment derives defaults from the dashboard bind
+(`KIRA_CLI_BIND`, both `127.0.0.1` and `localhost`) plus the Vite dev server on
+port `5173`. Set the list explicitly when the dashboard binds beyond loopback,
+uses another hostname, or the browser reaches it through a different origin. A
+non-loopback `KIRA_BIND` is refused at startup unless `KIRA_HTTPS=true`,
+`KIRA_COOKIE_SECURE=true`, and the list is set.
 
 Allowed origins receive credentialed CORS headers. Requests carrying an
 `Origin` that is not allowlisted are rejected with `403`, including the login,
