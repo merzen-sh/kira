@@ -47,6 +47,23 @@ export const client = createClient<paths>({
   baseUrl: API_BASE_URL,
   credentials: "include",
   headers: { Accept: "application/json" },
+  fetch: (request) => globalThis.fetch(request),
+});
+
+let unauthorizedHandler: (() => void) | undefined;
+
+/** Register the callback that runs when any API request returns `401`. */
+export function setUnauthorizedHandler(handler?: () => void): void {
+  unauthorizedHandler = handler;
+}
+
+client.use({
+  onResponse({ response }) {
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
+    return response;
+  },
 });
 
 export const { GET, POST, PUT, PATCH, DELETE } = client;

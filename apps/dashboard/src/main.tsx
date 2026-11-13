@@ -10,6 +10,8 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { authKeys } from "./data/auth/keys";
+import { setUnauthorizedHandler } from "./data/fetcher";
 import { router } from "./router";
 
 const queryClient = new QueryClient({
@@ -22,6 +24,11 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+});
+
+// A 401 means the signed session expired or was cleared: drop back to login.
+setUnauthorizedHandler(() => {
+  queryClient.setQueryData(authKeys.session(), false);
 });
 
 const root = document.getElementById("root");

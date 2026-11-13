@@ -35,7 +35,10 @@ The API layer lives in `src/data/`:
 - `__templates/` holds copyable conventions for new domains.
 
 `src/routes/__root.tsx` gates the dashboard on the session query: loading
-state, then the PIN login screen, then the shell. The sidebar exposes sign-out.
+state, then the PIN login screen, then the shell. The API client invalidates the
+session query whenever any request returns `401`, so an expired token returns
+the app to the login screen without waiting for focus. The sidebar exposes
+sign-out.
 
 Shared presentational components live in `packages/ui` (`@kira/ui`) and are
 generated with the shadcn CLI. The global stylesheet is
