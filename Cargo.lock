@@ -1118,34 +1118,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "futures-util",
  "http-body-util",
- "kira-client",
  "kira-config",
  "kira-core",
  "kira-protocol",
  "mime_guess",
  "reqwest 0.13.5",
  "rust-embed",
- "serde_json",
  "tokio",
- "tokio-tungstenite 0.30.0",
  "tower",
  "tracing",
-]
-
-[[package]]
-name = "kira-client"
-version = "0.1.0"
-dependencies = [
- "axum",
- "futures-util",
- "kira-protocol",
- "reqwest 0.13.5",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
- "tokio-tungstenite 0.30.0",
 ]
 
 [[package]]
@@ -1186,11 +1168,14 @@ dependencies = [
  "kira-config",
  "kira-core",
  "kira-protocol",
+ "ring",
  "serde_json",
+ "subtle",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite 0.30.0",
  "tower",
+ "tower-http",
  "tracing",
  "utoipa",
 ]
