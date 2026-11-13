@@ -34,10 +34,11 @@ dashboard: node_modules
 	npm run build -w @kira/dashboard
 
 build-cli: dashboard
-	$(CARGO) build --release -p kira-cli
+	$(CARGO) build --release -p kira-cli --no-default-features
 
 build-all: dashboard
-	$(CARGO) build --release -p kira -p kira-cli
+	$(CARGO) build --release -p kira
+	$(CARGO) build --release -p kira-cli --no-default-features
 
 openapi: node_modules
 	$(CARGO) xtask openapi generate

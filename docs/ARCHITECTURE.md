@@ -198,7 +198,11 @@ test cannot accidentally start the gateway.
   - Release builds serve the embedded dashboard with SPA fallback and asset
     caching.
   - Debug builds proxy non-API requests to Vite on `127.0.0.1:5173`, so
-    frontend changes are visible without a Rust rebuild.
+    frontend changes are visible without a Rust rebuild. This uses the default
+    `dev-proxy` feature.
+- Release builds pass `--no-default-features` (as `make build-cli` does) to
+  omit the Vite proxy, `reqwest`, and `kira-protocol`; the shipped binary only
+  serves embedded assets.
 - `/api/*` paths always return `404`; `kira-cli` never forwards API or
   WebSocket traffic.
 - The process shuts down gracefully on Ctrl-C/SIGTERM.

@@ -5,14 +5,25 @@ use kira_cli::{AppState, router};
 use kira_config::CliConfig;
 use tokio::net::TcpListener;
 
+#[cfg(feature = "dev-proxy")]
 const VITE_DEV_SERVER_URL: &str = "http://127.0.0.1:5173";
+
+#[cfg(feature = "dev-proxy")]
+fn dev_server_url() -> Option<String> {
+    cfg!(debug_assertions).then(|| VITE_DEV_SERVER_URL.to_owned())
+}
+
+#[cfg(not(feature = "dev-proxy"))]
+const fn dev_server_url() -> Option<String> {
+    None
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     kira_core::logging::init();
 
     let config = CliConfig::from_env().context("loading CLI configuration")?;
-    let dev_server_url = cfg!(debug_assertions).then(|| VITE_DEV_SERVER_URL.to_owned());
+    let dev_server_url = dev_server_url();
 
     let listener = TcpListener::bind(config.bind)
         .await

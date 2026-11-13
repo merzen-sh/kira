@@ -72,9 +72,13 @@ pub(crate) async fn fallback(State(state): State<AppState>, request: Request) ->
         return StatusCode::NOT_FOUND.into_response();
     }
 
+    #[cfg(feature = "dev-proxy")]
     if let Some(base_url) = state.dev_server_url.as_deref() {
         return crate::dev_proxy::forward(base_url, request).await;
     }
+
+    #[cfg(not(feature = "dev-proxy"))]
+    let _ = state;
 
     embedded(request.uri())
 }

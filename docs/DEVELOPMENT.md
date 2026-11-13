@@ -12,7 +12,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 | `make dev` | `mprocs` for Vite, `kira`, and `kira-cli` |
 | `make install` | `npm ci` (via the `node_modules` prerequisite) |
 | `make dashboard` | Build the Vite dashboard into `dist/` |
-| `make build-cli` | Build dashboard, then release `kira-cli` |
+| `make build-cli` | Build dashboard, then release `kira-cli` without the dev proxy |
 | `make build-all` | Build dashboard, then both release binaries |
 | `make openapi` | Generate YAML and TypeScript types |
 | `make test` | `cargo test --workspace` |

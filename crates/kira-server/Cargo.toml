@@ -6,7 +6,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
-axum.workspace = true
+axum = { workspace = true, features = ["json", "ws"] }
 kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
 kira-protocol = { path = "../kira-protocol" }

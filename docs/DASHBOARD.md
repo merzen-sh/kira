@@ -84,7 +84,9 @@ all API and WebSocket traffic.
   files live next to the code they cover as `*.test.ts`. `make check` runs it.
 
 `cargo build --release -p kira-cli` is independent of the `kira` application,
-but it requires `make dashboard` first. `make build-cli` performs both steps.
+but it requires `make dashboard` first and includes the default `dev-proxy`
+feature. `make build-cli` performs both steps and passes
+`--no-default-features`, which is the size-optimized production build.
 
 See [API.md](API.md) for the API routes and
 [DEVELOPMENT.md](DEVELOPMENT.md) for commands.
