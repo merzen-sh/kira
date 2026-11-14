@@ -38,7 +38,7 @@ async fn get_guild(
 
 #[tokio::test]
 async fn guild_returns_503_without_data() -> Result<(), Box<dyn Error>> {
-    let state = common::empty_state();
+    let state = common::empty_state().await;
     let cookie = common::login_cookie(&state).await?;
     let res = get_guild(state, &cookie).await?;
 
@@ -55,7 +55,14 @@ async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(1, receiver, channels, messages, common::auth());
+    let state = AppState::new(
+        1,
+        receiver,
+        channels,
+        common::store().await,
+        messages,
+        common::auth(),
+    );
     let cookie = common::login_cookie(&state).await?;
 
     sender.send_replace(vec![details("1", "Alpha"), details("2", "Beta")]);
@@ -83,7 +90,14 @@ async fn guild_returns_503_when_the_target_is_missing() -> Result<(), Box<dyn Er
     let (sender, receiver) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(9, receiver, channels, messages, common::auth());
+    let state = AppState::new(
+        9,
+        receiver,
+        channels,
+        common::store().await,
+        messages,
+        common::auth(),
+    );
     let cookie = common::login_cookie(&state).await?;
 
     sender.send_replace(vec![details("1", "Alpha")]);

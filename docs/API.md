@@ -16,6 +16,9 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/guild` | cookie | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/guild/channels` | cookie | `200` with the configured server's channels, or `503` while unavailable |
 | `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
+| `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), and `search` |
+| `PATCH` | `/reports/{id}` | cookie | `200` with the updated `Report`; `404` when missing |
+| `DELETE` | `/reports/{id}` | cookie | `204` when deleted; `404` when missing |
 | `GET` | `/ws` | cookie + origin | WebSocket echo scaffold |
 | `GET` | `/docs` | public | Scalar API Reference UI (debug builds only) |
 | `GET` | `/openapi.json` | public | Live OpenAPI document from `ApiDoc` (debug builds only) |
@@ -34,6 +37,12 @@ cached list and rejects channel kinds that cannot receive messages with `400`.
 It then forwards the raw Discord message JSON to the bot over an in-process
 channel. The bot posts the payload unchanged and returns the Discord message
 ID; the request fails with `504` if the bot does not answer within 15 seconds.
+
+`GET /reports`, `PATCH /reports/{id}`, and `DELETE /reports/{id}` expose bug
+reports saved by the Discord `/report` command. Listing returns the newest
+reports first; `search` is a case-insensitive substring match against the title,
+steps, details, or reporter ID. `page` starts at 1 and `page_limit` defaults to
+20. `PATCH` accepts `{ "resolved": true | false }`.
 
 `GET /ws` requires a valid session cookie and an allowed `Origin` when one is
 sent. Text and binary frames are echoed; ping/pong are handled by Axum; close

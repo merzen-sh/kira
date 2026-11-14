@@ -10,8 +10,8 @@ panels in development.
 Routing is file-based:
 
 - `src/routes/__root.tsx` owns the root layout and development devtools.
-- `src/routes/index.tsx`, `server.tsx`, `settings.tsx`, and `announcements.tsx`
-  are the page routes.
+- `src/routes/index.tsx`, `server.tsx`, `settings.tsx`, `announcements.tsx`, and
+  `reports.tsx` are the page routes.
 - The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
   creates the router from that tree.
 
@@ -29,7 +29,8 @@ The API layer lives in `src/data/`:
 - `auth/` holds the session query plus login and logout mutations. The session
   query treats `401` as signed out.
 - Each API domain owns `keys.ts` and `query.ts` (plus `mutation.ts` when
-  needed). `health/` is the first domain.
+  needed). `health/` is the first domain; `reports/` backs the paginated,
+  searchable bug report table.
 - TanStack Query owns server state. Components consume exported query hooks;
   they do not call `fetch` directly.
 - `__templates/` holds copyable conventions for new domains.

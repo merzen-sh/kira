@@ -15,6 +15,7 @@ environment variables are authoritative.
 | `KIRA_COOKIE_SECURE` | `kira` server | `false` | non-loopback binds |
 | `KIRA_COOKIE_SAMESITE` | `kira` server | `lax` | no |
 | `KIRA_CLI_BIND` | `kira`, `kira-cli` | `127.0.0.1:3000` | no |
+| `KIRA_DATABASE_URL` | `kira` | `sqlite:kira.db` | no |
 
 `.env` is gitignored. `.env.example` documents the variables without secrets.
 Rotation of any previously exposed Discord token is an operational follow-up.
@@ -36,6 +37,9 @@ Notes:
   HTTP remains supported.
 - `KIRA_COOKIE_SECURE=true` marks the session cookie `Secure`; set it behind
   HTTPS. `KIRA_COOKIE_SAMESITE=none` requires `KIRA_COOKIE_SECURE=true`.
+- `KIRA_DATABASE_URL` is the SQLite connection URL used for bug reports. The
+  file is created when missing, and pending migrations in `migrations/` are
+  applied at startup.
 - `RUST_LOG` controls the `tracing` filter for both binaries (default `info`).
 
 See [API.md](API.md) for route-level behavior and

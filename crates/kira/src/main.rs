@@ -6,6 +6,7 @@ use std::env;
 use std::process::ExitCode;
 
 use anyhow::Context;
+use kira_config::DatabaseConfig;
 use kira_config::DiscordConfig;
 #[cfg(feature = "server")]
 use kira_config::ServerConfig;
@@ -42,15 +43,16 @@ async fn main() -> ExitCode {
 
 async fn run() -> anyhow::Result<()> {
     let discord = DiscordConfig::from_env().context("loading Discord configuration")?;
+    let database = DatabaseConfig::from_env().context("loading database configuration")?;
 
     #[cfg(feature = "server")]
     {
         let server = ServerConfig::from_env().context("loading server configuration")?;
-        app::run_all(discord, server).await
+        app::run_all(discord, server, database).await
     }
 
     #[cfg(not(feature = "server"))]
     {
-        app::run_bot(discord).await
+        app::run_bot(discord, database).await
     }
 }

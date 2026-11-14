@@ -25,8 +25,9 @@ flowchart TB
     GW["Discord Gateway"]
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
-        BOT["kira-bot<br/>Serenity gateway + !ping and /ping"]
-        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, guild, channels, messages, /ws echo"]
+        BOT["kira-bot<br/>Serenity gateway + /ping and /report"]
+        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, guild, channels, messages, reports, /ws echo"]
+        STORE["kira-store<br/>SQLite + migrations"]
     end
 
     subgraph LOCAL["kira-cli — local process"]
@@ -36,6 +37,8 @@ flowchart TB
     BROWSER["Browser<br/>embedded dashboard"]
 
     GW <--> BOT
+    BOT --> STORE
+    SERVER --> STORE
     SERVER <-->|"HTTP + WebSocket<br/>session cookie"| BROWSER
     CLI -->|"assets"| BROWSER
     CLI -.->|"debug assets"| VITE["Vite :5173"]
@@ -57,12 +60,15 @@ kira/
 ├── package-lock.json             committed for reproducible installs
 ├── openapi/
 │   └── openapi.yaml              generated + committed API contract
+├── migrations/
+│   └── *.up.sql / *.down.sql     SQLx migrations applied at startup
 ├── crates/
 │   ├── kira/                     binary: bot + server composition
 │   ├── kira-cli/                 binary: local dashboard host (embedded SPA)
 │   ├── kira-core/                shared runtime utilities (logging, messaging, shutdown)
 │   ├── kira-config/              environment configuration
 │   ├── kira-protocol/            shared HTTP/WS DTOs
+│   ├── kira-store/               SQLite report storage and migrations
 │   ├── kira-bot/                 Serenity client, event handler, slash commands
 │   ├── kira-server/              Axum router, auth, handlers, utoipa annotations
 │   └── kira-api-docs/            OpenAPI YAML serialization (dev-only)
@@ -87,6 +93,7 @@ flowchart RL
         CORE["kira-core"]
         CONFIG["kira-config"]
         PROTOCOL["kira-protocol"]
+        STORE["kira-store"]
     end
 
     subgraph L1["L1 · libraries"]
@@ -107,6 +114,9 @@ flowchart RL
     BOT --> CONFIG
     SERVER --> CONFIG
     SERVER --> PROTOCOL
+    BOT --> STORE
+    SERVER --> STORE
+    STORE --> PROTOCOL
 
     KIRA --> BOT
     KIRA --> SERVER
@@ -160,10 +170,15 @@ and waits for Ctrl-C/SIGTERM.
   (default `127.0.0.1:8080`), `KIRA_PASSWORD`, `KIRA_ALLOWED_ORIGINS`,
   `KIRA_HTTPS`, `KIRA_COOKIE_SECURE`, `KIRA_COOKIE_SAMESITE`, and the dashboard
   bind used to derive default origins (`KIRA_CLI_BIND`).
+- `kira-config::DatabaseConfig` supplies `KIRA_DATABASE_URL` (default
+  `sqlite:kira.db`).
+- `kira-store::Store::connect` opens the SQLite database and runs the SQLx
+  migrations in `migrations/`. The bot and server share one `Store`.
 - `kira-bot::run` builds the Serenity client with the
   `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents, registers the
   config in Serenity's type map, and starts the gateway. It caches only the
-  configured guild.
+  configured guild. `/report` opens a modal and saves the submission to
+  `kira-store`.
 - `kira-server::serve` binds the configured address and runs Axum with graceful
   shutdown.
 - A `tokio::sync::watch` channel fans a single shutdown signal out to both

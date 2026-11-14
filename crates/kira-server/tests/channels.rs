@@ -28,7 +28,7 @@ async fn get_channels(
 
 #[tokio::test]
 async fn channels_return_503_without_data() -> Result<(), Box<dyn Error>> {
-    let state = common::empty_state();
+    let state = common::empty_state().await;
     let cookie = common::login_cookie(&state).await?;
     let res = get_channels(state, &cookie).await?;
 
@@ -45,7 +45,14 @@ async fn channels_return_the_configured_server_channels() -> Result<(), Box<dyn 
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _message_receiver) = mpsc::channel(1);
-    let state = AppState::new(1, guilds, channels, messages, common::auth());
+    let state = AppState::new(
+        1,
+        guilds,
+        channels,
+        common::store().await,
+        messages,
+        common::auth(),
+    );
     let cookie = common::login_cookie(&state).await?;
 
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);

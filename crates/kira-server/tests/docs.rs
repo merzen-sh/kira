@@ -14,7 +14,7 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn docs_serves_scalar_reference_ui() -> Result<(), Box<dyn Error>> {
-    let res = router(common::empty_state())
+    let res = router(common::empty_state().await)
         .oneshot(Request::builder().uri("/docs").body(Body::empty())?)
         .await?;
 
@@ -41,7 +41,7 @@ async fn docs_serves_scalar_reference_ui() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn openapi_json_serves_the_live_spec() -> Result<(), Box<dyn Error>> {
-    let res = router(common::empty_state())
+    let res = router(common::empty_state().await)
         .oneshot(
             Request::builder()
                 .uri("/openapi.json")

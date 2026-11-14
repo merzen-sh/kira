@@ -241,6 +241,159 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /reports:
+    get:
+      tags:
+      - reports
+      summary: List bug reports, newest first.
+      operationId: list_reports
+      parameters:
+      - name: page
+        in: query
+        description: Page number, starting at 1
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+      - name: page_limit
+        in: query
+        description: Reports per page, 1-100 (default 20)
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+      - name: search
+        in: query
+        description: Case-insensitive substring of the title, steps, details, or reporter ID
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportList'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
+  /reports/{id}:
+    delete:
+      tags:
+      - reports
+      summary: Delete a bug report.
+      operationId: delete_report
+      parameters:
+      - name: id
+        in: path
+        description: Report ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        '204':
+          description: Report deleted
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
+    patch:
+      tags:
+      - reports
+      summary: Mark a bug report resolved or unresolved.
+      operationId: update_report
+      parameters:
+      - name: id
+        in: path
+        description: Report ID
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReport'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
 components:
   schemas:
     ChannelDetails:
@@ -356,6 +509,69 @@ components:
         pin:
           type: string
           description: Dashboard PIN or password.
+    Report:
+      type: object
+      description: A bug report submitted through the Discord `/report` command.
+      required:
+      - id
+      - user_id
+      - title
+      - steps
+      - details
+      - resolved
+      - created_at
+      properties:
+        created_at:
+          type: string
+          description: Creation time as an ISO 8601 timestamp.
+        details:
+          type: string
+          description: What happened and what the reporter expected instead.
+        id:
+          type: integer
+          format: int64
+          description: Report ID.
+        resolved:
+          type: boolean
+          description: Whether the report has been marked resolved.
+        steps:
+          type: string
+          description: Steps the reporter took to reproduce the problem.
+        title:
+          type: string
+          description: Short description of what is broken.
+        user_id:
+          type: string
+          description: Discord user ID of the reporter.
+    ReportList:
+      type: object
+      description: A page of bug reports returned by `GET /reports`.
+      required:
+      - reports
+      - total
+      - page
+      - page_limit
+      properties:
+        page:
+          type: integer
+          format: int32
+          description: Page number, starting at 1.
+          minimum: 0
+        page_limit:
+          type: integer
+          format: int32
+          description: Maximum number of reports per page.
+          minimum: 0
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Report'
+          description: Reports on this page, newest first.
+        total:
+          type: integer
+          format: int64
+          description: Total number of reports matching the search.
+          minimum: 0
     SentMessage:
       type: object
       description: A message posted to a Discord channel.
@@ -369,6 +585,15 @@ components:
         id:
           type: string
           description: Discord message ID.
+    UpdateReport:
+      type: object
+      description: Resolution change submitted to `PATCH /reports/{id}`.
+      required:
+      - resolved
+      properties:
+        resolved:
+          type: boolean
+          description: New resolved state.
   securitySchemes:
     cookie_auth:
       type: apiKey
@@ -381,3 +606,5 @@ tags:
   description: Service health
 - name: guild
   description: Discord server and channels
+- name: reports
+  description: User-submitted bug reports

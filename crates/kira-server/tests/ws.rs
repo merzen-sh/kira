@@ -27,7 +27,7 @@ struct TestServer {
 }
 
 async fn spawn_server() -> Result<TestServer, Box<dyn Error>> {
-    let state = common::empty_state();
+    let state = common::empty_state().await;
     let cookie = common::login_cookie(&state).await?;
 
     let listener = TcpListener::bind("127.0.0.1:0").await?;

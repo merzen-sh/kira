@@ -2,6 +2,7 @@ rust:
   - "**/*.rs"
   - "**/Cargo.toml"
   - "Cargo.lock"
+  - "migrations/**"
   - "rustfmt.toml"
   - "clippy.toml"
   - ".cargo/**"
