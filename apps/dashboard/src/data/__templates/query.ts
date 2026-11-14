@@ -4,13 +4,10 @@ import { GET, toResourceError, unwrap } from "@/data/fetcher";
 import type { UseCustomQueryOptions } from "@/data/types";
 import { exampleKeys } from "./keys";
 
-export async function getExample(id: string, signal?: AbortSignal) {
+export async function getExample(id: string) {
   try {
     return await unwrap(
-      GET("/example/{id}", {
-        params: { path: { id } },
-        signal,
-      }),
+      GET("/example/{id}", { params: { path: { id } } }),
     );
   } catch (error) {
     throw toResourceError(error);
@@ -29,7 +26,8 @@ export const useExampleQuery = <TData = ResourceData>(
 ) =>
   useQuery<ResourceData, ResourceError, TData>({
     queryKey: exampleKeys.detail(id),
-    queryFn: ({ signal }) => getExample(id, signal),
+    // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
+    queryFn: () => getExample(id),
     enabled,
     ...options,
   });

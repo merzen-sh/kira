@@ -4,9 +4,9 @@ import { GET, toResourceError, unwrap } from "@/data/fetcher";
 import type { ResourceError, UseCustomQueryOptions } from "@/data/types";
 import { guildKeys } from "./keys";
 
-export async function checkGuild(signal?: AbortSignal) {
+export async function checkGuild() {
   try {
-    return await unwrap(GET("/guild", { signal }));
+    return await unwrap(GET("/guild"));
   } catch (error) {
     throw toResourceError(error);
   }
@@ -21,7 +21,8 @@ export const useGuildQuery = <TData = ResourceData>({
 }: UseCustomQueryOptions<ResourceData, ResourceError, TData> = {}) =>
   useQuery<ResourceData, ResourceError, TData>({
     queryKey: guildKeys.detail(),
-    queryFn: ({ signal }) => checkGuild(signal),
+    // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
+    queryFn: () => checkGuild(),
     enabled,
     refetchInterval: (query) => (query.state.data ? 60_000 : 10_000),
     ...options,

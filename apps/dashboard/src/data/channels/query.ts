@@ -4,9 +4,9 @@ import { GET, toResourceError, unwrap } from "@/data/fetcher";
 import type { ResourceError, UseCustomQueryOptions } from "@/data/types";
 import { channelKeys } from "./keys";
 
-export async function checkChannels(signal?: AbortSignal) {
+export async function checkChannels() {
   try {
-    return await unwrap(GET("/guild/channels", { signal }));
+    return await unwrap(GET("/guild/channels"));
   } catch (error) {
     throw toResourceError(error);
   }
@@ -21,7 +21,8 @@ export const useChannelsQuery = <TData = ResourceData>({
 }: UseCustomQueryOptions<ResourceData, ResourceError, TData> = {}) =>
   useQuery<ResourceData, ResourceError, TData>({
     queryKey: channelKeys.list(),
-    queryFn: ({ signal }) => checkChannels(signal),
+    // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
+    queryFn: () => checkChannels(),
     enabled,
     refetchInterval: 60_000,
     ...options,
