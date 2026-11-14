@@ -26,7 +26,7 @@ flowchart TB
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
         BOT["kira-bot<br/>Serenity gateway + /ping and /report"]
-        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, guild, channels, messages, reports, /ws echo"]
+        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, guild, channels, users, messages, reports, /ws echo"]
         STORE["kira-store<br/>SQLite + migrations"]
     end
 
@@ -68,7 +68,7 @@ kira/
 │   ├── kira-core/                shared runtime utilities (logging, messaging, shutdown)
 │   ├── kira-config/              environment configuration
 │   ├── kira-protocol/            shared HTTP/WS DTOs
-│   ├── kira-store/               SQLite report storage and migrations
+│   ├── kira-store/               SQLite storage, repositories, migrations
 │   ├── kira-bot/                 Serenity client, event handler, slash commands
 │   ├── kira-server/              Axum router, auth, handlers, utoipa annotations
 │   └── kira-api-docs/            OpenAPI YAML serialization (dev-only)
@@ -172,13 +172,19 @@ and waits for Ctrl-C/SIGTERM.
   bind used to derive default origins (`KIRA_CLI_BIND`).
 - `kira-config::DatabaseConfig` supplies `KIRA_DATABASE_URL` (default
   `sqlite:kira.db`).
-- `kira-store::Store::connect` opens the SQLite database and runs the SQLx
-  migrations in `migrations/`. The bot and server share one `Store`.
+- `kira-store::Database::connect` opens the SQLite database and runs the SQLx
+  migrations in `migrations/`. It owns the connection pool; `reports()` and
+  `users()` expose independent repositories over that pool.
 - `kira-bot::run` builds the Serenity client with the
   `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents, registers the
   config in Serenity's type map, and starts the gateway. It caches only the
-  configured guild. `/report` opens a modal and saves the submission to
-  `kira-store`.
+  configured guild. `/report` opens a modal and saves the submission to the
+  report repository.
+- Guild membership is event-driven: member additions and removals write the
+  user state and a join/leave event in one transaction. A background worker
+  refreshes active users' names in batches on a three-day per-user cooldown and
+  never changes membership status. Member events require the `GUILD_MEMBERS`
+  privileged intent to be enabled for the bot in the Discord developer portal.
 - `kira-server::serve` binds the configured address and runs Axum with graceful
   shutdown.
 - A `tokio::sync::watch` channel fans a single shutdown signal out to both
