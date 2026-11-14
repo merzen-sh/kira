@@ -8,6 +8,7 @@ use std::time::Duration;
 use kira_store::StoreError;
 use kira_store::users::UserRepository;
 use serenity::http::{Http, StatusCode};
+use serenity::model::Timestamp;
 use serenity::model::id::{GuildId, UserId};
 
 use crate::handler::member_display_name;
@@ -51,6 +52,7 @@ pub(crate) async fn reconcile(
     guild_id: GuildId,
     users: &UserRepository,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let snapshot = users.snapshot_time().await?;
     let mut after = None;
     let mut seen = HashSet::new();
 
@@ -65,9 +67,16 @@ pub(crate) async fn reconcile(
                 member.user.global_name.as_deref(),
                 &member.user.name,
             );
+            let joined_at = member.joined_at.as_ref().and_then(Timestamp::to_rfc3339);
 
             users
-                .import_member(&id.to_string(), &member.user.name, &display_name)
+                .import_member(
+                    &id.to_string(),
+                    &member.user.name,
+                    &display_name,
+                    joined_at.as_deref(),
+                    &snapshot,
+                )
                 .await?;
             seen.insert(id.to_string());
             after = Some(id);
@@ -84,7 +93,7 @@ pub(crate) async fn reconcile(
         .into_iter()
         .filter(|user_id| !seen.contains(user_id))
         .collect();
-    users.mark_left(&missing).await?;
+    users.mark_left(&missing, &snapshot).await?;
 
     Ok(())
 }
