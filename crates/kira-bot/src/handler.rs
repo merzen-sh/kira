@@ -226,7 +226,11 @@ async fn database(ctx: &Context) -> Option<Database> {
 }
 
 /// Prefer the guild nickname, then the global display name, then the username.
-fn member_display_name(nick: Option<&str>, global_name: Option<&str>, user_name: &str) -> String {
+pub(crate) fn member_display_name(
+    nick: Option<&str>,
+    global_name: Option<&str>,
+    user_name: &str,
+) -> String {
     nick.or(global_name).unwrap_or(user_name).to_owned()
 }
 
@@ -235,6 +239,19 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
         if let Err(error) = commands::register(&ctx, target_guild(&ctx).await).await {
             tracing::error!("Failed to register slash commands: {error}");
+        }
+
+        if let (Some(database), Some(guild_id)) = (database(&ctx).await, target_guild(&ctx).await) {
+            let result = crate::sync::reconcile(
+                Arc::clone(&ctx.http),
+                GuildId::new(guild_id),
+                &database.users(),
+            )
+            .await;
+
+            if let Err(error) = result {
+                tracing::error!("Failed to reconcile guild members: {error}");
+            }
         }
 
         if let Some(sender) = guild_sender(&ctx).await {
