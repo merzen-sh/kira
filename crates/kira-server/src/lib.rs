@@ -485,7 +485,7 @@ pub struct ReportListQuery {
 }
 
 fn storage_error(error: &kira_store::StoreError) -> Response {
-    tracing::error!("report storage failed: {error}");
+    tracing::error!("report storage failed: {error:?}");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorResponse::new("report storage failed")),

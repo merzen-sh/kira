@@ -108,7 +108,7 @@ async fn save(
     match store.create_report(&report).await {
         Ok(report) => format!("Thanks! Bug report #{} was saved.", report.id),
         Err(error) => {
-            tracing::error!("Failed to save bug report: {error}");
+            tracing::error!("Failed to save bug report: {error:?}");
             "Sorry, the report could not be saved.".to_owned()
         }
     }

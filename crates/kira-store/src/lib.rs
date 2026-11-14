@@ -9,7 +9,15 @@ use thiserror::Error;
 
 const REPORT_COLUMNS: &str = "id, user_id, title, steps, details, resolved, created_at";
 
-const FILTER: &str = "(? = '' OR title LIKE ? OR steps LIKE ? OR details LIKE ? OR user_id LIKE ?)";
+const FILTER: &str = "(? = '' OR title LIKE ? ESCAPE '\\' OR steps LIKE ? ESCAPE '\\' OR details LIKE ? ESCAPE '\\' OR user_id LIKE ? ESCAPE '\\')";
+
+/// Escape LIKE wildcards so search text matches literally.
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
 
 /// Errors produced while accessing report storage.
 #[derive(Debug, Error)]
@@ -63,9 +71,13 @@ impl Store {
         let options = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
 
         // SQLite has a single writer, and an in-memory database is per
-        // connection. One pooled connection keeps both cases predictable.
+        // connection. One pooled connection keeps both cases predictable;
+        // never recycle it, or an in-memory database loses its schema.
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
+            .min_connections(1)
+            .idle_timeout(None)
+            .max_lifetime(None)
             .connect_with(options)
             .await?;
         // The migrations live at the workspace root; this crate is one level
@@ -104,7 +116,7 @@ impl Store {
     ) -> Result<ReportList, StoreError> {
         let search = search.map(str::trim).filter(|value| !value.is_empty());
         let search = search.unwrap_or_default();
-        let pattern = format!("%{search}%");
+        let pattern = format!("%{}%", escape_like(search));
         let limit = i64::from(page_limit);
         let offset = i64::from(page.saturating_sub(1)) * limit;
 
@@ -238,11 +250,15 @@ mod tests {
         let by_user = store.list_reports(1, 20, Some("42")).await?;
         let by_details = store.list_reports(1, 20, Some("crash")).await?;
         let missing = store.list_reports(1, 20, Some("absent")).await?;
+        let percent = store.list_reports(1, 20, Some("%")).await?;
+        let underscore = store.list_reports(1, 20, Some("_")).await?;
 
         assert_eq!(by_title.total, 2);
         assert_eq!(by_user.total, 1);
         assert_eq!(by_details.total, 1);
         assert_eq!(missing.total, 0);
+        assert_eq!(percent.total, 0);
+        assert_eq!(underscore.total, 0);
         Ok(())
     }
 

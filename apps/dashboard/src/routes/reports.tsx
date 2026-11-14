@@ -50,6 +50,13 @@ function ReportsPage() {
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
+  // Another admin may delete the last row while this page is open.
+  useEffect(() => {
+    if (data && page > lastPage) {
+      setPage(lastPage);
+    }
+  }, [data, lastPage, page]);
+
   function handleDelete(id: number) {
     if (!window.confirm("Delete this report?")) {
       return;
