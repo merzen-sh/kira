@@ -92,6 +92,102 @@ impl UserRepository {
         Ok(())
     }
 
+    /// Record a member found during the startup reconciliation.
+    ///
+    /// Existing active users keep their original `join_at` and get no duplicate
+    /// Join event. Users who rejoined while the bot was offline are reactivated
+    /// and get a Join event.
+    pub async fn import_member(
+        &self,
+        user_id: &str,
+        user_name: &str,
+        display_name: &str,
+    ) -> Result<(), StoreError> {
+        let mut tx = self.db.begin().await?;
+
+        let was_active: Option<bool> =
+            sqlx::query_scalar("SELECT status = 'active' FROM guild_users WHERE user_id = ?")
+                .bind(user_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+
+        let sql = format!(
+            "INSERT INTO guild_users \
+                (user_id, user_name, display_name, status, join_at, leave_at) \
+             VALUES (?, ?, ?, 'active', {NOW}, NULL) \
+             ON CONFLICT(user_id) DO UPDATE SET \
+                join_at = CASE WHEN guild_users.status = 'left' \
+                    THEN excluded.join_at ELSE guild_users.join_at END, \
+                leave_at = CASE WHEN guild_users.status = 'left' \
+                    THEN NULL ELSE guild_users.leave_at END, \
+                status = 'active', \
+                user_name = excluded.user_name, \
+                display_name = excluded.display_name"
+        );
+        sqlx::query(&sql)
+            .bind(user_id)
+            .bind(user_name)
+            .bind(display_name)
+            .execute(&mut *tx)
+            .await?;
+
+        if !was_active.unwrap_or(false) {
+            insert_event(&mut tx, user_id, "join").await?;
+        }
+
+        tx.commit().await?;
+
+        Ok(())
+    }
+
+    /// IDs of every user currently tracked as active.
+    pub async fn active_ids(&self) -> Result<Vec<String>, StoreError> {
+        Ok(
+            sqlx::query_scalar("SELECT user_id FROM guild_users WHERE status = 'active'")
+                .fetch_all(self.db.pool())
+                .await?,
+        )
+    }
+
+    /// Mark tracked active users that are missing from the guild as left.
+    pub async fn mark_left(&self, user_ids: &[String]) -> Result<(), StoreError> {
+        if user_ids.is_empty() {
+            return Ok(());
+        }
+
+        let mut tx = self.db.begin().await?;
+        let sql = format!(
+            "UPDATE guild_users SET status = 'left', leave_at = {NOW} \
+             WHERE user_id = ? AND status = 'active'"
+        );
+
+        for user_id in user_ids {
+            let result = sqlx::query(&sql).bind(user_id).execute(&mut *tx).await?;
+
+            if result.rows_affected() > 0 {
+                insert_event(&mut tx, user_id, "leave").await?;
+            }
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Push a user's next sync out without recording a successful refresh.
+    pub async fn defer_sync(&self, user_id: &str) -> Result<(), StoreError> {
+        let sql = format!(
+            "UPDATE guild_users SET next_sync_at = {NEXT_SYNC} \
+             WHERE user_id = ? AND status = 'active'"
+        );
+
+        sqlx::query(&sql)
+            .bind(user_id)
+            .execute(self.db.pool())
+            .await?;
+
+        Ok(())
+    }
+
     /// List users newest first, optionally filtered by search text and status.
     pub async fn list(
         &self,
@@ -373,6 +469,31 @@ mod tests {
         let second = users.list(2, 1, None, None).await?;
         assert_eq!(second.total, 2);
         assert_eq!(second.users.len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reconciliation_imports_reactivates_and_marks_missing_left() -> Result<(), StoreError> {
+        let users = repo().await;
+        users.join("1", "alice", "Alice").await?;
+        users.join("2", "bob", "Bob").await?;
+        users.leave("2", "bob", "Bob").await?;
+
+        users.import_member("1", "alice", "Alice").await?;
+        users.import_member("2", "bob", "Bob").await?;
+
+        // Re-importing an active user does not duplicate Join history.
+        assert_eq!(event_count(&users, "1").await?, 1);
+        // Reactivating a left user appends a Join event.
+        assert_eq!(event_count(&users, "2").await?, 3);
+
+        users.mark_left(&["1".to_owned()]).await?;
+
+        let left = users.list(1, 20, None, Some("left")).await?;
+        assert_eq!(left.total, 1);
+        assert_eq!(left.users[0].user_id, "1");
+        assert_eq!(event_count(&users, "1").await?, 2);
+        assert_eq!(users.active_ids().await?, vec!["2"]);
         Ok(())
     }
 
