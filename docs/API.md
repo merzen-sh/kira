@@ -42,8 +42,9 @@ ID; the request fails with `504` if the bot does not answer within 15 seconds.
 `GET /guild/users` lists tracked guild members, newest join first. `search` is
 a case-insensitive substring match against the user ID, username, and display
 name; `status` filters to `active` or `left` and any other value returns `400`.
-Membership status comes from Discord join and leave events, not from the
-background metadata sync.
+Membership comes from Discord join and leave events and is reconciled against
+the guild whenever the bot becomes ready; the background metadata sync never
+changes status.
 
 `GET /reports`, `PATCH /reports/{id}`, and `DELETE /reports/{id}` expose bug
 reports saved by the Discord `/report` command. Listing returns the newest

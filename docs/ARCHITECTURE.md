@@ -176,15 +176,18 @@ and waits for Ctrl-C/SIGTERM.
   migrations in `migrations/`. It owns the connection pool; `reports()` and
   `users()` expose independent repositories over that pool.
 - `kira-bot::run` builds the Serenity client with the
-  `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents, registers the
-  config in Serenity's type map, and starts the gateway. It caches only the
-  configured guild. `/report` opens a modal and saves the submission to the
-  report repository.
+  `GUILD_MEMBERS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents,
+  registers the config in Serenity's type map, and starts the gateway. It
+  caches only the configured guild. `/report` opens a modal and saves the
+  submission to the report repository.
 - Guild membership is event-driven: member additions and removals write the
-  user state and a join/leave event in one transaction. A background worker
-  refreshes active users' names in batches on a three-day per-user cooldown and
-  never changes membership status. Member events require the `GUILD_MEMBERS`
-  privileged intent to be enabled for the bot in the Discord developer portal.
+  user state and a join/leave event in one transaction. On every `ready`, a
+  reconciliation pass imports the current member list, reactivates missed
+  rejoins, and marks tracked active users that are gone as left. A background
+  worker refreshes active users' names in batches on a three-day per-user
+  cooldown and never changes membership status; a `404` defers the user instead
+  of retrying forever. Member events require the `GUILD_MEMBERS` privileged
+  intent to be enabled for the bot in the Discord developer portal.
 - `kira-server::serve` binds the configured address and runs Axum with graceful
   shutdown.
 - A `tokio::sync::watch` channel fans a single shutdown signal out to both
