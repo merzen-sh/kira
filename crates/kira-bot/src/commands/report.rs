@@ -1,6 +1,6 @@
 //! The `/report` slash command and its modal.
 
-use kira_store::NewReport;
+use kira_store::reports::NewReport;
 use serenity::builder::{
     CreateActionRow, CreateCommand, CreateInputText, CreateInteractionResponse,
     CreateInteractionResponseMessage, CreateModal,
@@ -10,7 +10,7 @@ use serenity::model::application::{
 };
 use serenity::prelude::Context;
 
-use crate::handler::ReportsKey;
+use crate::handler::DatabaseKey;
 
 /// Name of the `/report` slash command.
 pub(super) const NAME: &str = "report";
@@ -89,7 +89,7 @@ async fn save(
 ) -> String {
     let store = {
         let data = ctx.data.read().await;
-        data.get::<ReportsKey>().cloned()
+        data.get::<DatabaseKey>().cloned()
     };
 
     let Some(store) = store else {
@@ -105,7 +105,7 @@ async fn save(
 
     let report = NewReport::new(&user_id, title, steps, details);
 
-    match store.create_report(&report).await {
+    match store.reports().create_report(&report).await {
         Ok(report) => format!("Thanks! Bug report #{} was saved.", report.id),
         Err(error) => {
             tracing::error!("Failed to save bug report: {error:?}");

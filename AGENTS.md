@@ -32,7 +32,8 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 ## Architecture and conventions
 
 - Layers: leaves `kira-core`, `kira-config`, `kira-protocol`; libraries `kira-store`, `kira-bot`, `kira-server`; applications `kira`, `kira-cli`; dev-only `kira-api-docs` (capstone over `kira-server`) and `xtask`.
-- Database schema lives only in `migrations/` as timestamped `.up.sql`/`.down.sql` pairs; `kira-store` applies them with `sqlx::migrate!` on startup. Never hand-create tables in code.
+- Database schema lives only in `migrations/` as timestamped `.up.sql`/`.down.sql` pairs; `kira-store` applies them with `sqlx::migrate!` on startup. Never hand-create tables in code. `Database` owns the pool and migrations, while `reports()` and `users()` are independent repositories.
+- Guild membership is owned by Discord join/leave events, which update `guild_users` and append to `guild_user_events` in one transaction. A reconciliation pass on `ready` imports the current member list and marks missing active users as left. The periodic sync worker only refreshes metadata for `active` users and must never change membership status.
 - Binaries use `anyhow::Result` with context at operational boundaries; reusable crates expose typed `thiserror` errors.
 - OpenAPI ownership: `#[utoipa::path]` handlers and the `ApiDoc` assembly live in `kira-server`, `ToSchema` DTOs in `kira-protocol`, and YAML serialization for the committed contract in `kira-api-docs`. Debug builds serve `ApiDoc` at `/openapi.json` with the Scalar UI at `/docs`; release builds expose neither. Never hand-edit generated contracts — run `make openapi`.
 - Dashboard uses file-based TanStack Router (`src/routes/`, with committed `routeTree.gen.ts`) and a single `openapi-fetch` client in `src/data/fetcher.ts`. Add API domains by copying `src/data/__templates/` (excluded from `tsc` until copied). Components must consume hooks, not call `fetch` directly.

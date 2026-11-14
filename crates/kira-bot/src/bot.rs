@@ -7,15 +7,15 @@ use std::time::Duration;
 use kira_config::DiscordConfig;
 use kira_core::messaging::OutgoingMessage;
 use kira_protocol::{ChannelDetails, GuildDetails};
-use kira_store::Store;
+use kira_store::Database;
 use serenity::Client;
 use serenity::http::Http;
-use serenity::model::id::ChannelId;
+use serenity::model::id::{ChannelId, GuildId};
 use serenity::prelude::GatewayIntents;
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
-use crate::handler::{ChannelsKey, ConfigKey, GuildIdKey, GuildsKey, Handler, ReportsKey};
+use crate::handler::{ChannelsKey, ConfigKey, DatabaseKey, GuildIdKey, GuildsKey, Handler};
 
 /// How long a single Discord send may take before the queue moves on.
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -41,13 +41,14 @@ pub async fn run(
     guild_id: Option<u64>,
     guilds: watch::Sender<Vec<GuildDetails>>,
     channels: watch::Sender<Vec<ChannelDetails>>,
-    reports: Store,
+    database: Database,
     messages: mpsc::Receiver<OutgoingMessage>,
     shutdown: impl Future<Output = ()> + Send,
 ) -> Result<(), BotError> {
     let config = Arc::new(config);
 
     let intents = GatewayIntents::GUILDS
+        | GatewayIntents::GUILD_MEMBERS
         | GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
@@ -56,6 +57,14 @@ pub async fn run(
         .event_handler(Handler)
         .await?;
 
+    let sync_task = guild_id.map(|guild_id| {
+        tokio::spawn(crate::sync::run(
+            client.http.clone(),
+            GuildId::new(guild_id),
+            database.users(),
+        ))
+    });
+
     // Register shared state.
     {
         let mut data = client.data.write().await;
@@ -63,7 +72,7 @@ pub async fn run(
         data.insert::<GuildIdKey>(guild_id);
         data.insert::<GuildsKey>(guilds);
         data.insert::<ChannelsKey>(channels);
-        data.insert::<ReportsKey>(reports);
+        data.insert::<DatabaseKey>(database);
     }
 
     spawn_message_sender(client.http.clone(), messages);
@@ -97,6 +106,10 @@ pub async fn run(
 
             tracing::info!("Bot shutdown completed.");
         }
+    }
+
+    if let Some(task) = sync_task {
+        task.abort();
     }
 
     Ok(())

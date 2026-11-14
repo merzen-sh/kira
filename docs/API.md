@@ -15,6 +15,7 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/auth/session` | cookie | `204` with a valid session, `401` otherwise |
 | `GET` | `/guild` | cookie | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/guild/channels` | cookie | `200` with the configured server's channels, or `503` while unavailable |
+| `GET` | `/guild/users` | cookie | `200` with a `GuildUserList` page; accepts `page`, `page_limit` (1–100), `search`, and `status` (`active` or `left`) |
 | `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
 | `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), and `search` |
 | `PATCH` | `/reports/{id}` | cookie | `200` with the updated `Report`; `404` when missing |
@@ -37,6 +38,13 @@ cached list and rejects channel kinds that cannot receive messages with `400`.
 It then forwards the raw Discord message JSON to the bot over an in-process
 channel. The bot posts the payload unchanged and returns the Discord message
 ID; the request fails with `504` if the bot does not answer within 15 seconds.
+
+`GET /guild/users` lists tracked guild members, newest join first. `search` is
+a case-insensitive substring match against the user ID, username, and display
+name; `status` filters to `active` or `left` and any other value returns `400`.
+Membership comes from Discord join and leave events and is reconciled against
+the guild whenever the bot becomes ready; the background metadata sync never
+changes status.
 
 `GET /reports`, `PATCH /reports/{id}`, and `DELETE /reports/{id}` expose bug
 reports saved by the Discord `/report` command. Listing returns the newest

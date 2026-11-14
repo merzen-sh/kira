@@ -4,13 +4,14 @@ use std::sync::Arc;
 
 use kira_config::DiscordConfig;
 use kira_protocol::{ChannelDetails, GuildDetails};
-use kira_store::Store;
+use kira_store::Database;
 use serenity::async_trait;
 use serenity::model::application::Interaction;
 use serenity::model::channel::{GuildChannel, Message};
 use serenity::model::gateway::Ready;
-use serenity::model::guild::{Guild, PartialGuild, UnavailableGuild};
+use serenity::model::guild::{Guild, Member, PartialGuild, UnavailableGuild};
 use serenity::model::id::GuildId;
+use serenity::model::user::User;
 use serenity::prelude::{Context, EventHandler, TypeMapKey};
 use tokio::sync::watch;
 
@@ -48,12 +49,12 @@ impl TypeMapKey for ChannelsKey {
     type Value = watch::Sender<Vec<ChannelDetails>>;
 }
 
-/// Type-map key holding report storage shared with the API server.
+/// Type-map key holding database storage shared with the API server.
 #[non_exhaustive]
-pub struct ReportsKey;
+pub struct DatabaseKey;
 
-impl TypeMapKey for ReportsKey {
-    type Value = Store;
+impl TypeMapKey for DatabaseKey {
+    type Value = Database;
 }
 
 /// Serenity event handler for the bot.
@@ -219,11 +220,38 @@ async fn publish_channels(ctx: &Context) {
     }
 }
 
+async fn database(ctx: &Context) -> Option<Database> {
+    let data = ctx.data.read().await;
+    data.get::<DatabaseKey>().cloned()
+}
+
+/// Prefer the guild nickname, then the global display name, then the username.
+pub(crate) fn member_display_name(
+    nick: Option<&str>,
+    global_name: Option<&str>,
+    user_name: &str,
+) -> String {
+    nick.or(global_name).unwrap_or(user_name).to_owned()
+}
+
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
         if let Err(error) = commands::register(&ctx, target_guild(&ctx).await).await {
             tracing::error!("Failed to register slash commands: {error}");
+        }
+
+        if let (Some(database), Some(guild_id)) = (database(&ctx).await, target_guild(&ctx).await) {
+            let result = crate::sync::reconcile(
+                Arc::clone(&ctx.http),
+                GuildId::new(guild_id),
+                &database.users(),
+            )
+            .await;
+
+            if let Err(error) = result {
+                tracing::error!("Failed to reconcile guild members: {error}");
+            }
         }
 
         if let Some(sender) = guild_sender(&ctx).await {
@@ -283,6 +311,63 @@ impl EventHandler for Handler {
         _messages: Option<Vec<Message>>,
     ) {
         publish_channels(&ctx).await;
+    }
+
+    async fn guild_member_addition(&self, ctx: Context, new_member: Member) {
+        if !is_target_guild(&ctx, new_member.guild_id).await {
+            return;
+        }
+
+        let Some(database) = database(&ctx).await else {
+            return;
+        };
+
+        let user = &new_member.user;
+        let display_name = member_display_name(
+            new_member.nick.as_deref(),
+            user.global_name.as_deref(),
+            &user.name,
+        );
+
+        if let Err(error) = database
+            .users()
+            .join(&user.id.to_string(), &user.name, &display_name)
+            .await
+        {
+            tracing::error!("Failed to record guild join: {error:?}");
+        }
+    }
+
+    async fn guild_member_removal(
+        &self,
+        ctx: Context,
+        guild_id: GuildId,
+        user: User,
+        member_data_if_available: Option<Member>,
+    ) {
+        if !is_target_guild(&ctx, guild_id).await {
+            return;
+        }
+
+        let Some(database) = database(&ctx).await else {
+            return;
+        };
+
+        let display_name = member_display_name(
+            member_data_if_available
+                .as_ref()
+                .and_then(|member| member.nick.as_deref()),
+            user.global_name.as_deref(),
+            &user.name,
+        );
+
+        if let Err(error) = database
+            .users()
+            .leave(&user.id.to_string(), &user.name, &display_name)
+            .await
+        {
+            tracing::error!("Failed to record guild leave: {error:?}");
+        }
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {

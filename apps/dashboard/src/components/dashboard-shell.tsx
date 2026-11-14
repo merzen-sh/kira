@@ -11,6 +11,7 @@ import {
   Server,
   Settings,
   Sun,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/announcements", label: "Announcements", icon: Megaphone },
   { to: "/reports", label: "Reports", icon: Bug },
+  { to: "/users", label: "Users", icon: Users },
   { to: "/server", label: "Server", icon: Server },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;

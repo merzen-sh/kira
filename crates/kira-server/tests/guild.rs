@@ -59,7 +59,7 @@ async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
         1,
         receiver,
         channels,
-        common::store().await,
+        common::database().await,
         messages,
         common::auth(),
     );
@@ -94,7 +94,7 @@ async fn guild_returns_503_when_the_target_is_missing() -> Result<(), Box<dyn Er
         9,
         receiver,
         channels,
-        common::store().await,
+        common::database().await,
         messages,
         common::auth(),
     );

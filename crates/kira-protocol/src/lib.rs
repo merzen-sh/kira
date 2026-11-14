@@ -104,6 +104,73 @@ impl ChannelDetails {
     }
 }
 
+/// A member of the Discord server targeted by `GET /guild/users`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct GuildUser {
+    /// Discord user ID.
+    pub user_id: String,
+    /// Discord account username.
+    pub user_name: String,
+    /// Guild nickname or global display name.
+    pub display_name: String,
+    /// Membership status, `active` or `left`.
+    pub status: String,
+    /// Time the user most recently joined, as an ISO 8601 timestamp.
+    pub join_at: String,
+    /// Time the user most recently left, as an ISO 8601 timestamp.
+    pub leave_at: Option<String>,
+}
+
+impl GuildUser {
+    /// Build a guild user with every field populated.
+    #[must_use]
+    pub fn new(
+        user_id: impl Into<String>,
+        user_name: impl Into<String>,
+        display_name: impl Into<String>,
+        status: impl Into<String>,
+        join_at: impl Into<String>,
+        leave_at: Option<String>,
+    ) -> Self {
+        Self {
+            user_id: user_id.into(),
+            user_name: user_name.into(),
+            display_name: display_name.into(),
+            status: status.into(),
+            join_at: join_at.into(),
+            leave_at,
+        }
+    }
+}
+
+/// A page of guild users returned by `GET /guild/users`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct GuildUserList {
+    /// Users on this page, newest join first.
+    pub users: Vec<GuildUser>,
+    /// Total number of users matching the search and status filters.
+    pub total: u64,
+    /// Page number, starting at 1.
+    pub page: u32,
+    /// Maximum number of users per page.
+    pub page_limit: u32,
+}
+
+impl GuildUserList {
+    /// Build a page of guild users.
+    #[must_use]
+    pub fn new(users: Vec<GuildUser>, total: u64, page: u32, page_limit: u32) -> Self {
+        Self {
+            users,
+            total,
+            page,
+            page_limit,
+        }
+    }
+}
+
 /// A message posted to a Discord channel.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]

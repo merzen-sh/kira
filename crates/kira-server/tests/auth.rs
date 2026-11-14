@@ -343,7 +343,14 @@ async fn secure_cookies_are_marked_secure_when_configured() -> Result<(), Box<dy
     let (_guild_sender, guilds) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _receiver) = mpsc::channel(1);
-    let state = AppState::new(1, guilds, channels, common::store().await, messages, auth);
+    let state = AppState::new(
+        1,
+        guilds,
+        channels,
+        common::database().await,
+        messages,
+        auth,
+    );
 
     let response = login(&state, PIN).await?;
     let cookie = session_cookie(&response);

@@ -49,7 +49,7 @@ async fn channels_return_the_configured_server_channels() -> Result<(), Box<dyn 
         1,
         guilds,
         channels,
-        common::store().await,
+        common::database().await,
         messages,
         common::auth(),
     );

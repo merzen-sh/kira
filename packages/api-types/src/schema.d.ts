@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guild/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List tracked guild users, newest join first. */
+        get: operations["list_guild_users"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -211,6 +228,41 @@ export interface components {
              * @description Approximate number of online members, when known.
              */
             presence_count?: number | null;
+        };
+        /** @description A member of the Discord server targeted by `GET /guild/users`. */
+        GuildUser: {
+            /** @description Guild nickname or global display name. */
+            display_name: string;
+            /** @description Time the user most recently joined, as an ISO 8601 timestamp. */
+            join_at: string;
+            /** @description Time the user most recently left, as an ISO 8601 timestamp. */
+            leave_at?: string | null;
+            /** @description Membership status, `active` or `left`. */
+            status: string;
+            /** @description Discord user ID. */
+            user_id: string;
+            /** @description Discord account username. */
+            user_name: string;
+        };
+        /** @description A page of guild users returned by `GET /guild/users`. */
+        GuildUserList: {
+            /**
+             * Format: int32
+             * @description Page number, starting at 1.
+             */
+            page: number;
+            /**
+             * Format: int32
+             * @description Maximum number of users per page.
+             */
+            page_limit: number;
+            /**
+             * Format: int64
+             * @description Total number of users matching the search and status filters.
+             */
+            total: number;
+            /** @description Users on this page, newest join first. */
+            users: components["schemas"]["GuildUser"][];
         };
         /** @description Health information returned by `GET /health`. */
         HealthResponse: {
@@ -592,6 +644,66 @@ export interface operations {
                 };
             };
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_guild_users: {
+        parameters: {
+            query?: {
+                /** @description Page number, starting at 1 */
+                page?: number;
+                /** @description Users per page, 1-100 (default 20) */
+                page_limit?: number;
+                /** @description Case-insensitive substring of the user ID, username, or display name */
+                search?: string;
+                /** @description Membership filter: `active` or `left` */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildUserList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

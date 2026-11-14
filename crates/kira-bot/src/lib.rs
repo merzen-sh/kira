@@ -3,6 +3,7 @@
 mod bot;
 mod commands;
 pub mod handler;
+mod sync;
 
 pub use bot::{BotError, run};
 pub use handler::{ChannelsKey, ConfigKey, Handler, is_ping};

@@ -23,9 +23,9 @@ pub async fn run_all(
     server: ServerConfig,
     database: DatabaseConfig,
 ) -> Result<()> {
-    let reports = kira_store::Store::connect(&database.url)
+    let database = kira_store::Database::connect(&database.url)
         .await
-        .context("opening report database")?;
+        .context("opening database")?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, guild_rx) = watch::channel(Vec::new());
     let (channel_tx, channel_rx) = watch::channel(Vec::new());
@@ -36,7 +36,7 @@ pub async fn run_all(
         Some(server.guild_id),
         guild_tx,
         channel_tx,
-        reports.clone(),
+        database.clone(),
         message_rx,
         wait_flag(rx.clone()),
     );
@@ -44,7 +44,7 @@ pub async fn run_all(
         &server,
         guild_rx,
         channel_rx,
-        reports,
+        database,
         message_tx,
         wait_flag(rx.clone()),
     );
@@ -90,9 +90,9 @@ pub async fn run_all(
 
 #[cfg(not(feature = "server"))]
 pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result<()> {
-    let reports = kira_store::Store::connect(&database.url)
+    let database = kira_store::Database::connect(&database.url)
         .await
-        .context("opening report database")?;
+        .context("opening database")?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, _guild_rx) = watch::channel(Vec::new());
     let (channel_tx, _channel_rx) = watch::channel(Vec::new());
@@ -103,7 +103,7 @@ pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result
         None,
         guild_tx,
         channel_tx,
-        reports,
+        database,
         message_rx,
         wait_flag(rx.clone()),
     );
