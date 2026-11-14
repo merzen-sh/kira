@@ -4,9 +4,9 @@ import { GET, toResourceError, unwrap } from "@/data/fetcher";
 import type { ResourceError, UseCustomQueryOptions } from "@/data/types";
 import { healthKeys } from "./keys";
 
-export async function checkHealth(signal?: AbortSignal) {
+export async function checkHealth() {
   try {
-    return await unwrap(GET("/health", { signal }));
+    return await unwrap(GET("/health"));
   } catch (error) {
     throw toResourceError(error);
   }
@@ -21,7 +21,8 @@ export const useHealthQuery = <TData = ResourceData>({
 }: UseCustomQueryOptions<ResourceData, ResourceError, TData> = {}) =>
   useQuery<ResourceData, ResourceError, TData>({
     queryKey: healthKeys.detail(),
-    queryFn: ({ signal }) => checkHealth(signal),
+    // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
+    queryFn: () => checkHealth(),
     enabled,
     ...options,
   });

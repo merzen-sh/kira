@@ -25,13 +25,16 @@ Copy this directory to `src/data/<domain>/` and rename the exports. The
    hooks or mutation options.
 8. Add cross-cutting request behavior once in `fetcher.ts` (`client.use(...)`).
    Do not duplicate it in domain files.
+9. Do not pass React Query's abort signal to the request. Reading it makes an
+   unmount cancel the fetch, so StrictMode's development remount sends every
+   query twice.
 
 ## Query shape
 
 ```ts
-export async function getExample(id: string, signal?: AbortSignal) {
+export async function getExample(id: string) {
   try {
-    return await unwrap(GET("/example/{id}", { params: { path: { id } }, signal }));
+    return await unwrap(GET("/example/{id}", { params: { path: { id } } }));
   } catch (error) {
     throw toResourceError(error);
   }
@@ -46,7 +49,8 @@ export const useExampleQuery = <TData = ResourceData>(
 ) =>
   useQuery<ResourceData, ResourceError, TData>({
     queryKey: exampleKeys.detail(id),
-    queryFn: ({ signal }) => getExample(id, signal),
+    // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
+    queryFn: () => getExample(id),
     enabled,
     ...options,
   });
