@@ -23,7 +23,7 @@ async fn state() -> (
         1,
         guilds,
         channels,
-        common::store().await,
+        common::database().await,
         messages,
         common::auth(),
     );
@@ -128,7 +128,7 @@ async fn non_text_channel_is_rejected() -> Result<(), Box<dyn Error>> {
         1,
         guilds,
         channels,
-        common::store().await,
+        common::database().await,
         messages,
         common::auth(),
     );

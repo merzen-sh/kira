@@ -20,10 +20,10 @@ use axum::{Json, Router, routing};
 use kira_config::ServerConfig;
 use kira_core::messaging::{MessageSender, OutgoingMessage};
 use kira_protocol::{
-    ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, LoginRequest, Report, ReportList,
-    SentMessage, UpdateReport,
+    ChannelDetails, ErrorResponse, GuildDetails, GuildUserList, HealthResponse, LoginRequest,
+    Report, ReportList, SentMessage, UpdateReport,
 };
-use kira_store::Store;
+use kira_store::Database;
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -96,20 +96,20 @@ pub struct AppState {
     guild_id: String,
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
-    reports: Store,
+    database: Database,
     messages: MessageSender,
     auth: Auth,
 }
 
 impl AppState {
     /// Build state from the configured guild ID, the bot's cached state,
-    /// report storage, and the authentication settings.
+    /// database storage, and the authentication settings.
     #[must_use]
     pub fn new(
         guild_id: u64,
         guilds: watch::Receiver<Vec<GuildDetails>>,
         channels: watch::Receiver<Vec<ChannelDetails>>,
-        reports: Store,
+        database: Database,
         messages: MessageSender,
         auth: Auth,
     ) -> Self {
@@ -117,7 +117,7 @@ impl AppState {
             guild_id: guild_id.to_string(),
             guilds,
             channels,
-            reports,
+            database,
             messages,
             auth,
         }
@@ -470,10 +470,10 @@ pub async fn send_guild_message(
     }
 }
 
-/// Default number of reports returned by `GET /reports`.
+/// Default number of records returned by paginated endpoints.
 const DEFAULT_PAGE_LIMIT: u32 = 20;
 
-/// Largest page size accepted by `GET /reports`.
+/// Largest page size accepted by paginated endpoints.
 const MAX_PAGE_LIMIT: u32 = 100;
 
 /// Query parameters for `GET /reports`.
@@ -485,10 +485,10 @@ pub struct ReportListQuery {
 }
 
 fn storage_error(error: &kira_store::StoreError) -> Response {
-    tracing::error!("report storage failed: {error:?}");
+    tracing::error!("storage failed: {error:?}");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorResponse::new("report storage failed")),
+        Json(ErrorResponse::new("storage failed")),
     )
         .into_response()
 }
@@ -526,7 +526,12 @@ pub async fn list_reports(
         .map(str::trim)
         .filter(|value| !value.is_empty());
 
-    match state.reports.list_reports(page, page_limit, search).await {
+    match state
+        .database
+        .reports()
+        .list_reports(page, page_limit, search)
+        .await
+    {
         Ok(reports) => Json(reports).into_response(),
         Err(error) => storage_error(&error),
     }
@@ -556,7 +561,12 @@ pub async fn update_report(
     Path(id): Path<i64>,
     Json(body): Json<UpdateReport>,
 ) -> Response {
-    match state.reports.set_resolved(id, body.resolved).await {
+    match state
+        .database
+        .reports()
+        .set_resolved(id, body.resolved)
+        .await
+    {
         Ok(Some(report)) => Json(report).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -583,13 +593,83 @@ pub async fn update_report(
     )
 )]
 pub async fn delete_report(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
-    match state.reports.delete_report(id).await {
+    match state.database.reports().delete_report(id).await {
         Ok(true) => StatusCode::NO_CONTENT.into_response(),
         Ok(false) => (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("report was not found")),
         )
             .into_response(),
+        Err(error) => storage_error(&error),
+    }
+}
+
+/// Query parameters for `GET /guild/users`.
+#[derive(Debug, Deserialize)]
+pub struct UserListQuery {
+    page: Option<u32>,
+    page_limit: Option<u32>,
+    search: Option<String>,
+    status: Option<String>,
+}
+
+/// List tracked guild users, newest join first.
+#[utoipa::path(
+    get,
+    path = "/guild/users",
+    tag = "guild",
+    security(("cookie_auth" = [])),
+    params(
+        ("page" = Option<u32>, Query, description = "Page number, starting at 1"),
+        ("page_limit" = Option<u32>, Query, description = "Users per page, 1-100 (default 20)"),
+        ("search" = Option<String>, Query, description = "Case-insensitive substring of the user ID, username, or display name"),
+        ("status" = Option<String>, Query, description = "Membership filter: `active` or `left`")
+    ),
+    responses(
+        (status = 200, body = GuildUserList),
+        (status = 400, body = ErrorResponse),
+        (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
+        (status = 500, body = ErrorResponse)
+    )
+)]
+pub async fn list_guild_users(
+    State(state): State<AppState>,
+    Query(query): Query<UserListQuery>,
+) -> Response {
+    let page = query.page.unwrap_or(1).max(1);
+    let page_limit = query
+        .page_limit
+        .unwrap_or(DEFAULT_PAGE_LIMIT)
+        .clamp(1, MAX_PAGE_LIMIT);
+    let search = query
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let status = query
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if let Some(status) = status
+        && !matches!(status, "active" | "left")
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new("status must be active or left")),
+        )
+            .into_response();
+    }
+
+    match state
+        .database
+        .users()
+        .list(page, page_limit, search, status)
+        .await
+    {
+        Ok(users) => Json(users).into_response(),
         Err(error) => storage_error(&error),
     }
 }
@@ -613,6 +693,7 @@ pub async fn delete_report(State(state): State<AppState>, Path(id): Path<i64>) -
         get_guild,
         get_guild_channels,
         send_guild_message,
+        list_guild_users,
         list_reports,
         update_report,
         delete_report
@@ -622,6 +703,8 @@ pub async fn delete_report(State(state): State<AppState>, Path(id): Path<i64>) -
             kira_protocol::GuildDetails,
             kira_protocol::ChannelDetails,
             kira_protocol::SentMessage,
+            kira_protocol::GuildUser,
+            kira_protocol::GuildUserList,
             kira_protocol::LoginRequest,
             kira_protocol::Report,
             kira_protocol::ReportList,
@@ -653,6 +736,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/session", routing::get(session))
         .route("/guild", routing::get(get_guild))
         .route("/guild/channels", routing::get(get_guild_channels))
+        .route("/guild/users", routing::get(list_guild_users))
         .route(
             "/guild/channels/{channel_id}/messages",
             routing::post(send_guild_message),
@@ -719,7 +803,7 @@ pub async fn serve(
     config: &ServerConfig,
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
-    reports: Store,
+    database: Database,
     messages: MessageSender,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
@@ -744,7 +828,7 @@ pub async fn serve(
     tracing::info!("Listening on http://{}", listener.local_addr()?);
     serve_with_listener(
         listener,
-        AppState::new(config.guild_id, guilds, channels, reports, messages, auth),
+        AppState::new(config.guild_id, guilds, channels, database, messages, auth),
         shutdown,
     )
     .await

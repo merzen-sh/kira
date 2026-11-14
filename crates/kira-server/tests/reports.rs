@@ -9,12 +9,13 @@ use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
 use kira_protocol::{Report, ReportList};
 use kira_server::{AppState, router};
-use kira_store::{NewReport, Store};
+use kira_store::Database;
+use kira_store::reports::NewReport;
 use tower::ServiceExt;
 
-async fn state() -> Result<(AppState, Store), Box<dyn Error>> {
-    let store = common::store().await;
-    Ok((common::state_with_store(store.clone()), store))
+async fn state() -> Result<(AppState, Database), Box<dyn Error>> {
+    let store = common::database().await;
+    Ok((common::state_with_database(store.clone()), store))
 }
 
 async fn list(state: &AppState, uri: &str, cookie: &str) -> Result<ReportList, Box<dyn Error>> {
@@ -47,6 +48,7 @@ async fn reports_are_listed_searched_and_paginated() -> Result<(), Box<dyn Error
     let cookie = common::login_cookie(&state).await?;
 
     store
+        .reports()
         .create_report(&NewReport::new(
             "42",
             "Login broken",
@@ -55,6 +57,7 @@ async fn reports_are_listed_searched_and_paginated() -> Result<(), Box<dyn Error
         ))
         .await?;
     store
+        .reports()
         .create_report(&NewReport::new(
             "7",
             "Channel list empty",
@@ -84,6 +87,7 @@ async fn reports_can_be_resolved_and_deleted() -> Result<(), Box<dyn Error>> {
     let (state, store) = state().await?;
     let cookie = common::login_cookie(&state).await?;
     let report = store
+        .reports()
         .create_report(&NewReport::new("42", "Crash", "click", "boom"))
         .await?;
 
