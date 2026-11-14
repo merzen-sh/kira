@@ -7,6 +7,7 @@ use std::time::Duration;
 use kira_config::DiscordConfig;
 use kira_core::messaging::OutgoingMessage;
 use kira_protocol::{ChannelDetails, GuildDetails};
+use kira_store::Store;
 use serenity::Client;
 use serenity::http::Http;
 use serenity::model::id::ChannelId;
@@ -14,7 +15,7 @@ use serenity::prelude::GatewayIntents;
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
-use crate::handler::{ChannelsKey, ConfigKey, GuildIdKey, GuildsKey, Handler};
+use crate::handler::{ChannelsKey, ConfigKey, GuildIdKey, GuildsKey, Handler, ReportsKey};
 
 /// How long a single Discord send may take before the queue moves on.
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -40,6 +41,7 @@ pub async fn run(
     guild_id: Option<u64>,
     guilds: watch::Sender<Vec<GuildDetails>>,
     channels: watch::Sender<Vec<ChannelDetails>>,
+    reports: Store,
     messages: mpsc::Receiver<OutgoingMessage>,
     shutdown: impl Future<Output = ()> + Send,
 ) -> Result<(), BotError> {
@@ -61,6 +63,7 @@ pub async fn run(
         data.insert::<GuildIdKey>(guild_id);
         data.insert::<GuildsKey>(guilds);
         data.insert::<ChannelsKey>(channels);
+        data.insert::<ReportsKey>(reports);
     }
 
     spawn_message_sender(client.http.clone(), messages);

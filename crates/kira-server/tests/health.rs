@@ -13,7 +13,7 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn health_returns_ok() -> Result<(), Box<dyn Error>> {
-    let res = router(common::empty_state())
+    let res = router(common::empty_state().await)
         .oneshot(Request::builder().uri("/health").body(Body::empty())?)
         .await?;
     assert_eq!(res.status(), StatusCode::OK);
@@ -25,7 +25,7 @@ async fn health_returns_ok() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn unknown_path_is_404() -> Result<(), Box<dyn Error>> {
-    let res = router(common::empty_state())
+    let res = router(common::empty_state().await)
         .oneshot(Request::builder().uri("/nope").body(Body::empty())?)
         .await?;
     assert_eq!(res.status(), StatusCode::NOT_FOUND);

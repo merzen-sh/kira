@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use kira_config::DatabaseConfig;
 use kira_config::DiscordConfig;
 #[cfg(feature = "server")]
 use kira_config::ServerConfig;
@@ -17,7 +18,14 @@ async fn wait_flag(mut rx: watch::Receiver<bool>) {
 }
 
 #[cfg(feature = "server")]
-pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()> {
+pub async fn run_all(
+    discord: DiscordConfig,
+    server: ServerConfig,
+    database: DatabaseConfig,
+) -> Result<()> {
+    let reports = kira_store::Store::connect(&database.url)
+        .await
+        .context("opening report database")?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, guild_rx) = watch::channel(Vec::new());
     let (channel_tx, channel_rx) = watch::channel(Vec::new());
@@ -28,6 +36,7 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()>
         Some(server.guild_id),
         guild_tx,
         channel_tx,
+        reports.clone(),
         message_rx,
         wait_flag(rx.clone()),
     );
@@ -35,6 +44,7 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()>
         &server,
         guild_rx,
         channel_rx,
+        reports,
         message_tx,
         wait_flag(rx.clone()),
     );
@@ -79,7 +89,10 @@ pub async fn run_all(discord: DiscordConfig, server: ServerConfig) -> Result<()>
 }
 
 #[cfg(not(feature = "server"))]
-pub async fn run_bot(discord: DiscordConfig) -> Result<()> {
+pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result<()> {
+    let reports = kira_store::Store::connect(&database.url)
+        .await
+        .context("opening report database")?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, _guild_rx) = watch::channel(Vec::new());
     let (channel_tx, _channel_rx) = watch::channel(Vec::new());
@@ -90,6 +103,7 @@ pub async fn run_bot(discord: DiscordConfig) -> Result<()> {
         None,
         guild_tx,
         channel_tx,
+        reports,
         message_rx,
         wait_flag(rx.clone()),
     );

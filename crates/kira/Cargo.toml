@@ -15,6 +15,7 @@ kira-bot = { path = "../kira-bot" }
 kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
 kira-server = { path = "../kira-server", optional = true }
+kira-store = { path = "../kira-store" }
 tokio.workspace = true
 tracing.workspace = true
 

@@ -10,6 +10,7 @@ use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use kira_server::{AppState, Auth, AuthConfig, router};
+use kira_store::Store;
 use tokio::sync::{mpsc, watch};
 use tower::ServiceExt;
 
@@ -21,13 +22,25 @@ pub fn auth() -> Auth {
     Auth::new(AuthConfig::with_password(PIN)).expect("test authentication")
 }
 
-/// State with no cached guild data.
-pub fn empty_state() -> AppState {
+/// In-memory report storage for tests.
+pub async fn store() -> Store {
+    Store::connect("sqlite::memory:")
+        .await
+        .expect("test report storage")
+}
+
+/// State with no cached guild data and the given report storage.
+pub fn state_with_store(store: Store) -> AppState {
     let (_guild_sender, guilds) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _receiver) = mpsc::channel(1);
 
-    AppState::new(1, guilds, channels, messages, auth())
+    AppState::new(1, guilds, channels, store, messages, auth())
+}
+
+/// State with no cached guild data.
+pub async fn empty_state() -> AppState {
+    state_with_store(store().await)
 }
 
 /// Submit a login request.

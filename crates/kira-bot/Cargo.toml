@@ -9,6 +9,7 @@ publish.workspace = true
 kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
 kira-protocol = { path = "../kira-protocol" }
+kira-store = { path = "../kira-store" }
 serenity.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

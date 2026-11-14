@@ -17,8 +17,8 @@ use common::{PIN, empty_state, login, login_cookie, session_cookie, with_cookie,
 
 const ALLOWED_ORIGIN: &str = "http://127.0.0.1:3000";
 
-fn state() -> AppState {
-    empty_state()
+async fn state() -> AppState {
+    empty_state().await
 }
 
 fn session_request(cookie: Option<&str>) -> Request<Body> {
@@ -35,7 +35,7 @@ fn session_request(cookie: Option<&str>) -> Request<Body> {
 
 #[tokio::test]
 async fn login_sets_a_hardened_cookie() -> Result<(), Box<dyn Error>> {
-    let state = state();
+    let state = state().await;
     let response = login(&state, PIN).await?;
 
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
@@ -56,7 +56,7 @@ async fn login_sets_a_hardened_cookie() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn a_wrong_pin_is_rejected_without_a_cookie() -> Result<(), Box<dyn Error>> {
-    let response = login(&state(), "000000").await?;
+    let response = login(&state().await, "000000").await?;
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     assert!(response.headers().get(header::SET_COOKIE).is_none());
@@ -66,7 +66,7 @@ async fn a_wrong_pin_is_rejected_without_a_cookie() -> Result<(), Box<dyn Error>
 
 #[tokio::test]
 async fn a_malformed_login_body_is_rejected() -> Result<(), Box<dyn Error>> {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -82,7 +82,7 @@ async fn a_malformed_login_body_is_rejected() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn session_requires_a_valid_cookie() -> Result<(), Box<dyn Error>> {
-    let state = state();
+    let state = state().await;
     let response = router(state.clone()).oneshot(session_request(None)).await?;
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
@@ -96,7 +96,7 @@ async fn session_requires_a_valid_cookie() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn protected_routes_require_a_session() -> Result<(), Box<dyn Error>> {
-    let state = state();
+    let state = state().await;
 
     let guild = router(state.clone())
         .oneshot(Request::builder().uri("/guild").body(Body::empty())?)
@@ -129,7 +129,7 @@ async fn protected_routes_require_a_session() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn bearer_tokens_are_not_accepted() -> Result<(), Box<dyn Error>> {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(
             Request::builder()
                 .uri("/guild")
@@ -144,7 +144,7 @@ async fn bearer_tokens_are_not_accepted() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn tampered_tokens_are_rejected() -> Result<(), Box<dyn Error>> {
-    let state = state();
+    let state = state().await;
     let cookie = login_cookie(&state).await?;
     let (name, token) = cookie.split_once('=').ok_or("cookie pair")?;
     let tampered = format!("{name}={token}0");
@@ -156,9 +156,12 @@ async fn tampered_tokens_are_rejected() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn expired_tokens_are_rejected() -> Result<(), Box<dyn Error>> {
-    let state = state();
+    // Pause after building the state: opening the report store must not race
+    // the paused clock's auto-advance.
+    let state = state().await;
+    tokio::time::pause();
     let cookie = login_cookie(&state).await?;
 
     advance(SESSION_TTL + Duration::from_secs(1)).await;
@@ -172,7 +175,7 @@ async fn expired_tokens_are_rejected() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn logout_clears_the_cookie() -> Result<(), Box<dyn Error>> {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -190,9 +193,12 @@ async fn logout_clears_the_cookie() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[tokio::test(start_paused = true)]
+#[tokio::test]
 async fn login_is_rate_limited_per_peer() -> Result<(), Box<dyn Error>> {
-    let state = state();
+    // Pause after building the state: opening the report store must not race
+    // the paused clock's auto-advance.
+    let state = state().await;
+    tokio::time::pause();
     let peer = SocketAddr::from(([192, 0, 2, 10], 4000));
 
     for _ in 0..5 {
@@ -243,7 +249,7 @@ async fn login_is_rate_limited_per_peer() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn unknown_origins_are_rejected() -> Result<(), Box<dyn Error>> {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -261,7 +267,7 @@ async fn unknown_origins_are_rejected() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn configured_origins_are_accepted() -> Result<(), Box<dyn Error>> {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -286,7 +292,7 @@ async fn configured_origins_are_accepted() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn cors_preflight_reflects_allowed_origins() -> Result<(), Box<dyn Error>> {
-    let response = router(state())
+    let response = router(state().await)
         .oneshot(
             Request::builder()
                 .method("OPTIONS")
@@ -308,7 +314,7 @@ async fn cors_preflight_reflects_allowed_origins() -> Result<(), Box<dyn Error>>
         "true"
     );
 
-    let denied = router(empty_state())
+    let denied = router(empty_state().await)
         .oneshot(
             Request::builder()
                 .method("OPTIONS")
@@ -337,7 +343,7 @@ async fn secure_cookies_are_marked_secure_when_configured() -> Result<(), Box<dy
     let (_guild_sender, guilds) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _receiver) = mpsc::channel(1);
-    let state = AppState::new(1, guilds, channels, messages, auth);
+    let state = AppState::new(1, guilds, channels, common::store().await, messages, auth);
 
     let response = login(&state, PIN).await?;
     let cookie = session_cookie(&response);
@@ -371,7 +377,7 @@ async fn same_site_none_requires_secure() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn health_stays_public() -> Result<(), Box<dyn Error>> {
-    let response = router(empty_state())
+    let response = router(empty_state().await)
         .oneshot(Request::builder().uri("/health").body(Body::empty())?)
         .await?;
 

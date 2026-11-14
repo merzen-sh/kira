@@ -10,7 +10,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{ConnectInfo, Extension, Path, Request, State};
+use axum::extract::{ConnectInfo, Extension, Path, Query, Request, State};
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::middleware::{self, Next};
 #[cfg(debug_assertions)]
@@ -20,8 +20,11 @@ use axum::{Json, Router, routing};
 use kira_config::ServerConfig;
 use kira_core::messaging::{MessageSender, OutgoingMessage};
 use kira_protocol::{
-    ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, LoginRequest, SentMessage,
+    ChannelDetails, ErrorResponse, GuildDetails, HealthResponse, LoginRequest, Report, ReportList,
+    SentMessage, UpdateReport,
 };
+use kira_store::Store;
+use serde::Deserialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -93,18 +96,20 @@ pub struct AppState {
     guild_id: String,
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
+    reports: Store,
     messages: MessageSender,
     auth: Auth,
 }
 
 impl AppState {
-    /// Build state from the configured guild ID, the bot's cached state, and
-    /// the authentication settings.
+    /// Build state from the configured guild ID, the bot's cached state,
+    /// report storage, and the authentication settings.
     #[must_use]
     pub fn new(
         guild_id: u64,
         guilds: watch::Receiver<Vec<GuildDetails>>,
         channels: watch::Receiver<Vec<ChannelDetails>>,
+        reports: Store,
         messages: MessageSender,
         auth: Auth,
     ) -> Self {
@@ -112,6 +117,7 @@ impl AppState {
             guild_id: guild_id.to_string(),
             guilds,
             channels,
+            reports,
             messages,
             auth,
         }
@@ -200,7 +206,13 @@ fn cors_layer(state: &AppState) -> CorsLayer {
 
     CorsLayer::new()
         .allow_credentials(true)
-        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([header::CONTENT_TYPE, header::ACCEPT])
         .allow_origin(AllowOrigin::list(origins))
         .max_age(Duration::from_secs(600))
@@ -458,6 +470,130 @@ pub async fn send_guild_message(
     }
 }
 
+/// Default number of reports returned by `GET /reports`.
+const DEFAULT_PAGE_LIMIT: u32 = 20;
+
+/// Largest page size accepted by `GET /reports`.
+const MAX_PAGE_LIMIT: u32 = 100;
+
+/// Query parameters for `GET /reports`.
+#[derive(Debug, Deserialize)]
+pub struct ReportListQuery {
+    page: Option<u32>,
+    page_limit: Option<u32>,
+    search: Option<String>,
+}
+
+fn storage_error(error: &kira_store::StoreError) -> Response {
+    tracing::error!("report storage failed: {error}");
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse::new("report storage failed")),
+    )
+        .into_response()
+}
+
+/// List bug reports, newest first.
+#[utoipa::path(
+    get,
+    path = "/reports",
+    tag = "reports",
+    security(("cookie_auth" = [])),
+    params(
+        ("page" = Option<u32>, Query, description = "Page number, starting at 1"),
+        ("page_limit" = Option<u32>, Query, description = "Reports per page, 1-100 (default 20)"),
+        ("search" = Option<String>, Query, description = "Case-insensitive substring of the title, steps, details, or reporter ID")
+    ),
+    responses(
+        (status = 200, body = ReportList),
+        (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
+        (status = 500, body = ErrorResponse)
+    )
+)]
+pub async fn list_reports(
+    State(state): State<AppState>,
+    Query(query): Query<ReportListQuery>,
+) -> Response {
+    let page = query.page.unwrap_or(1).max(1);
+    let page_limit = query
+        .page_limit
+        .unwrap_or(DEFAULT_PAGE_LIMIT)
+        .clamp(1, MAX_PAGE_LIMIT);
+    let search = query
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    match state.reports.list_reports(page, page_limit, search).await {
+        Ok(reports) => Json(reports).into_response(),
+        Err(error) => storage_error(&error),
+    }
+}
+
+/// Mark a bug report resolved or unresolved.
+#[utoipa::path(
+    patch,
+    path = "/reports/{id}",
+    tag = "reports",
+    security(("cookie_auth" = [])),
+    params(("id" = i64, Path, description = "Report ID")),
+    request_body = UpdateReport,
+    responses(
+        (status = 200, body = Report),
+        (status = 400, body = ErrorResponse),
+        (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
+        (status = 404, body = ErrorResponse),
+        (status = 415, body = ErrorResponse),
+        (status = 422, body = ErrorResponse),
+        (status = 500, body = ErrorResponse)
+    )
+)]
+pub async fn update_report(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<UpdateReport>,
+) -> Response {
+    match state.reports.set_resolved(id, body.resolved).await {
+        Ok(Some(report)) => Json(report).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("report was not found")),
+        )
+            .into_response(),
+        Err(error) => storage_error(&error),
+    }
+}
+
+/// Delete a bug report.
+#[utoipa::path(
+    delete,
+    path = "/reports/{id}",
+    tag = "reports",
+    security(("cookie_auth" = [])),
+    params(("id" = i64, Path, description = "Report ID")),
+    responses(
+        (status = 204, description = "Report deleted"),
+        (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
+        (status = 404, body = ErrorResponse),
+        (status = 500, body = ErrorResponse)
+    )
+)]
+pub async fn delete_report(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
+    match state.reports.delete_report(id).await {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new("report was not found")),
+        )
+            .into_response(),
+        Err(error) => storage_error(&error),
+    }
+}
+
 /// OpenAPI document assembled from the server's route annotations.
 #[derive(utoipa::OpenApi)]
 #[non_exhaustive]
@@ -466,7 +602,8 @@ pub async fn send_guild_message(
     tags(
         (name = "auth", description = "Dashboard session authentication"),
         (name = "health", description = "Service health"),
-        (name = "guild", description = "Discord server and channels")
+        (name = "guild", description = "Discord server and channels"),
+        (name = "reports", description = "User-submitted bug reports")
     ),
     paths(
         health,
@@ -475,7 +612,10 @@ pub async fn send_guild_message(
         session,
         get_guild,
         get_guild_channels,
-        send_guild_message
+        send_guild_message,
+        list_reports,
+        update_report,
+        delete_report
     ),
     components(schemas(
             kira_protocol::HealthResponse,
@@ -483,6 +623,9 @@ pub async fn send_guild_message(
             kira_protocol::ChannelDetails,
             kira_protocol::SentMessage,
             kira_protocol::LoginRequest,
+            kira_protocol::Report,
+            kira_protocol::ReportList,
+            kira_protocol::UpdateReport,
             kira_protocol::ErrorResponse
         )),
     modifiers(&SecurityAddon)
@@ -513,6 +656,11 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/guild/channels/{channel_id}/messages",
             routing::post(send_guild_message),
+        )
+        .route("/reports", routing::get(list_reports))
+        .route(
+            "/reports/{id}",
+            routing::patch(update_report).delete(delete_report),
         )
         .route("/ws", routing::get(ws_upgrade))
         .route_layer(middleware::from_fn_with_state(
@@ -571,6 +719,7 @@ pub async fn serve(
     config: &ServerConfig,
     guilds: watch::Receiver<Vec<GuildDetails>>,
     channels: watch::Receiver<Vec<ChannelDetails>>,
+    reports: Store,
     messages: MessageSender,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
@@ -595,7 +744,7 @@ pub async fn serve(
     tracing::info!("Listening on http://{}", listener.local_addr()?);
     serve_with_listener(
         listener,
-        AppState::new(config.guild_id, guilds, channels, messages, auth),
+        AppState::new(config.guild_id, guilds, channels, reports, messages, auth),
         shutdown,
     )
     .await

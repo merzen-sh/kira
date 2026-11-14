@@ -14,7 +14,7 @@ use tower::ServiceExt;
 #[tokio::test]
 async fn docs_routes_are_absent_outside_debug_builds() -> Result<(), Box<dyn Error>> {
     for path in ["/docs", "/openapi.json"] {
-        let res = router(common::empty_state())
+        let res = router(common::empty_state().await)
             .oneshot(Request::builder().uri(path).body(Body::empty())?)
             .await?;
         assert_eq!(

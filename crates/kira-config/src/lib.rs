@@ -108,6 +108,15 @@ pub struct ServerConfig {
     pub cookie_samesite: SameSite,
 }
 
+/// SQLite storage settings read from `KIRA_*` variables.
+#[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
+pub struct DatabaseConfig {
+    /// SQLite connection URL (`KIRA_DATABASE_URL`).
+    #[serde(default = "default_database_url", rename = "database_url")]
+    pub url: String,
+}
+
 /// `SameSite` policy for the session cookie.
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -148,6 +157,10 @@ fn default_bind() -> SocketAddr {
 
 fn default_cli_bind() -> SocketAddr {
     SocketAddr::from(([127, 0, 0, 1], 3000))
+}
+
+fn default_database_url() -> String {
+    "sqlite:kira.db".to_owned()
 }
 
 impl DiscordConfig {
@@ -204,6 +217,29 @@ impl CliConfig {
     }
 
     /// Parse local dashboard configuration from environment entries.
+    pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str>,
+        V: Into<String>,
+    {
+        envy::prefixed("KIRA_")
+            .from_iter(
+                iter.into_iter()
+                    .map(|(k, v)| (k.as_ref().to_owned(), v.into())),
+            )
+            .map_err(ConfigError::from)
+    }
+}
+
+impl DatabaseConfig {
+    /// Load report storage configuration from the process environment.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        load_env()?;
+        Self::try_from_iter(std::env::vars())
+    }
+
+    /// Parse report storage configuration from environment entries.
     pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
@@ -332,6 +368,22 @@ mod tests {
         let c = CliConfig::try_from_iter([("KIRA_CLI_BIND", "127.0.0.1:4001")])?;
 
         assert_eq!(c.bind, SocketAddr::from(([127, 0, 0, 1], 4001)));
+        Ok(())
+    }
+
+    #[test]
+    fn database_config_defaults_to_a_local_file() -> Result<(), ConfigError> {
+        let c = DatabaseConfig::try_from_iter(std::iter::empty::<(&str, &str)>())?;
+
+        assert_eq!(c.url, "sqlite:kira.db");
+        Ok(())
+    }
+
+    #[test]
+    fn database_config_reads_url() -> Result<(), ConfigError> {
+        let c = DatabaseConfig::try_from_iter([("KIRA_DATABASE_URL", "sqlite:reports.db")])?;
+
+        assert_eq!(c.url, "sqlite:reports.db");
         Ok(())
     }
 }

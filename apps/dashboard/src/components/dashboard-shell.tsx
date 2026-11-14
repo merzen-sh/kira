@@ -1,6 +1,7 @@
 import { cn } from "@kira/ui/lib/utils";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
+  Bug,
   LayoutDashboard,
   LogOut,
   Megaphone,
@@ -20,6 +21,7 @@ import { useTheme } from "@/hooks/use-theme";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/announcements", label: "Announcements", icon: Megaphone },
+  { to: "/reports", label: "Reports", icon: Bug },
   { to: "/server", label: "Server", icon: Server },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;

@@ -7,3 +7,6 @@
 node_modules/
 apps/dashboard/dist/
 mprocs.log
+kira.db
+kira.db-shm
+kira.db-wal

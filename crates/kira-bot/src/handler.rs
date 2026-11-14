@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use kira_config::DiscordConfig;
 use kira_protocol::{ChannelDetails, GuildDetails};
+use kira_store::Store;
 use serenity::async_trait;
 use serenity::model::application::Interaction;
 use serenity::model::channel::{GuildChannel, Message};
@@ -45,6 +46,14 @@ pub struct ChannelsKey;
 
 impl TypeMapKey for ChannelsKey {
     type Value = watch::Sender<Vec<ChannelDetails>>;
+}
+
+/// Type-map key holding report storage shared with the API server.
+#[non_exhaustive]
+pub struct ReportsKey;
+
+impl TypeMapKey for ReportsKey {
+    type Value = Store;
 }
 
 /// Serenity event handler for the bot.
@@ -277,12 +286,14 @@ impl EventHandler for Handler {
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        let Interaction::Command(command) = interaction else {
-            return;
+        let result = match interaction {
+            Interaction::Command(command) => commands::handle(&ctx, &command).await,
+            Interaction::Modal(modal) => commands::handle_modal(&ctx, &modal).await,
+            _ => Ok(()),
         };
 
-        if let Err(error) = commands::handle(&ctx, &command).await {
-            tracing::error!("Failed to respond to slash command: {error}");
+        if let Err(error) = result {
+            tracing::error!("Failed to respond to interaction: {error}");
         }
     }
 
