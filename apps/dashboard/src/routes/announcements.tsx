@@ -10,6 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useState } from "react";
 
+import { StatCard } from "@/components/stat-card";
 import { useChannelsQuery } from "@/data/channels/query";
 import { useSendMessageMutation } from "@/data/messages/mutation";
 
@@ -44,6 +45,13 @@ function AnnouncementsPage() {
   const sentChannel = sendable.find(
     (candidate) => candidate.id === mutation.variables?.channelId,
   );
+  const newsCount = channels?.filter(
+    (channel) => channel.kind === "news",
+  ).length;
+
+  function statValue(value: number | undefined) {
+    return isPending ? "…" : isError ? "—" : (value ?? 0);
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,7 +98,19 @@ function AnnouncementsPage() {
   }
 
   return (
-    <main className="flex flex-1 justify-center p-6 md:p-8">
+    <main className="flex flex-1 flex-col items-center gap-4 p-6 md:p-8">
+      <section
+        aria-label="Channel statistics"
+        className="grid w-full max-w-2xl gap-3 sm:grid-cols-3"
+      >
+        <StatCard label="Channels" value={statValue(channels?.length)} />
+        <StatCard
+          label="Postable channels"
+          value={statValue(channels ? sendable.length : undefined)}
+        />
+        <StatCard label="Announcement channels" value={statValue(newsCount)} />
+      </section>
+
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Announcements</CardTitle>

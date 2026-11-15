@@ -11,7 +11,8 @@ Routing is file-based:
 
 - `src/routes/__root.tsx` owns the root layout and development devtools.
 - `src/routes/index.tsx`, `server.tsx`, `settings.tsx`, `announcements.tsx`,
-  `reports.tsx`, and `users.tsx` are the page routes.
+  `reports.tsx`, and `users.tsx` are the page routes. The reports and
+  announcements pages open with summary cards above their content.
 - The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
   creates the router from that tree.
 

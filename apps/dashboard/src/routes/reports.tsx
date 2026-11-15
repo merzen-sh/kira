@@ -13,11 +13,12 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { StatCard } from "@/components/stat-card";
 import {
   useDeleteReportMutation,
   useResolveReportMutation,
 } from "@/data/reports/mutation";
-import { useReportsQuery } from "@/data/reports/query";
+import { useReportStatsQuery, useReportsQuery } from "@/data/reports/query";
 
 export const Route = createFileRoute("/reports")({
   component: ReportsPage,
@@ -46,9 +47,14 @@ function ReportsPage() {
     PAGE_LIMIT,
     term,
   );
+  const stats = useReportStatsQuery();
   const reports = data?.reports ?? [];
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
+
+  function statValue(value: number | undefined) {
+    return stats.isPending ? "…" : stats.isError ? "—" : (value ?? 0);
+  }
 
   // Another admin may delete the last row while this page is open.
   useEffect(() => {
@@ -89,6 +95,15 @@ function ReportsPage() {
           className="w-full sm:w-64"
         />
       </header>
+
+      <section
+        aria-label="Report statistics"
+        className="grid gap-3 sm:grid-cols-3"
+      >
+        <StatCard label="Total reports" value={statValue(stats.data?.total)} />
+        <StatCard label="Open" value={statValue(stats.data?.open)} />
+        <StatCard label="Resolved" value={statValue(stats.data?.resolved)} />
+      </section>
 
       {isError ? (
         <p role="alert" className="text-sm text-destructive">
