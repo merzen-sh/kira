@@ -24,3 +24,29 @@ pub(super) async fn respond(
 
     Ok(())
 }
+
+/// Return whether a message is a `!ping` command from a human.
+#[must_use]
+pub fn is_ping(content: &str, author_is_bot: bool) -> bool {
+    !author_is_bot && content == "!ping"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ping_from_human_matches() {
+        assert!(is_ping("!ping", false));
+    }
+
+    #[test]
+    fn ping_from_bot_is_ignored() {
+        assert!(!is_ping("!ping", true));
+    }
+
+    #[test]
+    fn other_text_is_ignored() {
+        assert!(!is_ping("hello", false));
+    }
+}

@@ -11,7 +11,7 @@ use serenity::http::{Http, StatusCode};
 use serenity::model::Timestamp;
 use serenity::model::id::{GuildId, UserId};
 
-use crate::handler::member_display_name;
+use crate::members;
 
 /// How often the worker looks for users due for a refresh.
 const SYNC_INTERVAL: Duration = Duration::from_secs(15 * 60);
@@ -62,7 +62,7 @@ pub(crate) async fn reconcile(
 
         for member in members {
             let id = member.user.id;
-            let display_name = member_display_name(
+            let display_name = members::display_name(
                 member.nick.as_deref(),
                 member.user.global_name.as_deref(),
                 &member.user.name,

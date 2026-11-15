@@ -1,0 +1,243 @@
+//! Guild, channel, member, and message response types.
+
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+/// Details of the Discord server targeted by `GET /guild`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct GuildDetails {
+    /// Discord server ID.
+    pub id: String,
+    /// Server display name.
+    pub name: String,
+    /// Server description, when set.
+    pub description: Option<String>,
+    /// URL of the server icon, when set.
+    pub icon_url: Option<String>,
+    /// ID of the server owner.
+    pub owner_id: String,
+    /// Total number of members in the server.
+    pub member_count: u64,
+    /// Approximate number of online members, when known.
+    pub presence_count: Option<u64>,
+    /// Preferred locale of the server.
+    pub preferred_locale: String,
+    /// Enabled guild features.
+    pub features: Vec<String>,
+}
+
+impl GuildDetails {
+    /// Build details with only the required fields populated.
+    #[must_use]
+    pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            description: None,
+            icon_url: None,
+            owner_id: String::new(),
+            member_count: 0,
+            presence_count: None,
+            preferred_locale: String::new(),
+            features: Vec::new(),
+        }
+    }
+}
+
+/// A channel belonging to the Discord server targeted by `GET /guild/channels`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct ChannelDetails {
+    /// Discord channel ID.
+    pub id: String,
+    /// ID of the server the channel belongs to.
+    pub guild_id: String,
+    /// Channel name.
+    pub name: String,
+    /// Channel type, such as `text`, `voice`, or `category`.
+    pub kind: String,
+    /// Sort position within the server.
+    pub position: u16,
+    /// ID of the parent category or channel, when set.
+    pub parent_id: Option<String>,
+}
+
+impl ChannelDetails {
+    /// Build details with only the required fields populated.
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        guild_id: impl Into<String>,
+        name: impl Into<String>,
+        kind: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            guild_id: guild_id.into(),
+            name: name.into(),
+            kind: kind.into(),
+            position: 0,
+            parent_id: None,
+        }
+    }
+}
+
+/// A member of the Discord server targeted by `GET /guild/users`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct GuildUser {
+    /// Discord user ID.
+    pub user_id: String,
+    /// Discord account username.
+    pub user_name: String,
+    /// Guild nickname or global display name.
+    pub display_name: String,
+    /// Membership status, `active` or `left`.
+    pub status: String,
+    /// Time the user most recently joined, as an ISO 8601 timestamp.
+    pub join_at: String,
+    /// Time the user most recently left, as an ISO 8601 timestamp.
+    pub leave_at: Option<String>,
+}
+
+impl GuildUser {
+    /// Build a guild user with every field populated.
+    #[must_use]
+    pub fn new(
+        user_id: impl Into<String>,
+        user_name: impl Into<String>,
+        display_name: impl Into<String>,
+        status: impl Into<String>,
+        join_at: impl Into<String>,
+        leave_at: Option<String>,
+    ) -> Self {
+        Self {
+            user_id: user_id.into(),
+            user_name: user_name.into(),
+            display_name: display_name.into(),
+            status: status.into(),
+            join_at: join_at.into(),
+            leave_at,
+        }
+    }
+}
+
+/// A page of guild users returned by `GET /guild/users`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct GuildUserList {
+    /// Users on this page, newest join first.
+    pub users: Vec<GuildUser>,
+    /// Total number of users matching the search and status filters.
+    pub total: u64,
+    /// Page number, starting at 1.
+    pub page: u32,
+    /// Maximum number of users per page.
+    pub page_limit: u32,
+}
+
+impl GuildUserList {
+    /// Build a page of guild users.
+    #[must_use]
+    pub fn new(users: Vec<GuildUser>, total: u64, page: u32, page_limit: u32) -> Self {
+        Self {
+            users,
+            total,
+            page,
+            page_limit,
+        }
+    }
+}
+
+/// Aggregate counts for guild users.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct GuildUserStats {
+    /// Total number of tracked users.
+    pub total: u64,
+    /// Number of users currently in the guild.
+    pub active: u64,
+    /// Number of users who left the guild.
+    pub left: u64,
+}
+
+impl GuildUserStats {
+    /// Build stats from the total and active counts.
+    #[must_use]
+    pub fn new(total: u64, active: u64) -> Self {
+        Self {
+            total,
+            active,
+            left: total.saturating_sub(active),
+        }
+    }
+}
+
+/// A message posted to a Discord channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct SentMessage {
+    /// Discord message ID.
+    pub id: String,
+    /// Channel that received the message.
+    pub channel_id: String,
+}
+
+impl SentMessage {
+    /// Build a sent message reference.
+    #[must_use]
+    pub fn new(id: impl Into<String>, channel_id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            channel_id: channel_id.into(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn channel_details_serializes_all_fields() -> Result<(), Box<dyn std::error::Error>> {
+        let mut channel = ChannelDetails::new("10", "1", "general", "text");
+        channel.position = 2;
+        channel.parent_id = Some("9".into());
+
+        let value = serde_json::to_value(channel)?;
+
+        assert_eq!(value["id"], "10");
+        assert_eq!(value["guild_id"], "1");
+        assert_eq!(value["name"], "general");
+        assert_eq!(value["kind"], "text");
+        assert_eq!(value["position"], 2);
+        assert_eq!(value["parent_id"], "9");
+        Ok(())
+    }
+
+    #[test]
+    fn guild_details_serializes_all_fields() -> Result<(), Box<dyn std::error::Error>> {
+        let mut guild = GuildDetails::new("1", "Alpha");
+        guild.description = Some("A test server".into());
+        guild.icon_url = Some("https://cdn.example/icon.webp".into());
+        guild.owner_id = "42".into();
+        guild.member_count = 12;
+        guild.presence_count = Some(3);
+        guild.preferred_locale = "en-US".into();
+        guild.features = vec!["COMMUNITY".into()];
+
+        let value = serde_json::to_value(guild)?;
+
+        assert_eq!(value["id"], "1");
+        assert_eq!(value["name"], "Alpha");
+        assert_eq!(value["description"], "A test server");
+        assert_eq!(value["icon_url"], "https://cdn.example/icon.webp");
+        assert_eq!(value["owner_id"], "42");
+        assert_eq!(value["member_count"], 12);
+        assert_eq!(value["presence_count"], 3);
+        assert_eq!(value["preferred_locale"], "en-US");
+        assert_eq!(value["features"][0], "COMMUNITY");
+        Ok(())
+    }
+}

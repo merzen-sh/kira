@@ -1,17 +1,11 @@
 //! Serialize the server's OpenAPI document for the committed contract.
 
 use kira_server::ApiDoc;
-use thiserror::Error;
 use utoipa::OpenApi;
 
-/// Errors produced while assembling the OpenAPI document.
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub enum ApiDocsError {
-    /// The document could not be serialized to YAML.
-    #[error("failed to serialize OpenAPI document: {0}")]
-    Serialize(String),
-}
+mod errors;
+
+pub use errors::ApiDocsError;
 
 /// Serialize the OpenAPI document to YAML.
 pub fn yaml() -> Result<String, ApiDocsError> {

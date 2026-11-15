@@ -3,6 +3,8 @@
 mod ping;
 mod report;
 
+pub use ping::is_ping;
+
 use serenity::builder::CreateCommand;
 use serenity::model::application::{Command, CommandInteraction, ModalInteraction};
 use serenity::model::id::GuildId;
