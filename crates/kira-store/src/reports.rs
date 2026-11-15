@@ -3,7 +3,8 @@
 use kira_protocol::{Report, ReportList, ReportStats};
 use sqlx::FromRow;
 
-use crate::{Database, StoreError, escape_like};
+use crate::query::{escape_like, page_offset};
+use crate::{Database, StoreError};
 
 const REPORT_COLUMNS: &str = "id, user_id, title, steps, details, resolved, created_at";
 
@@ -77,8 +78,7 @@ impl ReportRepository {
         let search = search.map(str::trim).filter(|value| !value.is_empty());
         let search = search.unwrap_or_default();
         let pattern = format!("%{}%", escape_like(search));
-        let limit = i64::from(page_limit);
-        let offset = i64::from(page.saturating_sub(1)) * limit;
+        let (limit, offset) = page_offset(page, page_limit);
 
         let count_sql = format!("SELECT COUNT(*) FROM reports WHERE {FILTER}");
         let total: i64 = sqlx::query_scalar(&count_sql)
