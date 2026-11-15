@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnnouncementsRouteImport } from './routes/announcements'
+import { Route as MonitorRouteImport } from './routes/monitor'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ServerRouteImport } from './routes/server'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const AnnouncementsRoute = AnnouncementsRouteImport.update({
   id: '/announcements',
   path: '/announcements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MonitorRoute = MonitorRouteImport.update({
+  id: '/monitor',
+  path: '/monitor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportsRoute = ReportsRouteImport.update({
@@ -50,6 +56,7 @@ const UsersRoute = UsersRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/announcements': typeof AnnouncementsRoute
+  '/monitor': typeof MonitorRoute
   '/reports': typeof ReportsRoute
   '/server': typeof ServerRoute
   '/settings': typeof SettingsRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/announcements': typeof AnnouncementsRoute
+  '/monitor': typeof MonitorRoute
   '/reports': typeof ReportsRoute
   '/server': typeof ServerRoute
   '/settings': typeof SettingsRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/announcements': typeof AnnouncementsRoute
+  '/monitor': typeof MonitorRoute
   '/reports': typeof ReportsRoute
   '/server': typeof ServerRoute
   '/settings': typeof SettingsRoute
@@ -75,13 +84,27 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/announcements' | '/reports' | '/server' | '/settings' | '/users'
+    | '/'
+    | '/announcements'
+    | '/monitor'
+    | '/reports'
+    | '/server'
+    | '/settings'
+    | '/users'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/announcements' | '/reports' | '/server' | '/settings' | '/users'
+  to:
+    | '/'
+    | '/announcements'
+    | '/monitor'
+    | '/reports'
+    | '/server'
+    | '/settings'
+    | '/users'
   id:
     | '__root__'
     | '/'
     | '/announcements'
+    | '/monitor'
     | '/reports'
     | '/server'
     | '/settings'
@@ -91,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnnouncementsRoute: typeof AnnouncementsRoute
+  MonitorRoute: typeof MonitorRoute
   ReportsRoute: typeof ReportsRoute
   ServerRoute: typeof ServerRoute
   SettingsRoute: typeof SettingsRoute
@@ -111,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/announcements'
       fullPath: '/announcements'
       preLoaderRoute: typeof AnnouncementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/monitor': {
+      id: '/monitor'
+      path: '/monitor'
+      fullPath: '/monitor'
+      preLoaderRoute: typeof MonitorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reports': {
@@ -147,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnnouncementsRoute: AnnouncementsRoute,
+  MonitorRoute: MonitorRoute,
   ReportsRoute: ReportsRoute,
   ServerRoute: ServerRoute,
   SettingsRoute: SettingsRoute,

@@ -24,6 +24,7 @@ serde_json = "1"
 serenity = "0.12"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "derive", "macros", "migrate"] }
 subtle = "2"
+sysinfo = { version = "0.38", default-features = false, features = ["disk", "system"] }
 tempfile = "3"
 thiserror = "2"
 tracing = "0.1"

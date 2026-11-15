@@ -26,7 +26,7 @@ flowchart TB
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
         BOT["kira-bot<br/>Serenity gateway + /ping and /report"]
-        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, guild, channels, users, messages, reports, /ws echo"]
+        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, monitor, guild, channels, users, messages, reports, /ws echo"]
         STORE["kira-store<br/>SQLite + migrations"]
     end
 
@@ -173,8 +173,8 @@ and waits for Ctrl-C/SIGTERM.
 - `kira-config::DatabaseConfig` supplies `KIRA_DATABASE_URL` (default
   `sqlite:kira.db`).
 - `kira-store::Database::connect` opens the SQLite database and runs the SQLx
-  migrations in `migrations/`. It owns the connection pool; `reports()` and
-  `users()` expose independent repositories over that pool.
+  migrations in `migrations/`. It owns the connection pool; `reports()`,
+  `users()`, and `monitor()` expose independent repositories over that pool.
 - `kira-bot::run` builds the Serenity client with the
   `GUILD_MEMBERS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents,
   registers the config in Serenity's type map, and starts the gateway. It
@@ -189,7 +189,8 @@ and waits for Ctrl-C/SIGTERM.
   of retrying forever. Member events require the `GUILD_MEMBERS` privileged
   intent to be enabled for the bot in the Discord developer portal.
 - `kira-server::serve` binds the configured address and runs Axum with graceful
-  shutdown.
+  shutdown. It also starts a task that samples host CPU, memory, and disk every
+  10 seconds, stores the samples in SQLite, and prunes rows older than 24 hours.
 - A `tokio::sync::watch` channel fans a single shutdown signal out to both
   components. On a signal, the server stops accepting connections and the bot
   calls `shard_manager.shutdown_all()`.

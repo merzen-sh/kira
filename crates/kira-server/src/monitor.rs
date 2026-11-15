@@ -1,0 +1,105 @@
+//! Host resource sampling for the system monitor.
+
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use kira_protocol::MonitorSample;
+use kira_store::Database;
+use sysinfo::{Disks, System};
+
+const SAMPLE_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Current Unix timestamp in seconds.
+pub(crate) fn unix_now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| i64::try_from(elapsed.as_secs()).ok())
+        .unwrap_or_default()
+}
+
+/// Record host CPU, memory, and disk usage until the task is aborted.
+pub(crate) async fn run(database: Database) {
+    let monitor = database.monitor();
+    let mut system = System::new();
+    system.refresh_memory();
+    system.refresh_cpu_all();
+    let mut disks = Disks::new_with_refreshed_list();
+
+    // CPU usage needs two refreshes separated by the minimum interval.
+    tokio::time::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL).await;
+
+    loop {
+        let sample = sample(&mut system, &mut disks);
+
+        if let Err(error) = monitor.record(&sample).await {
+            tracing::warn!("failed to record system metrics: {error}");
+        }
+
+        tokio::time::sleep(SAMPLE_INTERVAL).await;
+    }
+}
+
+/// Refresh the host counters and build one usage sample.
+fn sample(system: &mut System, disks: &mut Disks) -> MonitorSample {
+    system.refresh_cpu_all();
+    system.refresh_memory();
+    disks.refresh(true);
+
+    let (disk_used, disk_total) = disk_usage(disks);
+
+    MonitorSample::new(
+        unix_now(),
+        f64::from(system.global_cpu_usage()),
+        system.used_memory(),
+        system.total_memory(),
+        disk_used,
+        disk_total,
+    )
+}
+
+/// Usage of the filesystem containing the current directory, falling back to
+/// the first listed disk.
+fn disk_usage(disks: &Disks) -> (u64, u64) {
+    let cwd = std::env::current_dir().ok();
+    let disk = cwd
+        .as_deref()
+        .and_then(|cwd| {
+            disks
+                .list()
+                .iter()
+                .filter(|disk| cwd.starts_with(disk.mount_point()))
+                .max_by_key(|disk| disk.mount_point().as_os_str().len())
+        })
+        .or_else(|| disks.list().first());
+
+    disk.map_or((0, 0), |disk| {
+        (
+            disk.total_space().saturating_sub(disk.available_space()),
+            disk.total_space(),
+        )
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_reads_host_metrics() {
+        let mut system = System::new();
+        system.refresh_memory();
+        system.refresh_cpu_all();
+        let mut disks = Disks::new_with_refreshed_list();
+
+        // CPU usage needs two refreshes separated by the minimum interval.
+        std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+        let sample = sample(&mut system, &mut disks);
+
+        assert!(sample.recorded_at > 0);
+        assert!((0.0..=100.0).contains(&sample.cpu_percent));
+        assert!(sample.memory_total > 0);
+        assert!(sample.memory_used <= sample.memory_total);
+        assert!(sample.disk_total > 0);
+        assert!(sample.disk_used <= sample.disk_total);
+    }
+}

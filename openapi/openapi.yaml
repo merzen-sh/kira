@@ -333,6 +333,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /monitor:
+    get:
+      tags:
+      - monitor
+      summary: Return current host resource usage and a bucketed history.
+      operationId: system_monitor
+      parameters:
+      - name: range
+        in: query
+        description: 'History range: `1h`, `3h`, or `24h` (default `1h`)'
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorReport'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /reports:
     get:
       tags:
@@ -712,6 +753,65 @@ components:
         pin:
           type: string
           description: Dashboard PIN or password.
+    MonitorReport:
+      type: object
+      description: Current resource usage plus a bucketed history.
+      required:
+      - range
+      - history
+      properties:
+        current:
+          oneOf:
+          - $ref: '#/components/schemas/MonitorSample'
+            description: Most recent sample, when the monitor has recorded one.
+          - type: 'null'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonitorSample'
+          description: Historical samples in chronological order.
+        range:
+          type: string
+          description: 'Requested history range: `1h`, `3h`, or `24h`.'
+    MonitorSample:
+      type: object
+      description: A point-in-time sample of host resource usage.
+      required:
+      - recorded_at
+      - cpu_percent
+      - memory_used
+      - memory_total
+      - disk_used
+      - disk_total
+      properties:
+        cpu_percent:
+          type: number
+          format: double
+          description: Host-wide CPU utilization from 0 to 100.
+        disk_total:
+          type: integer
+          format: int64
+          description: Total space on the monitored filesystem in bytes.
+          minimum: 0
+        disk_used:
+          type: integer
+          format: int64
+          description: Used space on the monitored filesystem in bytes.
+          minimum: 0
+        memory_total:
+          type: integer
+          format: int64
+          description: Total physical memory in bytes.
+          minimum: 0
+        memory_used:
+          type: integer
+          format: int64
+          description: Used physical memory in bytes.
+          minimum: 0
+        recorded_at:
+          type: integer
+          format: int64
+          description: Unix timestamp in seconds when the sample was taken.
     Report:
       type: object
       description: A bug report submitted through the Discord `/report` command.
@@ -830,6 +930,8 @@ tags:
   description: Dashboard session authentication
 - name: health
   description: Service health
+- name: monitor
+  description: Host CPU, memory, and disk usage
 - name: guild
   description: Discord server and channels
 - name: reports

@@ -157,6 +157,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/monitor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return current host resource usage and a bucketed history. */
+        get: operations["system_monitor"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports": {
         parameters: {
             query?: never;
@@ -327,6 +344,47 @@ export interface components {
         LoginRequest: {
             /** @description Dashboard PIN or password. */
             pin: string;
+        };
+        /** @description Current resource usage plus a bucketed history. */
+        MonitorReport: {
+            current?: components["schemas"]["MonitorSample"] | null;
+            /** @description Historical samples in chronological order. */
+            history: components["schemas"]["MonitorSample"][];
+            /** @description Requested history range: `1h`, `3h`, or `24h`. */
+            range: string;
+        };
+        /** @description A point-in-time sample of host resource usage. */
+        MonitorSample: {
+            /**
+             * Format: double
+             * @description Host-wide CPU utilization from 0 to 100.
+             */
+            cpu_percent: number;
+            /**
+             * Format: int64
+             * @description Total space on the monitored filesystem in bytes.
+             */
+            disk_total: number;
+            /**
+             * Format: int64
+             * @description Used space on the monitored filesystem in bytes.
+             */
+            disk_used: number;
+            /**
+             * Format: int64
+             * @description Total physical memory in bytes.
+             */
+            memory_total: number;
+            /**
+             * Format: int64
+             * @description Used physical memory in bytes.
+             */
+            memory_used: number;
+            /**
+             * Format: int64
+             * @description Unix timestamp in seconds when the sample was taken.
+             */
+            recorded_at: number;
         };
         /** @description A bug report submitted through the Discord `/report` command. */
         Report: {
@@ -844,6 +902,60 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    system_monitor: {
+        parameters: {
+            query?: {
+                /** @description History range: `1h`, `3h`, or `24h` (default `1h`) */
+                range?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorReport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

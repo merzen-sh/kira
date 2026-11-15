@@ -2,6 +2,7 @@ import { Button } from "@kira/ui/components/button";
 import { cn } from "@kira/ui/lib/utils";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
+  Activity,
   Bug,
   LayoutDashboard,
   LogOut,
@@ -23,6 +24,7 @@ import { useTheme } from "@/hooks/use-theme";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/announcements", label: "Announcements", icon: Megaphone },
+  { to: "/monitor", label: "Monitor", icon: Activity },
   { to: "/reports", label: "Reports", icon: Bug },
   { to: "/users", label: "Users", icon: Users },
   { to: "/server", label: "Server", icon: Server },
