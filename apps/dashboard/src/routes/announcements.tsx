@@ -10,6 +10,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useState } from "react";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@kira/ui/components/select";
 import { useChannelsQuery } from "@/data/channels/query";
 import { useSendMessageMutation } from "@/data/messages/mutation";
 
@@ -44,6 +51,10 @@ function AnnouncementsPage() {
   const sentChannel = sendable.find(
     (candidate) => candidate.id === mutation.variables?.channelId,
   );
+  const channelItems = sendable.map((channel) => ({
+    value: channel.id,
+    label: `# ${channel.name}`,
+  }));
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,35 +112,34 @@ function AnnouncementsPage() {
 
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            <label className="flex flex-col gap-1.5 text-sm font-medium">
-              Channel
-              <select
-                value={channelId}
-                onChange={(event) => setSelectedId(event.target.value)}
+            <div className="flex flex-col gap-1.5 text-sm font-medium">
+              <label htmlFor="announcement-channel">Channel</label>
+              <Select
+                value={channelId || null}
+                onValueChange={(value) => setSelectedId(value ?? "")}
+                items={channelItems}
                 disabled={isPending || isError || sendable.length === 0}
-                className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-normal text-foreground outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
               >
-                {sendable.length === 0 ? (
-                  <option value="">
-                    {isPending
-                      ? "Loading channels…"
-                      : isError
-                        ? "Channels unavailable"
-                        : "No text channels available"}
-                  </option>
-                ) : (
-                  sendable.map((candidate) => (
-                    <option
-                      key={candidate.id}
-                      value={candidate.id}
-                      className="bg-background text-foreground"
-                    >
-                      # {candidate.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
+                <SelectTrigger id="announcement-channel" className="w-full">
+                  <SelectValue
+                    placeholder={
+                      isPending
+                        ? "Loading channels…"
+                        : isError
+                          ? "Channels unavailable"
+                          : "No text channels available"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {channelItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <fieldset className="flex flex-wrap gap-4">
               <legend className="sr-only">Message type</legend>

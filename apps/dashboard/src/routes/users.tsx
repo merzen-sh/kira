@@ -2,6 +2,13 @@ import { Badge } from "@kira/ui/components/badge";
 import { Button } from "@kira/ui/components/button";
 import { Input } from "@kira/ui/components/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@kira/ui/components/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -20,6 +27,12 @@ export const Route = createFileRoute("/users")({
 });
 
 const PAGE_LIMIT = 20;
+
+const STATUS_ITEMS = {
+  all: "All statuses",
+  active: "Active",
+  left: "Left",
+};
 
 function formatDate(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString() : "—";
@@ -68,19 +81,26 @@ function UsersPage() {
           </p>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <select
-            value={status}
-            onChange={(event) => {
-              setStatus(event.target.value);
+          <Select
+            value={status || "all"}
+            onValueChange={(value) => {
+              setStatus(value === "all" ? "" : String(value));
               setPage(1);
             }}
-            aria-label="Filter by status"
-            className="h-9 rounded-lg border border-input bg-background px-3 text-sm text-foreground outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            items={STATUS_ITEMS}
           >
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="left">Left</option>
-          </select>
+            <SelectTrigger
+              aria-label="Filter by status"
+              className="w-full sm:w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="left">Left</SelectItem>
+            </SelectContent>
+          </Select>
           <Input
             type="search"
             value={search}
