@@ -263,6 +263,30 @@ impl ReportList {
     }
 }
 
+/// Aggregate counts for bug reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct ReportStats {
+    /// Total number of reports.
+    pub total: u64,
+    /// Number of reports marked resolved.
+    pub resolved: u64,
+    /// Number of reports still open.
+    pub open: u64,
+}
+
+impl ReportStats {
+    /// Build stats from the total and resolved counts.
+    #[must_use]
+    pub fn new(total: u64, resolved: u64) -> Self {
+        Self {
+            total,
+            resolved,
+            open: total.saturating_sub(resolved),
+        }
+    }
+}
+
 /// Resolution change submitted to `PATCH /reports/{id}`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]

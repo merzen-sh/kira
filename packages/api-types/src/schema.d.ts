@@ -157,6 +157,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report totals for the dashboard summary cards. */
+        get: operations["report_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/{id}": {
         parameters: {
             query?: never;
@@ -313,6 +330,24 @@ export interface components {
             /**
              * Format: int64
              * @description Total number of reports matching the search.
+             */
+            total: number;
+        };
+        /** @description Aggregate counts for bug reports. */
+        ReportStats: {
+            /**
+             * Format: int64
+             * @description Number of reports still open.
+             */
+            open: number;
+            /**
+             * Format: int64
+             * @description Number of reports marked resolved.
+             */
+            resolved: number;
+            /**
+             * Format: int64
+             * @description Total number of reports.
              */
             total: number;
         };
@@ -762,6 +797,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    report_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportStats"];
                 };
             };
             401: {

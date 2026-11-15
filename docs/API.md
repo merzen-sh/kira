@@ -18,6 +18,7 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/guild/users` | cookie | `200` with a `GuildUserList` page; accepts `page`, `page_limit` (1–100), `search`, and `status` (`active` or `left`) |
 | `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
 | `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), and `search` |
+| `GET` | `/reports/stats` | cookie | `200` with a `ReportStats` summary of total, open, and resolved reports |
 | `PATCH` | `/reports/{id}` | cookie | `200` with the updated `Report`; `404` when missing |
 | `DELETE` | `/reports/{id}` | cookie | `204` when deleted; `404` when missing |
 | `GET` | `/ws` | cookie + origin | WebSocket echo scaffold |
@@ -50,7 +51,8 @@ changes status.
 reports saved by the Discord `/report` command. Listing returns the newest
 reports first; `search` is a case-insensitive substring match against the title,
 steps, details, or reporter ID. `page` starts at 1 and `page_limit` defaults to
-20. `PATCH` accepts `{ "resolved": true | false }`.
+20. `PATCH` accepts `{ "resolved": true | false }`. `GET /reports/stats`
+returns totals for the dashboard summary cards and ignores the list filters.
 
 `GET /ws` requires a valid session cookie and an allowed `Origin` when one is
 sent. Text and binary frames are echoed; ping/pong are handled by Axum; close

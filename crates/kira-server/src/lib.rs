@@ -21,7 +21,7 @@ use kira_config::ServerConfig;
 use kira_core::messaging::{MessageSender, OutgoingMessage};
 use kira_protocol::{
     ChannelDetails, ErrorResponse, GuildDetails, GuildUserList, HealthResponse, LoginRequest,
-    Report, ReportList, SentMessage, UpdateReport,
+    Report, ReportList, ReportStats, SentMessage, UpdateReport,
 };
 use kira_store::Database;
 use serde::Deserialize;
@@ -537,6 +537,26 @@ pub async fn list_reports(
     }
 }
 
+/// Report totals for the dashboard summary cards.
+#[utoipa::path(
+    get,
+    path = "/reports/stats",
+    tag = "reports",
+    security(("cookie_auth" = [])),
+    responses(
+        (status = 200, body = ReportStats),
+        (status = 401, body = ErrorResponse),
+        (status = 403, body = ErrorResponse),
+        (status = 500, body = ErrorResponse)
+    )
+)]
+pub async fn report_stats(State(state): State<AppState>) -> Response {
+    match state.database.reports().report_stats().await {
+        Ok(stats) => Json(stats).into_response(),
+        Err(error) => storage_error(&error),
+    }
+}
+
 /// Mark a bug report resolved or unresolved.
 #[utoipa::path(
     patch,
@@ -695,6 +715,7 @@ pub async fn list_guild_users(
         send_guild_message,
         list_guild_users,
         list_reports,
+        report_stats,
         update_report,
         delete_report
     ),
@@ -708,6 +729,7 @@ pub async fn list_guild_users(
             kira_protocol::LoginRequest,
             kira_protocol::Report,
             kira_protocol::ReportList,
+            kira_protocol::ReportStats,
             kira_protocol::UpdateReport,
             kira_protocol::ErrorResponse
         )),
@@ -742,6 +764,7 @@ pub fn router(state: AppState) -> Router {
             routing::post(send_guild_message),
         )
         .route("/reports", routing::get(list_reports))
+        .route("/reports/stats", routing::get(report_stats))
         .route(
             "/reports/{id}",
             routing::patch(update_report).delete(delete_report),
