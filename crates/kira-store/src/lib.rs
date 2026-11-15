@@ -1,5 +1,6 @@
 //! SQLite infrastructure and repositories shared by the bot and server.
 
+pub mod monitor;
 pub mod reports;
 pub mod users;
 
@@ -9,6 +10,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::{Sqlite, SqlitePool, Transaction};
 use thiserror::Error;
 
+use monitor::MonitorRepository;
 use reports::ReportRepository;
 use users::UserRepository;
 
@@ -63,6 +65,12 @@ impl Database {
     #[must_use]
     pub fn reports(&self) -> ReportRepository {
         ReportRepository::new(self.clone())
+    }
+
+    /// Host resource sample persistence.
+    #[must_use]
+    pub fn monitor(&self) -> MonitorRepository {
+        MonitorRepository::new(self.clone())
     }
 
     /// Guild membership persistence and sync bookkeeping.
