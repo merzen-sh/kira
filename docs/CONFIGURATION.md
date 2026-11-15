@@ -37,9 +37,9 @@ Notes:
   HTTP remains supported.
 - `KIRA_COOKIE_SECURE=true` marks the session cookie `Secure`; set it behind
   HTTPS. `KIRA_COOKIE_SAMESITE=none` requires `KIRA_COOKIE_SECURE=true`.
-- `KIRA_DATABASE_URL` is the SQLite connection URL used for bug reports. The
-  file is created when missing, and pending migrations in `migrations/` are
-  applied at startup.
+- `KIRA_DATABASE_URL` is the SQLite connection URL used for bug reports and
+  monitor samples. The file is created when missing, and pending migrations in
+  `migrations/` are applied at startup.
 - `RUST_LOG` controls the `tracing` filter for both binaries (default `info`).
 
 See [API.md](API.md) for route-level behavior and
