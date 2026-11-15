@@ -1,7 +1,10 @@
 //! PIN authentication, signed session cookies, and login rate limiting.
 
-use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+mod limiter;
+mod origins;
+mod token;
+
+use std::net::IpAddr;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -13,35 +16,17 @@ use ring::rand::{SecureRandom, SystemRandom};
 use subtle::ConstantTimeEq;
 use tokio::time::Instant;
 
-use crate::ServerError;
+use crate::errors::{LoginError, ServerError};
+
+use limiter::Limiter;
+use origins::{default_cli_bind, default_origins, parse_origins};
+use token::{TOKEN_VERSION, from_hex, to_hex};
 
 /// Session cookie name.
 pub const COOKIE_NAME: &str = "kira_session";
 
 /// Session lifetime.
 pub const SESSION_TTL: Duration = Duration::from_secs(12 * 60 * 60);
-
-/// Failed logins per peer before the peer is locked out.
-const MAX_PEER_FAILURES: u32 = 5;
-
-/// Failed logins across all peers before every login is rejected.
-const MAX_GLOBAL_FAILURES: u32 = 50;
-
-/// Sliding failure window.
-const FAILURE_WINDOW: Duration = Duration::from_secs(15 * 60);
-
-/// Upper bound on tracked peer addresses.
-const MAX_TRACKED_PEERS: usize = 4096;
-
-const TOKEN_VERSION: &str = "v1";
-
-/// Vite dev server port used during local frontend development.
-const VITE_DEV_PORT: u16 = 5173;
-
-/// Default loopback dashboard address when no CLI bind is configured.
-fn default_cli_bind() -> SocketAddr {
-    SocketAddr::from(([127, 0, 0, 1], 3000))
-}
 
 /// Authentication settings for the server.
 #[derive(Debug, Clone)]
@@ -107,66 +92,6 @@ impl AuthConfig {
             cookie_samesite: config.cookie_samesite,
         })
     }
-}
-
-fn default_origins(cli_bind: SocketAddr) -> Vec<String> {
-    let port = cli_bind.port();
-    let mut origins = vec![
-        format!("http://127.0.0.1:{port}"),
-        format!("http://localhost:{port}"),
-    ];
-
-    if cli_bind.ip().is_loopback() && port != VITE_DEV_PORT {
-        origins.push(format!("http://127.0.0.1:{VITE_DEV_PORT}"));
-        origins.push(format!("http://localhost:{VITE_DEV_PORT}"));
-    }
-
-    origins
-}
-
-fn parse_origins(value: &str) -> Result<Vec<String>, ServerError> {
-    let mut origins = Vec::new();
-
-    for raw in value.split(',') {
-        let origin = raw.trim().trim_end_matches('/');
-        if origin.is_empty() {
-            continue;
-        }
-        if !is_origin(origin) {
-            return Err(ServerError::InvalidOrigin);
-        }
-        origins.push(origin.to_owned());
-    }
-
-    if origins.is_empty() {
-        return Err(ServerError::InvalidOrigin);
-    }
-
-    Ok(origins)
-}
-
-fn is_origin(value: &str) -> bool {
-    let Ok(uri) = value.parse::<axum::http::Uri>() else {
-        return false;
-    };
-
-    matches!(uri.scheme_str(), Some("http" | "https"))
-        && uri.authority().is_some()
-        && matches!(uri.path(), "" | "/")
-        && uri.query().is_none()
-}
-
-/// Why a login attempt was rejected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum LoginError {
-    /// The supplied PIN does not match.
-    InvalidPin,
-    /// Too many failures; retry after the reported delay.
-    TooManyAttempts {
-        /// How long the caller must wait.
-        retry_after: Duration,
-    },
 }
 
 /// Stateless authentication state shared by the HTTP and WebSocket handlers.
@@ -348,131 +273,6 @@ fn generate_pin() -> Result<String, ServerError> {
     }
 }
 
-fn to_hex(bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-
-    let mut value = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        let _ = write!(value, "{byte:02x}");
-    }
-    value
-}
-
-fn from_hex(value: &str) -> Option<Vec<u8>> {
-    if !value.len().is_multiple_of(2) {
-        return None;
-    }
-
-    let (pairs, _) = value.as_bytes().as_chunks::<2>();
-    let mut bytes = Vec::with_capacity(pairs.len());
-    for [high_byte, low_byte] in pairs {
-        let high = hex_digit(*high_byte)?;
-        let low = hex_digit(*low_byte)?;
-        bytes.push((high << 4) | low);
-    }
-    Some(bytes)
-}
-
-fn hex_digit(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
-}
-
-#[derive(Default)]
-struct Limiter {
-    peers: HashMap<IpAddr, Bucket>,
-    unknown: Bucket,
-    global: Bucket,
-}
-
-impl Limiter {
-    fn check(&self, peer: Option<IpAddr>, now: Instant) -> Result<(), LoginError> {
-        let peer_bucket = peer
-            .and_then(|address| self.peers.get(&address))
-            .unwrap_or(&self.unknown);
-
-        let retry_after = match (
-            excess(peer_bucket, MAX_PEER_FAILURES, now),
-            excess(&self.global, MAX_GLOBAL_FAILURES, now),
-        ) {
-            (Some(peer), Some(global)) => Some(peer.max(global)),
-            (Some(value), None) | (None, Some(value)) => Some(value),
-            (None, None) => None,
-        };
-
-        match retry_after {
-            Some(retry_after) => Err(LoginError::TooManyAttempts { retry_after }),
-            None => Ok(()),
-        }
-    }
-
-    fn record_failure(&mut self, peer: Option<IpAddr>, now: Instant) {
-        self.global.record_failure(now);
-
-        let Some(peer) = peer else {
-            self.unknown.record_failure(now);
-            return;
-        };
-
-        if self.peers.len() >= MAX_TRACKED_PEERS {
-            self.peers
-                .retain(|_, bucket| bucket.retry_after(now).is_some());
-        }
-
-        self.peers.entry(peer).or_default().record_failure(now);
-    }
-
-    fn reset(&mut self, peer: Option<IpAddr>) {
-        match peer {
-            Some(peer) => {
-                self.peers.remove(&peer);
-            }
-            None => self.unknown.reset(),
-        }
-    }
-}
-
-fn excess(bucket: &Bucket, limit: u32, now: Instant) -> Option<Duration> {
-    (bucket.failures >= limit)
-        .then(|| bucket.retry_after(now))
-        .flatten()
-}
-
-#[derive(Default)]
-struct Bucket {
-    failures: u32,
-    window_start: Option<Instant>,
-}
-
-impl Bucket {
-    fn retry_after(&self, now: Instant) -> Option<Duration> {
-        let start = self.window_start?;
-        let elapsed = now.saturating_duration_since(start);
-        (elapsed < FAILURE_WINDOW).then(|| FAILURE_WINDOW - elapsed)
-    }
-
-    fn record_failure(&mut self, now: Instant) {
-        match self.window_start {
-            Some(start) if now.saturating_duration_since(start) < FAILURE_WINDOW => {
-                self.failures = self.failures.saturating_add(1);
-            }
-            _ => {
-                self.window_start = Some(now);
-                self.failures = 1;
-            }
-        }
-    }
-
-    fn reset(&mut self) {
-        self.failures = 0;
-        self.window_start = None;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -508,33 +308,6 @@ mod tests {
         tampered.push('0');
         assert!(!auth.verify_token(&tampered));
         assert!(!auth.verify_token("nonsense"));
-    }
-
-    #[test]
-    fn hex_round_trips() {
-        let bytes = [0x00, 0x0f, 0xa5, 0xff];
-        assert_eq!(from_hex(&to_hex(&bytes)), Some(bytes.to_vec()));
-        assert_eq!(from_hex("abc"), None);
-        assert_eq!(from_hex("zz"), None);
-    }
-
-    #[test]
-    fn invalid_origins_are_rejected() {
-        assert!(parse_origins("http://127.0.0.1:3000").is_ok());
-        assert!(parse_origins("https://kira.example.com/").is_ok());
-        assert!(parse_origins("*").is_err());
-        assert!(parse_origins("http://").is_err());
-        assert!(parse_origins("http://localhost:3000/path").is_err());
-    }
-
-    #[test]
-    fn default_origins_follow_the_configured_cli_port() {
-        let origins = default_origins(SocketAddr::from(([127, 0, 0, 1], 4000)));
-
-        assert!(origins.contains(&"http://127.0.0.1:4000".to_owned()));
-        assert!(origins.contains(&"http://localhost:4000".to_owned()));
-        assert!(!origins.iter().any(|origin| origin.contains(":3000")));
-        assert!(origins.contains(&format!("http://127.0.0.1:{VITE_DEV_PORT}")));
     }
 
     #[test]
