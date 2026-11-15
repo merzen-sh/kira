@@ -124,12 +124,13 @@ mod tests {
     async fn history_is_averaged_into_buckets() -> Result<(), StoreError> {
         let monitor = memory().await.monitor();
         let now = now();
+        let base = now - now % 60;
 
-        monitor.record(&sample(now - 90, 10.0)).await?;
-        monitor.record(&sample(now - 30, 20.0)).await?;
-        monitor.record(&sample(now - 20, 30.0)).await?;
+        monitor.record(&sample(base - 120, 10.0)).await?;
+        monitor.record(&sample(base - 30, 20.0)).await?;
+        monitor.record(&sample(base - 20, 30.0)).await?;
 
-        let history = monitor.history(now - 120, 60).await?;
+        let history = monitor.history(base - 180, 60).await?;
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].cpu_percent, 10.0);
         assert_eq!(history[1].cpu_percent, 25.0);
