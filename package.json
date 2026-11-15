@@ -6,10 +6,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @kira/dashboard",
-    "gen:api-types": "npm run gen -w @kira/api-types",
-    "check:api-types": "npm run check -w @kira/api-types",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "build": "bun run --filter @kira/dashboard build",
+    "gen:api-types": "bun run --filter @kira/api-types gen",
+    "check:api-types": "bun run --filter @kira/api-types check",
+    "typecheck": "bun run --workspaces --if-present typecheck"
   },
   "devDependencies": {
     "openapi-typescript": "^7.13.0"

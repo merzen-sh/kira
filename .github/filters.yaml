@@ -13,6 +13,6 @@ dashboard:
   - "apps/dashboard/**"
   - "packages/**"
   - "package.json"
-  - "package-lock.json"
+  - "bun.lock"
   - ".github/workflows/ci.yml"
   - ".github/filters.yaml"

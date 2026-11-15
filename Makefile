@@ -9,15 +9,15 @@ build:
 
 dev: node_modules
 	mprocs --names vite,kira,kira-cli \
-		"npm run dev -w @kira/dashboard" \
+		"bun run --filter @kira/dashboard dev" \
 		"cargo watch -w crates -x 'run -p kira'" \
 		"cargo watch -w crates -x 'run -p kira-cli'"
 
 release:
 	$(CARGO) build --release -p kira
 
-node_modules: package.json package-lock.json
-	npm ci
+node_modules: package.json bun.lock
+	bun install --frozen-lockfile
 
 install: node_modules
 
@@ -31,7 +31,7 @@ uninstall-hooks:
 	@echo "Uninstalled Git hooks"
 
 dashboard: node_modules
-	npm run build -w @kira/dashboard
+	bun run --filter @kira/dashboard build
 
 build-cli: dashboard
 	$(CARGO) build --release -p kira-cli --no-default-features
@@ -42,7 +42,7 @@ build-all: dashboard
 
 openapi: node_modules
 	$(CARGO) xtask openapi generate
-	npm run gen:api-types
+	bun run gen:api-types
 
 test:
 	$(CARGO) test --workspace
@@ -53,9 +53,9 @@ check: node_modules
 	$(CARGO) clippy -p kira --no-default-features -- -D warnings
 	$(CARGO) test --workspace
 	$(CARGO) xtask openapi check
-	npm run check:api-types
-	npm run typecheck
-	npm run test -w @kira/dashboard
+	bun run check:api-types
+	bun run typecheck
+	bun run --filter @kira/dashboard test
 	@$(CARGO) tree -p kira-cli >/dev/null
 	@$(CARGO) tree -p kira --all-features >/dev/null
 	@! $(CARGO) tree -p kira-cli | grep -q kira-server

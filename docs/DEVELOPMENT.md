@@ -10,7 +10,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 | `make build` | `cargo build -p kira` |
 | `make release` | `cargo build --release -p kira` |
 | `make dev` | `mprocs` for Vite, `kira`, and `kira-cli` |
-| `make install` | `npm ci` (via the `node_modules` prerequisite) |
+| `make install` | `bun install --frozen-lockfile` (via the `node_modules` prerequisite) |
 | `make dashboard` | Build the Vite dashboard into `dist/` |
 | `make build-cli` | Build dashboard, then release `kira-cli` without the dev proxy |
 | `make build-all` | Build dashboard, then both release binaries |
@@ -27,9 +27,9 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 3. `cargo clippy -p kira --no-default-features -- -D warnings`
 4. `cargo test --workspace`
 5. `cargo xtask openapi check`
-6. `npm run check:api-types`
-7. `npm run typecheck`
-8. `npm run test -w @kira/dashboard`
+6. `bun run check:api-types`
+7. `bun run typecheck`
+8. `bun run --filter @kira/dashboard test`
 9. `cargo tree` boundary assertions:
    - `kira-cli` has no `kira-server`, `kira-bot`, or `serenity`
    - `kira --all-features` has no `kira-api-docs` or `xtask`
@@ -44,7 +44,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 | Format | `cargo fmt --all --check` on the pinned Rust 1.88 toolchain |
 | Clippy | workspace clippy with `-D warnings`, plus `kira --no-default-features` |
 | Test | `cargo test --workspace`, the release `docs_release` test, and `cargo xtask openapi check` |
-| Dashboard test | `npm test -w @kira/dashboard`, `npm run check:api-types`, and a dashboard build |
+| Dashboard test | `bun run --filter @kira/dashboard test`, `bun run check:api-types`, and a dashboard build |
 
 Rust jobs run when Rust sources, manifests, lockfiles, tool config, or the
 workflow/filter files change. The dashboard job runs when dashboard or shared
@@ -70,7 +70,7 @@ Development builds use line-table debug info with split debuginfo.
 
 ```bash
 # First-time setup
-npm ci
+bun install --frozen-lockfile
 cp .env.example .env        # fill DISCORD_TOKEN and KIRA_GUILD_ID
 
 # Run everything in development (Vite, kira, kira-cli)
@@ -84,7 +84,7 @@ make build-cli
 target/release/kira-cli
 
 # Frontend development (Vite on :5173; browser calls kira :8080 directly)
-npm run dev -w @kira/dashboard
+bun run --filter @kira/dashboard dev
 
 # Contract update after changing a route
 make openapi

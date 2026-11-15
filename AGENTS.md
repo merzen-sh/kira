@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local host for the embedded dashboard). Deeper design notes live in `docs/`; start at `docs/README.md`.
+Kira is a Rust workspace plus Bun-managed JavaScript workspaces. It produces two binaries: `kira` (Discord bot + HTTP/WebSocket API in one process) and `kira-cli` (local host for the embedded dashboard). Deeper design notes live in `docs/`; start at `docs/README.md`.
 
 ## Setup
 
-- Rust 1.88 (edition 2024) and Node/npm.
+- Rust 1.88 (edition 2024) and Bun.
 - `mprocs` and `cargo-watch` are needed for `make dev`.
-- Run `npm ci` before `make check` or any OpenAPI/type generation; the Make target requires `node_modules`.
+- Run `bun install --frozen-lockfile` before `make check` or any OpenAPI/type generation; the Make target requires `node_modules`.
 - Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime, and `KIRA_GUILD_ID` is required whenever the server is built. `KIRA_PASSWORD` sets the dashboard PIN; when unset, `kira` prints a generated PIN at startup. A missing `.env` is tolerated and real environment variables take precedence.
 
 ## Commands
@@ -17,7 +17,7 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 - `make dev` — start Vite, `kira`, and `kira-cli` together under `mprocs`.
 - `cargo run -p kira` — bot + API on `127.0.0.1:8080`.
 - `make build-cli` — builds the dashboard, then release `kira-cli`; run `target/release/kira-cli` for the local host on `:3000`.
-- `npm run dev -w @kira/dashboard` — Vite dev server on `127.0.0.1:5173`. The browser calls `kira` on `:8080` directly; a debug `kira-cli` proxies non-API requests to Vite instead of serving embedded assets.
+- `bun run --filter @kira/dashboard dev` — Vite dev server on `127.0.0.1:5173`. The browser calls `kira` on `:8080` directly; a debug `kira-cli` proxies non-API requests to Vite instead of serving embedded assets.
 - `make openapi` — regenerate `openapi/openapi.yaml` and `packages/api-types/src/schema.d.ts` after any route or DTO change.
 - `cargo xtask openapi generate|check` — the alias is defined in `.cargo/config.toml`.
 
@@ -45,4 +45,4 @@ Kira is a Rust workspace plus npm workspaces. It produces two binaries: `kira` (
 
 - Binary integration tests spawn `env!("CARGO_BIN_EXE_kira")`, clear `DISCORD_TOKEN`/`KIRA_BIND`, and need no real Discord access.
 - `crates/kira/tests/bind_failure.rs` uses dead HTTP(S) proxies and a 30-second timeout; it verifies a server bind failure exits rather than hangs.
-- `.github/workflows/ci.yml` runs `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, bot-only clippy for `kira --no-default-features`, `cargo test --workspace`, the release `docs_release` test, and `cargo xtask openapi check`. A `changes` job gates those jobs with `dorny/paths-filter` and `.github/filters.yaml`; they run when Rust sources, manifests/lockfiles, Rust tool config, the workflow file, or the filter file changes. The `dashboard-test` job runs `npm test -w @kira/dashboard`, `npm run check:api-types`, and `npm run build -w @kira/dashboard` when dashboard or shared frontend packages change. `make check` remains the full local and authoritative gate; it adds the OpenAPI/TypeScript drift checks, typecheck, dashboard tests, and dependency-boundary assertions.
+- `.github/workflows/ci.yml` runs `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --all-features -- -D warnings`, bot-only clippy for `kira --no-default-features`, `cargo test --workspace`, the release `docs_release` test, and `cargo xtask openapi check`. A `changes` job gates those jobs with `dorny/paths-filter` and `.github/filters.yaml`; they run when Rust sources, manifests/lockfiles, Rust tool config, the workflow file, or the filter file changes. The `dashboard-test` job runs `bun run --filter @kira/dashboard test`, `bun run check:api-types`, and `bun run --filter @kira/dashboard build` when dashboard or shared frontend packages change. `make check` remains the full local and authoritative gate; it adds the OpenAPI/TypeScript drift checks, typecheck, dashboard tests, and dependency-boundary assertions.
