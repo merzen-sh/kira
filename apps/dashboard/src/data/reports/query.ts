@@ -57,7 +57,7 @@ export const useReportsQuery = (
   }: UseCustomQueryOptions<ResourceData, ResourceError> = {},
 ) =>
   useQuery<ResourceData, ResourceError>({
-    queryKey: reportKeys.list(page, pageLimit, search),
+    queryKey: reportKeys.list({ page, pageLimit, search }),
     // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
     queryFn: () => listReports(page, pageLimit, search),
     enabled,
