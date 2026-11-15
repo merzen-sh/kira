@@ -7,7 +7,7 @@ use std::error::Error;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
-use kira_protocol::{Report, ReportList};
+use kira_protocol::{Report, ReportList, ReportStats};
 use kira_server::{AppState, router};
 use kira_store::Database;
 use kira_store::reports::NewReport;
@@ -79,6 +79,37 @@ async fn reports_are_listed_searched_and_paginated() -> Result<(), Box<dyn Error
     let searched = list(&state, "/reports?search=pin", &cookie).await?;
     assert_eq!(searched.total, 1);
     assert_eq!(searched.reports[0].title, "Login broken");
+    Ok(())
+}
+
+#[tokio::test]
+async fn report_stats_count_open_and_resolved() -> Result<(), Box<dyn Error>> {
+    let (state, store) = state().await?;
+    let cookie = common::login_cookie(&state).await?;
+
+    let first = store
+        .reports()
+        .create_report(&NewReport::new("42", "Login broken", "open", "rejected"))
+        .await?;
+    store
+        .reports()
+        .create_report(&NewReport::new("7", "Crash", "click", "boom"))
+        .await?;
+    store.reports().set_resolved(first.id, true).await?;
+
+    let response = router(state)
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .uri("/reports/stats")
+                .body(Body::empty())?,
+            &cookie,
+        ))
+        .await?;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await?.to_bytes();
+    let stats: ReportStats = serde_json::from_slice(&bytes)?;
+    assert_eq!((stats.total, stats.resolved, stats.open), (2, 1, 1));
     Ok(())
 }
 

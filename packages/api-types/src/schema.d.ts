@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guild/users/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Guild user totals for the dashboard summary cards. */
+        get: operations["guild_user_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -149,6 +166,23 @@ export interface paths {
         };
         /** List bug reports, newest first. */
         get: operations["list_reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report totals for the dashboard summary cards. */
+        get: operations["report_stats"];
         put?: never;
         post?: never;
         delete?: never;
@@ -264,6 +298,24 @@ export interface components {
             /** @description Users on this page, newest join first. */
             users: components["schemas"]["GuildUser"][];
         };
+        /** @description Aggregate counts for guild users. */
+        GuildUserStats: {
+            /**
+             * Format: int64
+             * @description Number of users currently in the guild.
+             */
+            active: number;
+            /**
+             * Format: int64
+             * @description Number of users who left the guild.
+             */
+            left: number;
+            /**
+             * Format: int64
+             * @description Total number of tracked users.
+             */
+            total: number;
+        };
         /** @description Health information returned by `GET /health`. */
         HealthResponse: {
             /** @description Service status, `ok` when the server is healthy. */
@@ -313,6 +365,24 @@ export interface components {
             /**
              * Format: int64
              * @description Total number of reports matching the search.
+             */
+            total: number;
+        };
+        /** @description Aggregate counts for bug reports. */
+        ReportStats: {
+            /**
+             * Format: int64
+             * @description Number of reports still open.
+             */
+            open: number;
+            /**
+             * Format: int64
+             * @description Number of reports marked resolved.
+             */
+            resolved: number;
+            /**
+             * Format: int64
+             * @description Total number of reports.
              */
             total: number;
         };
@@ -713,6 +783,49 @@ export interface operations {
             };
         };
     };
+    guild_user_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildUserStats"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;
@@ -762,6 +875,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    report_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportStats"];
                 };
             };
             401: {
