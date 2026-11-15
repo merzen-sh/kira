@@ -9,6 +9,7 @@ interface UsageChartProps {
   label: string;
   color: string;
   points: UsagePoint[];
+  emptyLabel?: string;
 }
 
 const WIDTH = 600;
@@ -23,18 +24,28 @@ function timeLabel(recordedAt: number) {
   });
 }
 
-export function UsageChart({ label, color, points }: UsageChartProps) {
+export function UsageChart({
+  label,
+  color,
+  points,
+  emptyLabel = "Collecting data…",
+}: UsageChartProps) {
   const gradientId = useId().replaceAll(":", "");
 
   if (points.length < 2) {
     return (
       <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
-        Collecting data…
+        {emptyLabel}
       </div>
     );
   }
 
-  const x = (index: number) => (index / (points.length - 1)) * WIDTH;
+  const first = points[0].recorded_at;
+  const span = points[points.length - 1].recorded_at - first;
+  const x = (recordedAt: number, index: number) =>
+    span > 0
+      ? ((recordedAt - first) / span) * WIDTH
+      : (index / (points.length - 1)) * WIDTH;
   const y = (value: number) =>
     HEIGHT -
     PADDING -
@@ -42,7 +53,7 @@ export function UsageChart({ label, color, points }: UsageChartProps) {
   const line = points
     .map(
       (point, index) =>
-        `${index === 0 ? "M" : "L"}${x(index).toFixed(1)},${y(point.value).toFixed(1)}`,
+        `${index === 0 ? "M" : "L"}${x(point.recorded_at, index).toFixed(1)},${y(point.value).toFixed(1)}`,
     )
     .join(" ");
   const area = `${line} L${WIDTH},${HEIGHT} L0,${HEIGHT} Z`;

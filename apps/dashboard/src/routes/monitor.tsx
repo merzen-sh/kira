@@ -36,7 +36,7 @@ const RANGE_ITEMS: Record<MonitorRange, string> = {
 const RANGES: MonitorRange[] = ["1h", "3h", "24h"];
 
 function percentOf(used: number, total: number) {
-  return total > 0 ? (used / total) * 100 : 0;
+  return total > 0 ? (used / total) * 100 : undefined;
 }
 
 function formatPercent(value: number | undefined) {
@@ -65,17 +65,23 @@ function formatUsage(used: number | undefined, total: number | undefined) {
     return "Waiting for a sample";
   }
 
+  if (total === 0) {
+    return "Unavailable";
+  }
+
   return `${formatBytes(used)} of ${formatBytes(total)}`;
 }
 
 function series(
   history: MonitorSample[],
-  value: (sample: MonitorSample) => number,
+  value: (sample: MonitorSample) => number | undefined,
 ): UsagePoint[] {
-  return history.map((sample) => ({
-    recorded_at: sample.recorded_at,
-    value: value(sample),
-  }));
+  return history.flatMap((sample) => {
+    const point = value(sample);
+    return point === undefined
+      ? []
+      : [{ recorded_at: sample.recorded_at, value: point }];
+  });
 }
 
 interface UsageCardProps {
@@ -85,6 +91,7 @@ interface UsageCardProps {
   percent: number | undefined;
   detail: string;
   points: UsagePoint[];
+  emptyLabel?: string;
 }
 
 function UsageCard({
@@ -94,6 +101,7 @@ function UsageCard({
   percent,
   detail,
   points,
+  emptyLabel,
 }: UsageCardProps) {
   return (
     <Card>
@@ -108,7 +116,12 @@ function UsageCard({
         <p className="text-xs text-muted-foreground">{detail}</p>
       </CardHeader>
       <CardContent>
-        <UsageChart label={label} color={color} points={points} />
+        <UsageChart
+          label={label}
+          color={color}
+          points={points}
+          emptyLabel={emptyLabel}
+        />
       </CardContent>
     </Card>
   );
@@ -119,6 +132,8 @@ function MonitorPage() {
   const monitor = useMonitorQuery(range);
   const current = monitor.data?.current;
   const history = monitor.data?.history ?? [];
+  const memoryUnavailable = current?.memory_total === 0;
+  const diskUnavailable = current?.disk_total === 0;
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6 md:p-8">
@@ -183,6 +198,7 @@ function MonitorPage() {
           points={series(history, (sample) =>
             percentOf(sample.memory_used, sample.memory_total),
           )}
+          emptyLabel={memoryUnavailable ? "Unavailable" : undefined}
         />
         <UsageCard
           label="Disk"
@@ -195,6 +211,7 @@ function MonitorPage() {
           points={series(history, (sample) =>
             percentOf(sample.disk_used, sample.disk_total),
           )}
+          emptyLabel={diskUnavailable ? "Unavailable" : undefined}
         />
       </section>
     </main>
