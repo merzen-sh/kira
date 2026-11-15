@@ -12,28 +12,14 @@ use serenity::Client;
 use serenity::http::Http;
 use serenity::model::id::{ChannelId, GuildId};
 use serenity::prelude::GatewayIntents;
-use thiserror::Error;
 use tokio::sync::{mpsc, watch};
 
-use crate::handler::{ChannelsKey, ConfigKey, DatabaseKey, GuildIdKey, GuildsKey, Handler};
+use crate::errors::BotError;
+use crate::handler::Handler;
+use crate::state::{ChannelsKey, ConfigKey, DatabaseKey, GuildIdKey, GuildsKey};
 
 /// How long a single Discord send may take before the queue moves on.
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// Errors produced while running the Discord bot.
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub enum BotError {
-    /// Serenity failed to build or run the Discord client.
-    #[error("Discord client error")]
-    Serenity(#[source] Box<serenity::Error>),
-}
-
-impl From<serenity::Error> for BotError {
-    fn from(error: serenity::Error) -> Self {
-        Self::Serenity(Box::new(error))
-    }
-}
 
 /// Run the Discord bot until the gateway stops or `shutdown` resolves.
 pub async fn run(

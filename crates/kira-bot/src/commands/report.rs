@@ -10,7 +10,7 @@ use serenity::model::application::{
 };
 use serenity::prelude::Context;
 
-use crate::handler::DatabaseKey;
+use crate::state::DatabaseKey;
 
 /// Name of the `/report` slash command.
 pub(super) const NAME: &str = "report";
