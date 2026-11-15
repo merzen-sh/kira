@@ -957,15 +957,12 @@ pub async fn serve(
         })?;
     tracing::info!("Listening on http://{}", listener.local_addr()?);
 
-    let sampler = tokio::spawn(monitor::run(database.clone()));
-    let result = serve_with_listener(
+    serve_with_listener(
         listener,
         AppState::new(config.guild_id, guilds, channels, database, messages, auth),
         shutdown,
     )
-    .await;
-    sampler.abort();
-    result
+    .await
 }
 
 fn ensure_secure_bind(
@@ -987,12 +984,15 @@ pub async fn serve_with_listener(
     state: AppState,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
-    axum::serve(
+    let sampler = tokio::spawn(monitor::run(state.database.clone()));
+    let result = axum::serve(
         listener,
         router(state).into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown)
-    .await?;
+    .await;
+    sampler.abort();
+    result?;
     Ok(())
 }
 

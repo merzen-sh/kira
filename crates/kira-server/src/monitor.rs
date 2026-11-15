@@ -29,19 +29,7 @@ pub(crate) async fn run(database: Database) {
     tokio::time::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL).await;
 
     loop {
-        system.refresh_cpu_all();
-        system.refresh_memory();
-        disks.refresh(true);
-
-        let (disk_used, disk_total) = disk_usage(&disks);
-        let sample = MonitorSample::new(
-            unix_now(),
-            f64::from(system.global_cpu_usage()),
-            system.used_memory(),
-            system.total_memory(),
-            disk_used,
-            disk_total,
-        );
+        let sample = sample(&mut system, &mut disks);
 
         if let Err(error) = monitor.record(&sample).await {
             tracing::warn!("failed to record system metrics: {error}");
@@ -49,6 +37,24 @@ pub(crate) async fn run(database: Database) {
 
         tokio::time::sleep(SAMPLE_INTERVAL).await;
     }
+}
+
+/// Refresh the host counters and build one usage sample.
+fn sample(system: &mut System, disks: &mut Disks) -> MonitorSample {
+    system.refresh_cpu_all();
+    system.refresh_memory();
+    disks.refresh(true);
+
+    let (disk_used, disk_total) = disk_usage(disks);
+
+    MonitorSample::new(
+        unix_now(),
+        f64::from(system.global_cpu_usage()),
+        system.used_memory(),
+        system.total_memory(),
+        disk_used,
+        disk_total,
+    )
 }
 
 /// Usage of the filesystem containing the current directory, falling back to
@@ -72,4 +78,28 @@ fn disk_usage(disks: &Disks) -> (u64, u64) {
             disk.total_space(),
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_reads_host_metrics() {
+        let mut system = System::new();
+        system.refresh_memory();
+        system.refresh_cpu_all();
+        let mut disks = Disks::new_with_refreshed_list();
+
+        // CPU usage needs two refreshes separated by the minimum interval.
+        std::thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+        let sample = sample(&mut system, &mut disks);
+
+        assert!(sample.recorded_at > 0);
+        assert!((0.0..=100.0).contains(&sample.cpu_percent));
+        assert!(sample.memory_total > 0);
+        assert!(sample.memory_used <= sample.memory_total);
+        assert!(sample.disk_total > 0);
+        assert!(sample.disk_used <= sample.disk_total);
+    }
 }
