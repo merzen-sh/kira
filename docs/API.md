@@ -16,8 +16,10 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/guild` | cookie | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/guild/channels` | cookie | `200` with the configured server's channels, or `503` while unavailable |
 | `GET` | `/guild/users` | cookie | `200` with a `GuildUserList` page; accepts `page`, `page_limit` (1–100), `search`, and `status` (`active` or `left`) |
+| `GET` | `/guild/users/stats` | cookie | `200` with a `GuildUserStats` summary of total, active, and left users |
 | `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
 | `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), and `search` |
+| `GET` | `/reports/stats` | cookie | `200` with a `ReportStats` summary of total, open, and resolved reports |
 | `PATCH` | `/reports/{id}` | cookie | `200` with the updated `Report`; `404` when missing |
 | `DELETE` | `/reports/{id}` | cookie | `204` when deleted; `404` when missing |
 | `GET` | `/ws` | cookie + origin | WebSocket echo scaffold |
@@ -44,13 +46,15 @@ a case-insensitive substring match against the user ID, username, and display
 name; `status` filters to `active` or `left` and any other value returns `400`.
 Membership comes from Discord join and leave events and is reconciled against
 the guild whenever the bot becomes ready; the background metadata sync never
-changes status.
+changes status. `GET /guild/users/stats` returns totals for the dashboard
+summary cards and ignores the list filters.
 
 `GET /reports`, `PATCH /reports/{id}`, and `DELETE /reports/{id}` expose bug
 reports saved by the Discord `/report` command. Listing returns the newest
 reports first; `search` is a case-insensitive substring match against the title,
 steps, details, or reporter ID. `page` starts at 1 and `page_limit` defaults to
-20. `PATCH` accepts `{ "resolved": true | false }`.
+20. `PATCH` accepts `{ "resolved": true | false }`. `GET /reports/stats`
+returns totals for the dashboard summary cards and ignores the list filters.
 
 `GET /ws` requires a valid session cookie and an allowed `Origin` when one is
 sent. Text and binary frames are echoed; ping/pong are handled by Axum; close

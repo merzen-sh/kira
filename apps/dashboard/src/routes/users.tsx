@@ -12,7 +12,8 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { useUsersQuery } from "@/data/users/query";
+import { StatCard } from "@/components/stat-card";
+import { useUserStatsQuery, useUsersQuery } from "@/data/users/query";
 
 export const Route = createFileRoute("/users")({
   component: UsersPage,
@@ -45,6 +46,7 @@ function UsersPage() {
     search: term,
     status,
   });
+  const stats = useUserStatsQuery();
   const users = data?.users ?? [];
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
@@ -89,6 +91,30 @@ function UsersPage() {
           />
         </div>
       </header>
+
+      <section
+        aria-label="User statistics"
+        className="grid gap-3 sm:grid-cols-3"
+      >
+        <StatCard
+          label="Total users"
+          value={stats.data?.total}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Active"
+          value={stats.data?.active}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Left"
+          value={stats.data?.left}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+      </section>
 
       {isError ? (
         <p role="alert" className="text-sm text-destructive">

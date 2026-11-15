@@ -287,6 +287,35 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       security:
       - cookie_auth: []
+  /guild/users/stats:
+    get:
+      tags:
+      - guild
+      summary: Guild user totals for the dashboard summary cards.
+      operationId: guild_user_stats
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuildUserStats'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /health:
     get:
       tags:
@@ -339,6 +368,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReportList'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
+  /reports/stats:
+    get:
+      tags:
+      - reports
+      summary: Report totals for the dashboard summary cards.
+      operationId: report_stats
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportStats'
         '401':
           content:
             application/json:
@@ -609,6 +667,29 @@ components:
           items:
             $ref: '#/components/schemas/GuildUser'
           description: Users on this page, newest join first.
+    GuildUserStats:
+      type: object
+      description: Aggregate counts for guild users.
+      required:
+      - total
+      - active
+      - left
+      properties:
+        active:
+          type: integer
+          format: int64
+          description: Number of users currently in the guild.
+          minimum: 0
+        left:
+          type: integer
+          format: int64
+          description: Number of users who left the guild.
+          minimum: 0
+        total:
+          type: integer
+          format: int64
+          description: Total number of tracked users.
+          minimum: 0
     HealthResponse:
       type: object
       description: Health information returned by `GET /health`.
@@ -693,6 +774,29 @@ components:
           type: integer
           format: int64
           description: Total number of reports matching the search.
+          minimum: 0
+    ReportStats:
+      type: object
+      description: Aggregate counts for bug reports.
+      required:
+      - total
+      - resolved
+      - open
+      properties:
+        open:
+          type: integer
+          format: int64
+          description: Number of reports still open.
+          minimum: 0
+        resolved:
+          type: integer
+          format: int64
+          description: Number of reports marked resolved.
+          minimum: 0
+        total:
+          type: integer
+          format: int64
+          description: Total number of reports.
           minimum: 0
     SentMessage:
       type: object

@@ -1,6 +1,6 @@
 //! Bug report persistence.
 
-use kira_protocol::{Report, ReportList};
+use kira_protocol::{Report, ReportList, ReportStats};
 use sqlx::FromRow;
 
 use crate::{Database, StoreError, escape_like};
@@ -110,6 +110,19 @@ impl ReportRepository {
             u64::try_from(total).unwrap_or_default(),
             page,
             page_limit,
+        ))
+    }
+
+    /// Count every report and how many are resolved.
+    pub async fn report_stats(&self) -> Result<ReportStats, StoreError> {
+        let (total, resolved): (i64, i64) =
+            sqlx::query_as("SELECT COUNT(*), COALESCE(SUM(resolved), 0) FROM reports")
+                .fetch_one(self.db.pool())
+                .await?;
+
+        Ok(ReportStats::new(
+            u64::try_from(total).unwrap_or_default(),
+            u64::try_from(resolved).unwrap_or_default(),
         ))
     }
 
@@ -248,6 +261,22 @@ mod tests {
         assert_eq!(unresolved.map(|report| report.resolved), Some(false));
 
         assert!(reports.set_resolved(report.id + 1, true).await?.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stats_count_open_and_resolved_reports() -> Result<(), StoreError> {
+        let reports = crate::memory().await.reports();
+        let first = reports.create_report(&report("First", "1")).await?;
+        reports.create_report(&report("Second", "2")).await?;
+        reports.set_resolved(first.id, true).await?;
+
+        let stats = reports.report_stats().await?;
+        assert_eq!((stats.total, stats.resolved, stats.open), (2, 1, 1));
+
+        reports.delete_report(first.id).await?;
+        let stats = reports.report_stats().await?;
+        assert_eq!((stats.total, stats.resolved, stats.open), (1, 0, 1));
         Ok(())
     }
 

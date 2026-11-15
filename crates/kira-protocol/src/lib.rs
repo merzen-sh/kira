@@ -171,6 +171,30 @@ impl GuildUserList {
     }
 }
 
+/// Aggregate counts for guild users.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct GuildUserStats {
+    /// Total number of tracked users.
+    pub total: u64,
+    /// Number of users currently in the guild.
+    pub active: u64,
+    /// Number of users who left the guild.
+    pub left: u64,
+}
+
+impl GuildUserStats {
+    /// Build stats from the total and active counts.
+    #[must_use]
+    pub fn new(total: u64, active: u64) -> Self {
+        Self {
+            total,
+            active,
+            left: total.saturating_sub(active),
+        }
+    }
+}
+
 /// A message posted to a Discord channel.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]
@@ -259,6 +283,30 @@ impl ReportList {
             total,
             page,
             page_limit,
+        }
+    }
+}
+
+/// Aggregate counts for bug reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[non_exhaustive]
+pub struct ReportStats {
+    /// Total number of reports.
+    pub total: u64,
+    /// Number of reports marked resolved.
+    pub resolved: u64,
+    /// Number of reports still open.
+    pub open: u64,
+}
+
+impl ReportStats {
+    /// Build stats from the total and resolved counts.
+    #[must_use]
+    pub fn new(total: u64, resolved: u64) -> Self {
+        Self {
+            total,
+            resolved,
+            open: total.saturating_sub(resolved),
         }
     }
 }

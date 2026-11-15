@@ -7,7 +7,7 @@ use std::error::Error;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
-use kira_protocol::GuildUserList;
+use kira_protocol::{GuildUserList, GuildUserStats};
 use kira_server::{AppState, router};
 use kira_store::Database;
 use tower::ServiceExt;
@@ -71,6 +71,32 @@ async fn users_are_listed_searched_filtered_and_paginated() -> Result<(), Box<dy
     let left = list(&state, "/guild/users?status=left", &cookie).await?;
     assert_eq!(left.total, 1);
     assert!(left.users[0].leave_at.is_some());
+    Ok(())
+}
+
+#[tokio::test]
+async fn user_stats_count_active_and_left_members() -> Result<(), Box<dyn Error>> {
+    let (state, database) = state().await?;
+    let cookie = common::login_cookie(&state).await?;
+    let users = database.users();
+
+    users.join("1", "alice", "Alice").await?;
+    users.join("2", "bob", "Bobby").await?;
+    users.leave("2", "bob", "Bobby").await?;
+
+    let response = router(state)
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .uri("/guild/users/stats")
+                .body(Body::empty())?,
+            &cookie,
+        ))
+        .await?;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await?.to_bytes();
+    let stats: GuildUserStats = serde_json::from_slice(&bytes)?;
+    assert_eq!((stats.total, stats.active, stats.left), (2, 1, 1));
     Ok(())
 }
 

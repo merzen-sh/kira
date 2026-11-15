@@ -13,11 +13,12 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { StatCard } from "@/components/stat-card";
 import {
   useDeleteReportMutation,
   useResolveReportMutation,
 } from "@/data/reports/mutation";
-import { useReportsQuery } from "@/data/reports/query";
+import { useReportStatsQuery, useReportsQuery } from "@/data/reports/query";
 
 export const Route = createFileRoute("/reports")({
   component: ReportsPage,
@@ -46,6 +47,7 @@ function ReportsPage() {
     PAGE_LIMIT,
     term,
   );
+  const stats = useReportStatsQuery();
   const reports = data?.reports ?? [];
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
@@ -89,6 +91,30 @@ function ReportsPage() {
           className="w-full sm:w-64"
         />
       </header>
+
+      <section
+        aria-label="Report statistics"
+        className="grid gap-3 sm:grid-cols-3"
+      >
+        <StatCard
+          label="Total reports"
+          value={stats.data?.total}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Open"
+          value={stats.data?.open}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Resolved"
+          value={stats.data?.resolved}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+      </section>
 
       {isError ? (
         <p role="alert" className="text-sm text-destructive">

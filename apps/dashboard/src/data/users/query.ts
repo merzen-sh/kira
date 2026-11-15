@@ -31,6 +31,28 @@ export async function listUsers({
 export type ResourceData = Awaited<ReturnType<typeof listUsers>>;
 export type { ResourceError };
 
+export async function getUserStats() {
+  try {
+    return await unwrap(GET("/guild/users/stats"));
+  } catch (error) {
+    throw toResourceError(error);
+  }
+}
+
+export type UserStatsData = Awaited<ReturnType<typeof getUserStats>>;
+
+export const useUserStatsQuery = ({
+  enabled = true,
+  ...options
+}: UseCustomQueryOptions<UserStatsData, ResourceError> = {}) =>
+  useQuery<UserStatsData, ResourceError>({
+    queryKey: userKeys.stats(),
+    // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
+    queryFn: () => getUserStats(),
+    enabled,
+    ...options,
+  });
+
 export const useUsersQuery = (
   params: UserListParams,
   {

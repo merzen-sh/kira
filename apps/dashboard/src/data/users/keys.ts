@@ -8,4 +8,5 @@ export interface UserListParams {
 export const userKeys = {
   all: ["users"] as const,
   list: (params: UserListParams) => [...userKeys.all, "list", params] as const,
+  stats: () => [...userKeys.all, "stats"] as const,
 };

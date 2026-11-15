@@ -1,6 +1,6 @@
 //! Guild membership persistence and metadata sync bookkeeping.
 
-use kira_protocol::{GuildUser, GuildUserList};
+use kira_protocol::{GuildUser, GuildUserList, GuildUserStats};
 use sqlx::FromRow;
 
 use crate::{Database, StoreError, escape_like};
@@ -233,6 +233,22 @@ impl UserRepository {
             .await?;
 
         Ok(())
+    }
+
+    /// Count every tracked user and how many are active.
+    pub async fn stats(&self) -> Result<GuildUserStats, StoreError> {
+        let (total, active): (i64, i64) = sqlx::query_as(
+            "SELECT COUNT(*), \
+                COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) \
+             FROM guild_users",
+        )
+        .fetch_one(self.db.pool())
+        .await?;
+
+        Ok(GuildUserStats::new(
+            u64::try_from(total).unwrap_or_default(),
+            u64::try_from(active).unwrap_or_default(),
+        ))
     }
 
     /// List users newest first, optionally filtered by search text and status.
@@ -516,6 +532,18 @@ mod tests {
         let second = users.list(2, 1, None, None).await?;
         assert_eq!(second.total, 2);
         assert_eq!(second.users.len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stats_count_active_and_left_users() -> Result<(), StoreError> {
+        let users = repo().await;
+        users.join("1", "alice", "Alice").await?;
+        users.join("2", "bob", "Bob").await?;
+        users.leave("2", "bob", "Bob").await?;
+
+        let stats = users.stats().await?;
+        assert_eq!((stats.total, stats.active, stats.left), (2, 1, 1));
         Ok(())
     }
 
