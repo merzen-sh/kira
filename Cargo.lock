@@ -1199,6 +1199,7 @@ version = "0.1.0"
 dependencies = [
  "kira-protocol",
  "sqlx",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
 ]
