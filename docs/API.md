@@ -17,6 +17,7 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/guild/channels` | cookie | `200` with the configured server's channels, or `503` while unavailable |
 | `GET` | `/guild/users` | cookie | `200` with a `GuildUserList` page; accepts `page`, `page_limit` (1–100), `search`, and `status` (`active` or `left`) |
 | `GET` | `/guild/users/stats` | cookie | `200` with a `GuildUserStats` summary of total, active, and left users |
+| `GET` | `/monitor` | cookie | `200` with a `MonitorReport` containing the latest sample and a bucketed history; accepts `range` (`1h`, `3h`, or `24h`; default `1h`) |
 | `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
 | `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), and `search` |
 | `GET` | `/reports/stats` | cookie | `200` with a `ReportStats` summary of total, open, and resolved reports |
@@ -55,6 +56,14 @@ reports first; `search` is a case-insensitive substring match against the title,
 steps, details, or reporter ID. `page` starts at 1 and `page_limit` defaults to
 20. `PATCH` accepts `{ "resolved": true | false }`. `GET /reports/stats`
 returns totals for the dashboard summary cards and ignores the list filters.
+
+`GET /monitor` returns host CPU, memory, and disk usage. The server samples once
+every 10 seconds, keeps at most 24 hours of samples in SQLite, and deletes older
+rows as it records. `range` selects the history window and aggregation bucket:
+`1h` averages into 30-second buckets, `3h` into 60-second buckets, and `24h`
+into 5-minute buckets. `current` is the newest raw sample, while `history` is
+chronological. Disk usage follows the filesystem containing the server's
+working directory.
 
 `GET /ws` requires a valid session cookie and an allowed `Origin` when one is
 sent. Text and binary frames are echoed; ping/pong are handled by Axum; close
