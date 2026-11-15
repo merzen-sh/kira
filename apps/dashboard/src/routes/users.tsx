@@ -51,10 +51,6 @@ function UsersPage() {
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
-  function statValue(value: number | undefined) {
-    return stats.isPending ? "…" : stats.isError ? "—" : (value ?? 0);
-  }
-
   // Another admin may change the data while this page is open.
   useEffect(() => {
     if (data && page > lastPage) {
@@ -100,9 +96,24 @@ function UsersPage() {
         aria-label="User statistics"
         className="grid gap-3 sm:grid-cols-3"
       >
-        <StatCard label="Total users" value={statValue(stats.data?.total)} />
-        <StatCard label="Active" value={statValue(stats.data?.active)} />
-        <StatCard label="Left" value={statValue(stats.data?.left)} />
+        <StatCard
+          label="Total users"
+          value={stats.data?.total}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Active"
+          value={stats.data?.active}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Left"
+          value={stats.data?.left}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
       </section>
 
       {isError ? (

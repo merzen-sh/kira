@@ -7,16 +7,23 @@ import {
 
 interface StatCardProps {
   label: string;
-  value: number | string;
+  value: number | undefined;
+  pending?: boolean;
+  error?: boolean;
 }
 
-export function StatCard({ label, value }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  pending = false,
+  error = false,
+}: StatCardProps) {
   return (
-    <Card size="sm">
+    <Card>
       <CardHeader>
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-2xl font-semibold tabular-nums">
-          {value}
+          {pending ? "…" : error ? "—" : (value ?? 0)}
         </CardTitle>
       </CardHeader>
     </Card>

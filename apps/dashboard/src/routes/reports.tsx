@@ -52,10 +52,6 @@ function ReportsPage() {
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
-  function statValue(value: number | undefined) {
-    return stats.isPending ? "…" : stats.isError ? "—" : (value ?? 0);
-  }
-
   // Another admin may delete the last row while this page is open.
   useEffect(() => {
     if (data && page > lastPage) {
@@ -100,9 +96,24 @@ function ReportsPage() {
         aria-label="Report statistics"
         className="grid gap-3 sm:grid-cols-3"
       >
-        <StatCard label="Total reports" value={statValue(stats.data?.total)} />
-        <StatCard label="Open" value={statValue(stats.data?.open)} />
-        <StatCard label="Resolved" value={statValue(stats.data?.resolved)} />
+        <StatCard
+          label="Total reports"
+          value={stats.data?.total}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Open"
+          value={stats.data?.open}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
+        <StatCard
+          label="Resolved"
+          value={stats.data?.resolved}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
       </section>
 
       {isError ? (
