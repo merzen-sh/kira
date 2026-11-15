@@ -1,3 +1,4 @@
+import { Button } from "@kira/ui/components/button";
 import { cn } from "@kira/ui/lib/utils";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import {
@@ -52,10 +53,11 @@ export function DashboardShell() {
   return (
     <div className="flex min-h-svh bg-background text-foreground">
       {!collapsed ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           aria-label="Close navigation"
-          className="fixed inset-y-0 right-0 left-14 z-30 bg-black/40 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-y-0 right-0 left-14 z-30 h-auto rounded-none border-0 bg-black/40 p-0 backdrop-blur-[1px] hover:bg-black/40 active:translate-y-0 md:hidden"
           onClick={() => setCollapsed(true)}
         />
       ) : null}
@@ -70,30 +72,41 @@ export function DashboardShell() {
           !collapsed && "max-md:shadow-2xl",
         )}
       >
-        <button
-          type="button"
-          onClick={() => setCollapsed((value) => !value)}
-          aria-expanded={!collapsed}
-          aria-controls="dashboard-sidebar"
-          title={collapsed ? "Expand navigation" : "Collapse navigation"}
-          className="flex h-14 w-full shrink-0 items-center border-b border-border/60 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
-        >
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center">
+        <div className="flex h-14 shrink-0 items-center border-b border-border/60">
+          {!collapsed ? (
+            <Link
+              to="/"
+              aria-label="Kira dashboard"
+              className="flex min-w-0 items-center gap-2 rounded-md pr-2 pl-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
+            >
+              <span
+                aria-hidden="true"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-sm font-semibold text-primary-foreground shadow-sm"
+              >
+                K
+              </span>
+              <span className="truncate text-sm font-semibold tracking-tight">
+                Kira
+              </span>
+            </Link>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-expanded={!collapsed}
+            aria-controls="dashboard-sidebar"
+            title={collapsed ? "Expand navigation" : "Collapse navigation"}
+            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            className="ml-auto h-14 w-14 shrink-0 justify-center rounded-none px-0 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+          >
             {collapsed ? (
               <PanelLeftOpen className="size-5" />
             ) : (
               <PanelLeftClose className="size-5" />
             )}
-          </span>
-          <span
-            className={cn(
-              "min-w-0 truncate text-xs font-semibold tracking-[0.18em] uppercase transition-opacity duration-200",
-              collapsed ? "opacity-0" : "pr-4 opacity-100",
-            )}
-          >
-            Collapse
-          </span>
-        </button>
+          </Button>
+        </div>
 
         <nav aria-label="Dashboard sections" className="flex flex-1 flex-col gap-1 py-2">
           {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
@@ -128,14 +141,15 @@ export function DashboardShell() {
           })}
         </nav>
 
-        <div className="border-t border-border/60 p-2">
-          <button
+        <div className="border-t border-border/60 py-2">
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => logout.mutate()}
             disabled={logout.isPending}
             title="Sign out"
             aria-label="Sign out"
-            className="flex h-10 w-full items-center text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none disabled:opacity-50"
+            className="h-10 w-full justify-start gap-0 rounded-none px-0 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <span className="flex h-10 w-14 shrink-0 items-center justify-center">
               <LogOut className="size-5" />
@@ -148,7 +162,7 @@ export function DashboardShell() {
             >
               Sign out
             </span>
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -167,21 +181,7 @@ export function DashboardShell() {
 function TopBar() {
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center border-b border-border bg-card/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-      <Link
-        to="/"
-        aria-label="Kira dashboard"
-        className="flex h-9 shrink-0 items-center gap-2 rounded-md pr-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
-      >
-        <span
-          aria-hidden="true"
-          className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-sm font-semibold text-primary-foreground shadow-sm"
-        >
-          K
-        </span>
-        <span className="text-sm font-semibold tracking-tight">Kira</span>
-      </Link>
-
-      <div className="flex min-w-0 flex-1 items-center justify-center px-3">
+      <div className="flex min-w-0 flex-1 items-center">
         <GuildBadge />
       </div>
 
@@ -207,7 +207,7 @@ function GuildBadge() {
     <Link
       to="/server"
       title={guild.name}
-      className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
+      className="flex min-w-0 items-center gap-2 rounded-md py-1 pr-2 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
     >
       {guild.icon_url ? (
         <img
@@ -230,14 +230,16 @@ function ThemeToggle() {
   const next = theme === "dark" ? "light" : "dark";
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon-lg"
       onClick={toggle}
       title={`Switch to ${next} mode`}
       aria-label={`Switch to ${next} mode`}
-      className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
+      className="text-muted-foreground"
     >
-      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-    </button>
+      {theme === "dark" ? <Sun /> : <Moon />}
+    </Button>
   );
 }
