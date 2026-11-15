@@ -111,7 +111,7 @@ flowchart TD
     DOC["kira-api-docs<br/>(dev-only YAML serializer)"] --> XT
     XT["cargo xtask openapi generate"] --> YAML
     YAML["openapi/openapi.yaml<br/>(committed)"] --> GEN
-    GEN["npm run gen:api-types"] --> DTS
+    GEN["bun run gen:api-types"] --> DTS
     DTS["packages/api-types/src/schema.d.ts<br/>(committed)"] --> PKG
     PKG["@kira/api-types"] --> DASH["apps/dashboard"]
 ```
@@ -132,8 +132,8 @@ flowchart TD
 ```bash
 cargo xtask openapi generate   # write openapi/openapi.yaml
 cargo xtask openapi check      # regenerate in memory; fail on drift
-npm run gen:api-types          # regenerate packages/api-types/src/schema.d.ts
-npm run check:api-types        # fail if the committed schema is stale
+bun run gen:api-types          # regenerate packages/api-types/src/schema.d.ts
+bun run check:api-types        # fail if the committed schema is stale
 make openapi                   # both generation steps
 ```
 

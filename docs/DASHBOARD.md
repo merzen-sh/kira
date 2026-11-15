@@ -65,7 +65,7 @@ all API and WebSocket traffic.
 
 ## Build and embedding
 
-- `npm run build -w @kira/dashboard` runs `tsc --noEmit` and Vite, producing
+- `bun run --filter @kira/dashboard build` runs `tsc --noEmit` and Vite, producing
   `apps/dashboard/dist/` with `emptyOutDir: true`.
 - `kira-cli` embeds that directory with `rust-embed`.
   - **Release:** files are embedded into the binary at compile time and served.
@@ -82,7 +82,7 @@ all API and WebSocket traffic.
   - A real Vite build removes the marker because it empties the output
     directory.
 - `apps/dashboard/dist/` is gitignored; the built assets are not committed.
-- `npm test -w @kira/dashboard` runs Vitest in the dashboard workspace; test
+- `bun run --filter @kira/dashboard test` runs Vitest in the dashboard workspace; test
   files live next to the code they cover as `*.test.ts`. `make check` runs it.
 
 `cargo build --release -p kira-cli` is independent of the `kira` application,

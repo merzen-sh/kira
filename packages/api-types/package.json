@@ -8,7 +8,10 @@
   },
   "scripts": {
     "gen": "openapi-typescript ../../openapi/openapi.yaml -o src/schema.d.ts",
-    "check": "node scripts/check.mjs",
+    "check": "bun scripts/check.mjs",
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

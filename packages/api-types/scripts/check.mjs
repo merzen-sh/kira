@@ -32,7 +32,7 @@ try {
     console.error(`openapi-typescript exited with status ${result.status}`);
     process.exitCode = 1;
   } else if (!readFileSync(committedSchema).equals(readFileSync(tempSchema))) {
-    console.error("schema.d.ts is stale; run npm run gen:api-types");
+    console.error("schema.d.ts is stale; run bun run gen:api-types");
     process.exitCode = 1;
   }
 } finally {

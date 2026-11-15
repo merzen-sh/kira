@@ -56,8 +56,8 @@ kira/
 ├── Cargo.lock                    committed; the two binaries are applications
 ├── .cargo/config.toml            `cargo xtask` alias
 ├── Makefile                      build, dashboard, OpenAPI, check workflow, dev runner
-├── package.json                  npm workspace root
-├── package-lock.json             committed for reproducible installs
+├── package.json                  Bun workspace root
+├── bun.lock                      committed for reproducible installs
 ├── openapi/
 │   └── openapi.yaml              generated + committed API contract
 ├── migrations/
@@ -83,7 +83,7 @@ kira/
 ```
 
 `crates/*` and `xtask` are Cargo workspace members. `apps/*` and `packages/*` are
-npm workspaces and are excluded from Cargo.
+Bun workspaces and are excluded from Cargo.
 
 ## 3. Crate graph and boundaries
 
@@ -246,8 +246,8 @@ for the frontend.
   dragging Axum into the dependency tree.
 - **`rust-embed` for the dashboard.** Release binaries are self-contained;
   debug builds keep frontend iteration fast.
-- **npm workspaces + committed lockfile.** Two frontend packages do not justify
-  an extra package-manager tool, and the lockfile makes generation reproducible.
+- **Bun workspaces + committed lockfile.** Two frontend packages share one
+  install, and the lockfile makes generation reproducible.
 - **`openapi-typescript`.** The named `typescript-openapi` package does not
   exist; `openapi-typescript` consumes the committed YAML and emits `.d.ts`
   with no runtime dependency.
