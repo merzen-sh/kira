@@ -19,6 +19,11 @@ pub struct Database {
 
 impl Database {
     /// Open the SQLite database at `url`, applying pending migrations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the URL is invalid, the database cannot be opened,
+    /// or a migration fails.
     pub async fn connect(url: &str) -> Result<Self, StoreError> {
         let options = SqliteConnectOptions::from_str(url)?
             .create_if_missing(true)

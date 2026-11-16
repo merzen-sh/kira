@@ -70,6 +70,10 @@ impl AuditRepository {
     }
 
     /// Insert an event and return it with its generated ID and timestamps.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the insert fails.
     pub async fn record(&self, event: &NewAuditEvent<'_>) -> Result<AuditEvent, StoreError> {
         let sql = format!(
             "INSERT INTO audit_events \
@@ -105,6 +109,10 @@ impl AuditRepository {
 
     /// List audit events newest first, optionally filtered by a
     /// case-insensitive substring, exact action, actor kind, or source.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when either query fails.
     pub async fn list_events(
         &self,
         page: u32,
@@ -171,6 +179,10 @@ impl AuditRepository {
     }
 
     /// Distinct action and actor kind values, sorted alphabetically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when any facet query fails.
     pub async fn facets(&self) -> Result<AuditFacets, StoreError> {
         let actions: Vec<String> =
             sqlx::query_scalar("SELECT DISTINCT action FROM audit_events ORDER BY action")
@@ -210,6 +222,16 @@ impl From<AuditEventRow> for AuditEvent {
         let target = row
             .target_kind
             .map(|kind| AuditEntity::new(kind, row.target_id, row.target_name));
+        let metadata = match serde_json::from_str(&row.metadata) {
+            Ok(Value::Object(metadata)) => metadata,
+            _ => {
+                tracing::warn!(
+                    event_id = row.id,
+                    "audit event metadata is not a JSON object; returning an empty map"
+                );
+                Map::new()
+            }
+        };
 
         Self::new(
             row.id,
@@ -217,10 +239,7 @@ impl From<AuditEventRow> for AuditEvent {
             row.source,
             AuditEntity::new(row.actor_kind, row.actor_id, row.actor_name),
             target,
-            match serde_json::from_str(&row.metadata) {
-                Ok(Value::Object(metadata)) => metadata,
-                _ => Map::new(),
-            },
+            metadata,
             row.occurred_at,
             row.recorded_at,
         )

@@ -23,6 +23,10 @@ impl MonitorRepository {
     }
 
     /// Store a sample and delete records older than the retention window.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the insert or cleanup query fails.
     pub async fn record(&self, sample: &MonitorSample) -> Result<(), StoreError> {
         sqlx::query(&format!(
             "INSERT INTO monitor_samples ({SAMPLE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?)"
@@ -45,6 +49,10 @@ impl MonitorRepository {
     }
 
     /// Return the newest sample, if any.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the query fails.
     pub async fn latest(&self) -> Result<Option<MonitorSample>, StoreError> {
         let row = sqlx::query_as::<_, MonitorRow>(&format!(
             "SELECT {SAMPLE_COLUMNS} FROM monitor_samples ORDER BY recorded_at DESC, id DESC LIMIT 1"
@@ -56,6 +64,10 @@ impl MonitorRepository {
     }
 
     /// Return samples since `since`, averaged into `bucket` second groups.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the query fails.
     pub async fn history(&self, since: i64, bucket: i64) -> Result<Vec<MonitorSample>, StoreError> {
         let bucket = bucket.max(1);
         let rows = sqlx::query_as::<_, MonitorRow>(

@@ -31,6 +31,10 @@ impl UserRepository {
     }
 
     /// Record a join or rejoin, reactivating the member in one transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update or event insert fails.
     pub async fn join(
         &self,
         user_id: &str,
@@ -70,6 +74,10 @@ impl UserRepository {
     }
 
     /// Mark a user as having left, preserving the existing record.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update or event insert fails.
     pub async fn leave(
         &self,
         user_id: &str,
@@ -113,6 +121,10 @@ impl UserRepository {
     /// Join event. Users who rejoined while the bot was offline are reactivated
     /// and get a Join event. `snapshot` guards against a leave that was handled
     /// after the reconciliation snapshot was taken.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when a read, update, or event insert fails.
     #[expect(
         clippy::too_many_arguments,
         reason = "the arguments mirror the imported member fields"
@@ -214,6 +226,10 @@ impl UserRepository {
     }
 
     /// Capture the reconciliation snapshot time.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the query fails.
     pub async fn snapshot_time(&self) -> Result<String, StoreError> {
         Ok(sqlx::query_scalar(&format!("SELECT {NOW}"))
             .fetch_one(self.db.pool())
@@ -221,6 +237,10 @@ impl UserRepository {
     }
 
     /// IDs of every tracked member currently marked active.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the query fails.
     pub async fn active_ids(&self) -> Result<Vec<String>, StoreError> {
         Ok(
             sqlx::query_scalar("SELECT user_id FROM guild_users WHERE status = 'active'")
@@ -233,6 +253,10 @@ impl UserRepository {
     ///
     /// Users who joined after `snapshot` are skipped because their Join event
     /// may have raced with the member pages.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when an update or event insert fails.
     pub async fn mark_left(&self, user_ids: &[String], snapshot: &str) -> Result<(), StoreError> {
         if user_ids.is_empty() {
             return Ok(());
@@ -261,6 +285,10 @@ impl UserRepository {
     }
 
     /// Count human users by status and tracked bot accounts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the query fails.
     pub async fn stats(&self) -> Result<GuildUserStats, StoreError> {
         let (total, active, bots): (i64, i64, i64) = sqlx::query_as(
             "SELECT \
@@ -280,6 +308,10 @@ impl UserRepository {
     }
 
     /// List users newest first, optionally filtered by search text and status.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when either query fails.
     pub async fn list(
         &self,
         page: u32,
