@@ -73,7 +73,7 @@ pub enum LoginError {
 
 /// Convert a storage failure into an opaque API response.
 pub(crate) fn storage_error(error: &StoreError) -> Response {
-    tracing::error!("storage failed: {error:?}");
+    tracing::error!(error = ?error, "storage failed");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorResponse::new("storage failed")),

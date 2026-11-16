@@ -4,7 +4,7 @@ use axum::{Router, middleware, routing};
 
 use crate::handlers::ws::ws_upgrade;
 use crate::handlers::{
-    audit_facets, delete_report, get_guild, get_guild_channels, guild_user_stats, health,
+    audit_facets, delete_report, guild, guild_channels, guild_user_stats, health,
     list_audit_events, list_guild_users, list_reports, login, logout, report_stats,
     send_guild_message, session, system_monitor, update_report,
 };
@@ -17,8 +17,8 @@ use crate::state::AppState;
 pub fn router(state: AppState) -> Router {
     let protected = Router::new()
         .route("/auth/session", routing::get(session))
-        .route("/guild", routing::get(get_guild))
-        .route("/guild/channels", routing::get(get_guild_channels))
+        .route("/guild", routing::get(guild))
+        .route("/guild/channels", routing::get(guild_channels))
         .route("/guild/users", routing::get(list_guild_users))
         .route("/guild/users/stats", routing::get(guild_user_stats))
         .route("/monitor", routing::get(system_monitor))

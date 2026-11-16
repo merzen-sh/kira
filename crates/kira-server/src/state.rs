@@ -52,6 +52,13 @@ impl AppState {
         &self.auth
     }
 
+    pub(crate) fn has_guild(&self) -> bool {
+        self.guilds
+            .borrow()
+            .iter()
+            .any(|guild| guild.id == self.guild_id)
+    }
+
     pub(crate) fn guild(&self) -> Option<GuildDetails> {
         self.guilds
             .borrow()
@@ -61,7 +68,9 @@ impl AppState {
     }
 
     pub(crate) fn guild_channels(&self) -> Option<Vec<ChannelDetails>> {
-        self.guild()?;
+        if !self.has_guild() {
+            return None;
+        }
 
         Some(
             self.channels
@@ -71,5 +80,13 @@ impl AppState {
                 .cloned()
                 .collect(),
         )
+    }
+
+    pub(crate) fn channel(&self, channel_id: &str) -> Option<ChannelDetails> {
+        self.channels
+            .borrow()
+            .iter()
+            .find(|channel| channel.guild_id == self.guild_id && channel.id == channel_id)
+            .cloned()
     }
 }

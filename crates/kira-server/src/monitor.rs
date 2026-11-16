@@ -32,7 +32,7 @@ pub(crate) async fn run(database: Database) {
         let sample = sample(&mut system, &mut disks);
 
         if let Err(error) = monitor.record(&sample).await {
-            tracing::warn!("failed to record system metrics: {error}");
+            tracing::warn!(error = ?error, "failed to record system metrics");
         }
 
         tokio::time::sleep(SAMPLE_INTERVAL).await;

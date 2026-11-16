@@ -61,7 +61,11 @@ impl Limiter {
                 .retain(|_, bucket| bucket.retry_after(now).is_some());
         }
 
-        self.peers.entry(peer).or_default().record_failure(now);
+        // The global bucket still throttles a flood of new peers when the
+        // per-peer table is full.
+        if self.peers.len() < MAX_TRACKED_PEERS {
+            self.peers.entry(peer).or_default().record_failure(now);
+        }
     }
 
     pub(super) fn reset(&mut self, peer: Option<IpAddr>) {
@@ -108,5 +112,27 @@ impl Bucket {
     fn reset(&mut self) {
         self.failures = 0;
         self.window_start = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::IpAddr;
+
+    use super::{Limiter, MAX_TRACKED_PEERS};
+    use tokio::time::Instant;
+
+    #[test]
+    fn tracked_peers_stay_capped_under_a_flood() {
+        let now = Instant::now();
+        let mut limiter = Limiter::default();
+
+        for index in 0..=MAX_TRACKED_PEERS {
+            let index = u32::try_from(index).expect("peer index fits u32");
+            let peer = IpAddr::from(index.to_be_bytes());
+            limiter.record_failure(Some(peer), now);
+        }
+
+        assert!(limiter.peers.len() <= MAX_TRACKED_PEERS);
     }
 }
