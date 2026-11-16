@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@kira/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
+import { Bot, UserCheck, UserMinus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { StatCard } from "@/components/stat-card";
@@ -147,24 +148,28 @@ function UsersPage() {
       >
         <StatCard
           label="Total users"
+          icon={Users}
           value={stats.data?.total}
           pending={stats.isPending}
           error={stats.isError}
         />
         <StatCard
           label="Active"
+          icon={UserCheck}
           value={stats.data?.active}
           pending={stats.isPending}
           error={stats.isError}
         />
         <StatCard
           label="Left"
+          icon={UserMinus}
           value={stats.data?.left}
           pending={stats.isPending}
           error={stats.isError}
         />
         <StatCard
           label="Bots"
+          icon={Bot}
           value={stats.data?.bots}
           pending={stats.isPending}
           error={stats.isError}

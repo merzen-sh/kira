@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@kira/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
+import { Bug, CircleAlert, CircleCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { StatCard } from "@/components/stat-card";
@@ -98,18 +99,21 @@ function ReportsPage() {
       >
         <StatCard
           label="Total reports"
+          icon={Bug}
           value={stats.data?.total}
           pending={stats.isPending}
           error={stats.isError}
         />
         <StatCard
           label="Open"
+          icon={CircleAlert}
           value={stats.data?.open}
           pending={stats.isPending}
           error={stats.isError}
         />
         <StatCard
           label="Resolved"
+          icon={CircleCheck}
           value={stats.data?.resolved}
           pending={stats.isPending}
           error={stats.isError}
