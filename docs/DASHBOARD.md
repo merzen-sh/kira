@@ -11,10 +11,11 @@ Routing is file-based:
 
 - `src/routes/__root.tsx` owns the root layout and development devtools.
 - `src/routes/index.tsx`, `server.tsx`, `settings.tsx`, `announcements.tsx`,
-  `monitor.tsx`, `reports.tsx`, and `users.tsx` are the page routes. The reports
-  and users pages open with summary cards above their tables, and the monitor
-  page shows current CPU, memory, and disk usage with range-selected history
-  charts.
+  `monitor.tsx`, `audit.tsx`, `reports.tsx`, and `users.tsx` are the page
+  routes. The reports and users pages open with summary cards above their
+  tables, the monitor page shows current CPU, memory, and disk usage with
+  range-selected history charts, and the audit page browses, filters, and
+  inspects generic audit events.
 - The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
   creates the router from that tree.
 
@@ -36,6 +37,8 @@ The API layer lives in `src/data/`:
   searchable bug report table, and `users/` backs the guild member list with
   separate user and bot types.
   `monitor/` backs the system monitor page and polls every 10 seconds.
+  `audit/` backs the audit log's paginated, searchable, and filterable event
+  table.
 - TanStack Query owns server state. Components consume exported query hooks;
   they do not call `fetch` directly.
 - `__templates/` holds copyable conventions for new domains.
