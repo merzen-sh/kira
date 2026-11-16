@@ -187,6 +187,7 @@ async fn stalled_delivery_times_out() -> Result<(), Box<dyn Error>> {
     let res = post(state, &cookie, "10", r#"{"content":"Hello"}"#).await?;
     assert_eq!(res.status(), StatusCode::GATEWAY_TIMEOUT);
 
+    tokio::time::resume();
     let events = database
         .audit()
         .list_events(1, 20, None, Some("message.sent"), None, None)
