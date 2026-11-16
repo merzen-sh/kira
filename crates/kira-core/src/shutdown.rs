@@ -3,6 +3,10 @@
 use std::io;
 
 /// Wait for Ctrl+C or, on Unix, a `SIGTERM` signal.
+///
+/// # Errors
+///
+/// Returns an error when the signal handler cannot be installed.
 #[cfg(unix)]
 pub async fn wait_for_signal() -> io::Result<()> {
     use tokio::signal::unix;
@@ -16,6 +20,10 @@ pub async fn wait_for_signal() -> io::Result<()> {
 }
 
 /// Wait for Ctrl+C.
+///
+/// # Errors
+///
+/// Returns an error when the signal handler cannot be installed.
 #[cfg(not(unix))]
 pub async fn wait_for_signal() -> io::Result<()> {
     tokio::signal::ctrl_c().await
