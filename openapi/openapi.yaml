@@ -6,6 +6,99 @@ info:
     name: ''
   version: 0.1.0
 paths:
+  /audit/events:
+    get:
+      tags:
+      - audit
+      summary: List audit events, newest first.
+      operationId: list_audit_events
+      parameters:
+      - name: page
+        in: query
+        description: Page number, starting at 1
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+      - name: page_limit
+        in: query
+        description: Events per page, 1-100 (default 20)
+        required: false
+        schema:
+          type: integer
+          format: int32
+          minimum: 0
+      - name: search
+        in: query
+        description: Case-insensitive substring of the action, actor, or target
+        required: false
+        schema:
+          type: string
+      - name: action
+        in: query
+        description: Exact action filter
+        required: false
+        schema:
+          type: string
+      - name: actor_kind
+        in: query
+        description: Exact actor kind filter
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventList'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
+  /audit/facets:
+    get:
+      tags:
+      - audit
+      summary: Distinct actions and actor kinds available for filtering.
+      operationId: audit_facets
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditFacets'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /auth/login:
     post:
       tags:
@@ -564,6 +657,109 @@ paths:
       - cookie_auth: []
 components:
   schemas:
+    AuditEntity:
+      type: object
+      description: A party that caused or was affected by an audit event.
+      required:
+      - kind
+      properties:
+        id:
+          type:
+          - string
+          - 'null'
+          description: Stable identifier within the kind, when one exists.
+        kind:
+          type: string
+          description: Entity type, for example `user`, `service`, or `system`.
+        name:
+          type:
+          - string
+          - 'null'
+          description: Human-readable label captured at event time.
+    AuditEvent:
+      type: object
+      description: A stored audit event.
+      required:
+      - id
+      - action
+      - actor
+      - metadata
+      - occurred_at
+      - recorded_at
+      properties:
+        action:
+          type: string
+          description: Action that occurred, for example `report.resolved`.
+        actor:
+          $ref: '#/components/schemas/AuditEntity'
+          description: Who or what performed the action.
+        id:
+          type: integer
+          format: int64
+          description: Event ID.
+        metadata:
+          type: object
+          description: Structured JSON object with event-specific details.
+          additionalProperties: {}
+          propertyNames:
+            type: string
+        occurred_at:
+          type: string
+          description: Time the event happened, as an ISO 8601 timestamp.
+        recorded_at:
+          type: string
+          description: Time the event was stored, as an ISO 8601 timestamp.
+        target:
+          oneOf:
+          - $ref: '#/components/schemas/AuditEntity'
+            description: What the action affected, when it has a target.
+          - type: 'null'
+    AuditEventList:
+      type: object
+      description: A page of audit events returned by `GET /audit/events`.
+      required:
+      - events
+      - total
+      - page
+      - page_limit
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+          description: Events on this page, newest first.
+        page:
+          type: integer
+          format: int32
+          description: Page number, starting at 1.
+          minimum: 0
+        page_limit:
+          type: integer
+          format: int32
+          description: Maximum number of events per page.
+          minimum: 0
+        total:
+          type: integer
+          format: int64
+          description: Total number of events matching the filters.
+          minimum: 0
+    AuditFacets:
+      type: object
+      description: Filter values available for audit event queries.
+      required:
+      - actions
+      - actor_kinds
+      properties:
+        actions:
+          type: array
+          items:
+            type: string
+          description: Distinct action values, sorted alphabetically.
+        actor_kinds:
+          type: array
+          items:
+            type: string
+          description: Distinct actor kinds, sorted alphabetically.
     ChannelDetails:
       type: object
       description: A channel belonging to the Discord server targeted by `GET /guild/channels`.
@@ -946,6 +1142,8 @@ tags:
   description: Dashboard session authentication
 - name: health
   description: Service health
+- name: audit
+  description: Generic audit event log
 - name: monitor
   description: Host CPU, memory, and disk usage
 - name: guild

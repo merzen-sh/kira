@@ -1,5 +1,6 @@
 //! HTTP route handlers grouped by API domain.
 
+pub(crate) mod audit;
 pub(crate) mod auth;
 pub(crate) mod guild;
 pub(crate) mod health;
@@ -8,6 +9,7 @@ pub(crate) mod reports;
 pub(crate) mod users;
 pub(crate) mod ws;
 
+pub use audit::{audit_facets, list_audit_events};
 pub use auth::{login, logout, session};
 pub use guild::{get_guild, get_guild_channels, send_guild_message};
 pub use health::health;

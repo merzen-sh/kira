@@ -1,5 +1,6 @@
 //! SQLite infrastructure and repositories shared by the bot and server.
 
+pub mod audit;
 mod database;
 mod errors;
 pub mod monitor;

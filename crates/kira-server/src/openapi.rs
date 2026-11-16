@@ -17,6 +17,7 @@ use crate::auth::COOKIE_NAME;
     tags(
         (name = "auth", description = "Dashboard session authentication"),
         (name = "health", description = "Service health"),
+        (name = "audit", description = "Generic audit event log"),
         (name = "monitor", description = "Host CPU, memory, and disk usage"),
         (name = "guild", description = "Discord server and channels"),
         (name = "reports", description = "User-submitted bug reports")
@@ -24,6 +25,8 @@ use crate::auth::COOKIE_NAME;
     paths(
         crate::handlers::health::health,
         crate::handlers::monitor::system_monitor,
+        crate::handlers::audit::list_audit_events,
+        crate::handlers::audit::audit_facets,
         crate::handlers::auth::login,
         crate::handlers::auth::logout,
         crate::handlers::auth::session,
@@ -41,6 +44,10 @@ use crate::auth::COOKIE_NAME;
             kira_protocol::HealthResponse,
             kira_protocol::MonitorReport,
             kira_protocol::MonitorSample,
+            kira_protocol::AuditEntity,
+            kira_protocol::AuditEvent,
+            kira_protocol::AuditEventList,
+            kira_protocol::AuditFacets,
             kira_protocol::GuildDetails,
             kira_protocol::ChannelDetails,
             kira_protocol::SentMessage,
