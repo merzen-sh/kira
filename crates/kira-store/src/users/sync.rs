@@ -47,17 +47,19 @@ impl UserRepository {
         user_id: &str,
         user_name: &str,
         display_name: &str,
+        avatar_url: Option<&str>,
     ) -> Result<bool, StoreError> {
         let sql = format!(
             "UPDATE guild_users \
-             SET user_name = ?, display_name = ?, last_synced_at = {NOW}, \
-                 next_sync_at = {NEXT_SYNC} \
+             SET user_name = ?, display_name = ?, avatar_url = COALESCE(?, avatar_url), \
+                 last_synced_at = {NOW}, next_sync_at = {NEXT_SYNC} \
              WHERE user_id = ? AND status = 'active'"
         );
 
         let result = sqlx::query(&sql)
             .bind(user_name)
             .bind(display_name)
+            .bind(avatar_url)
             .bind(user_id)
             .execute(self.db.pool())
             .await?;

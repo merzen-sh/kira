@@ -504,10 +504,16 @@ paths:
           minimum: 0
       - name: search
         in: query
-        description: Case-insensitive substring of the title, steps, details, or reporter ID
+        description: Case-insensitive substring of the title, steps, details, reporter ID, username, or display name
         required: false
         schema:
           type: string
+      - name: resolved
+        in: query
+        description: Filter by resolved state
+        required: false
+        schema:
+          type: boolean
       responses:
         '200':
           content:
@@ -1052,12 +1058,22 @@ components:
       - resolved
       - created_at
       properties:
+        avatar_url:
+          type:
+          - string
+          - 'null'
+          description: Reporter avatar URL resolved from the tracked guild user, when available.
         created_at:
           type: string
           description: Creation time as an ISO 8601 timestamp.
         details:
           type: string
           description: What happened and what the reporter expected instead.
+        display_name:
+          type:
+          - string
+          - 'null'
+          description: Reporter display name resolved from the tracked guild user, when available.
         id:
           type: integer
           format: int64
@@ -1074,6 +1090,11 @@ components:
         user_id:
           type: string
           description: Discord user ID of the reporter.
+        user_name:
+          type:
+          - string
+          - 'null'
+          description: Reporter username resolved from the tracked guild user, when available.
     ReportList:
       type: object
       description: A page of bug reports returned by `GET /reports`.
@@ -1101,7 +1122,7 @@ components:
         total:
           type: integer
           format: int64
-          description: Total number of reports matching the search.
+          description: Total number of reports matching the filters.
           minimum: 0
     ReportStats:
       type: object

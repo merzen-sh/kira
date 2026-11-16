@@ -3,6 +3,13 @@ import { Button } from "@kira/ui/components/button";
 import { Checkbox } from "@kira/ui/components/checkbox";
 import { Input } from "@kira/ui/components/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@kira/ui/components/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -11,7 +18,7 @@ import {
   TableRow,
 } from "@kira/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bug, CircleAlert, CircleCheck } from "lucide-react";
+import { Bug, CircleAlert, CircleCheck, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { StatCard } from "@/components/stat-card";
@@ -27,10 +34,17 @@ export const Route = createFileRoute("/reports")({
 
 const PAGE_LIMIT = 20;
 
+const RESOLVED_ITEMS = {
+  all: "All reports",
+  open: "Open",
+  resolved: "Resolved",
+};
+
 function ReportsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
+  const [resolved, setResolved] = useState("all");
   const resolve = useResolveReportMutation();
   const remove = useDeleteReportMutation();
 
@@ -47,6 +61,7 @@ function ReportsPage() {
     page,
     PAGE_LIMIT,
     term,
+    resolved,
   );
   const stats = useReportStatsQuery();
   const reports = data?.reports ?? [];
@@ -83,14 +98,36 @@ function ReportsPage() {
             Bug reports submitted with the Discord /report command.
           </p>
         </div>
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search reports…"
-          aria-label="Search reports"
-          className="w-full sm:w-64"
-        />
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Select
+            value={resolved}
+            onValueChange={(value) => {
+              setResolved(String(value ?? "all"));
+              setPage(1);
+            }}
+            items={RESOLVED_ITEMS}
+          >
+            <SelectTrigger
+              aria-label="Filter by resolved state"
+              className="w-full sm:w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All reports</SelectItem>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search reports…"
+            aria-label="Search reports"
+            className="w-full sm:w-64"
+          />
+        </div>
       </header>
 
       <section
@@ -161,7 +198,9 @@ function ReportsPage() {
             ) : reports.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-muted-foreground">
-                  {term ? "No reports match this search." : "No reports yet."}
+                  {term || resolved !== "all"
+                    ? "No reports match these filters."
+                    : "No reports yet."}
                 </TableCell>
               </TableRow>
             ) : (
@@ -196,8 +235,34 @@ function ReportsPage() {
                   <TableCell className="max-w-64 whitespace-normal text-muted-foreground">
                     {report.details}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {report.user_id}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {report.avatar_url ? (
+                        <img
+                          src={report.avatar_url}
+                          alt=""
+                          className="size-7 shrink-0 rounded-full object-cover ring-1 ring-border"
+                        />
+                      ) : (
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <UserRound className="size-4" />
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">
+                          {report.display_name ??
+                            report.user_name ??
+                            report.user_id}
+                        </div>
+                        {report.user_name ? (
+                          <div className="truncate font-mono text-xs text-muted-foreground">
+                            {report.display_name
+                              ? `@${report.user_name} · ${report.user_id}`
+                              : report.user_id}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {new Date(report.created_at).toLocaleString()}

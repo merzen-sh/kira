@@ -21,7 +21,7 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/audit/events` | cookie | `200` with an `AuditEventList` page; accepts `page`, `page_limit` (1–100), `search`, `action`, `actor_kind`, and `source` |
 | `GET` | `/audit/facets` | cookie | `200` with an `AuditFacets` list of distinct actions, actor kinds, and sources |
 | `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
-| `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), and `search` |
+| `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), `search`, and `resolved` |
 | `GET` | `/reports/stats` | cookie | `200` with a `ReportStats` summary of total, open, and resolved reports |
 | `PATCH` | `/reports/{id}` | cookie | `200` with the updated `Report`; `404` when missing |
 | `DELETE` | `/reports/{id}` | cookie | `204` when deleted; `404` when missing |
@@ -59,9 +59,12 @@ ignores the list filters.
 `GET /reports`, `PATCH /reports/{id}`, and `DELETE /reports/{id}` expose bug
 reports saved by the Discord `/report` command. Listing returns the newest
 reports first; `search` is a case-insensitive substring match against the title,
-steps, details, or reporter ID. `page` starts at 1 and `page_limit` defaults to
-20. `PATCH` accepts `{ "resolved": true | false }`. `GET /reports/stats`
-returns totals for the dashboard summary cards and ignores the list filters.
+steps, details, reporter ID, username, or display name. `resolved` filters by
+resolved state. Reporter username, display name, and avatar are resolved from
+the tracked guild user at query time and are `null` when the user is not
+tracked. `page` starts at 1 and `page_limit` defaults to 20. `PATCH` accepts
+`{ "resolved": true | false }`. `GET /reports/stats` returns totals for the
+dashboard summary cards and ignores the list filters.
 
 `GET /monitor` returns host CPU, memory, and disk usage. The server samples once
 every 10 seconds, keeps at most 24 hours of samples in SQLite, and deletes older

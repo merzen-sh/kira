@@ -2,6 +2,7 @@ export interface ReportListParams {
   page: number;
   pageLimit: number;
   search: string;
+  resolved: string;
 }
 
 export const reportKeys = {

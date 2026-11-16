@@ -119,10 +119,17 @@ impl EventHandler for Handler {
             user.global_name.as_deref(),
             &user.name,
         );
+        let avatar_url = user.face();
 
         if let Err(error) = database
             .users()
-            .join(&user.id.to_string(), &user.name, &display_name, user.bot)
+            .join(
+                &user.id.to_string(),
+                &user.name,
+                &display_name,
+                user.bot,
+                Some(&avatar_url),
+            )
             .await
         {
             tracing::error!("Failed to record guild join: {error:?}");
@@ -151,10 +158,17 @@ impl EventHandler for Handler {
             user.global_name.as_deref(),
             &user.name,
         );
+        let avatar_url = user.face();
 
         if let Err(error) = database
             .users()
-            .leave(&user.id.to_string(), &user.name, &display_name, user.bot)
+            .leave(
+                &user.id.to_string(),
+                &user.name,
+                &display_name,
+                user.bot,
+                Some(&avatar_url),
+            )
             .await
         {
             tracing::error!("Failed to record guild leave: {error:?}");

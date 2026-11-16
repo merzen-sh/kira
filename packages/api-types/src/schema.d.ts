@@ -490,10 +490,14 @@ export interface components {
         };
         /** @description A bug report submitted through the Discord `/report` command. */
         Report: {
+            /** @description Reporter avatar URL resolved from the tracked guild user, when available. */
+            avatar_url?: string | null;
             /** @description Creation time as an ISO 8601 timestamp. */
             created_at: string;
             /** @description What happened and what the reporter expected instead. */
             details: string;
+            /** @description Reporter display name resolved from the tracked guild user, when available. */
+            display_name?: string | null;
             /**
              * Format: int64
              * @description Report ID.
@@ -507,6 +511,8 @@ export interface components {
             title: string;
             /** @description Discord user ID of the reporter. */
             user_id: string;
+            /** @description Reporter username resolved from the tracked guild user, when available. */
+            user_name?: string | null;
         };
         /** @description A page of bug reports returned by `GET /reports`. */
         ReportList: {
@@ -524,7 +530,7 @@ export interface components {
             reports: components["schemas"]["Report"][];
             /**
              * Format: int64
-             * @description Total number of reports matching the search.
+             * @description Total number of reports matching the filters.
              */
             total: number;
         };
@@ -1175,8 +1181,10 @@ export interface operations {
                 page?: number;
                 /** @description Reports per page, 1-100 (default 20) */
                 page_limit?: number;
-                /** @description Case-insensitive substring of the title, steps, details, or reporter ID */
+                /** @description Case-insensitive substring of the title, steps, details, reporter ID, username, or display name */
                 search?: string;
+                /** @description Filter by resolved state */
+                resolved?: boolean;
             };
             header?: never;
             path?: never;
