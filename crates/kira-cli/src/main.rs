@@ -31,12 +31,12 @@ async fn main() -> anyhow::Result<()> {
     let address = listener
         .local_addr()
         .context("reading the local listener address")?;
-    tracing::info!("Listening on http://{address}");
+    tracing::info!(%address, "listening");
 
     axum::serve(listener, router(AppState::new(dev_server_url)))
         .with_graceful_shutdown(async {
             if let Err(error) = kira_core::shutdown::wait_for_signal().await {
-                tracing::error!("failed to wait for shutdown signal: {error}");
+                tracing::error!(error = %error, "failed to wait for shutdown signal");
             }
         })
         .await
