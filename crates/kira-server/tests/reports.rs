@@ -48,6 +48,16 @@ async fn reports_are_listed_searched_and_paginated() -> Result<(), Box<dyn Error
     let cookie = common::login_cookie(&state).await?;
 
     store
+        .users()
+        .join(
+            "42",
+            "alice",
+            "Alice Smith",
+            false,
+            Some("https://cdn.example/alice.png"),
+        )
+        .await?;
+    store
         .reports()
         .create_report(&NewReport::new(
             "42",
@@ -75,10 +85,67 @@ async fn reports_are_listed_searched_and_paginated() -> Result<(), Box<dyn Error
 
     let second = list(&state, "/reports?page=2&page_limit=1", &cookie).await?;
     assert_eq!(second.reports[0].title, "Login broken");
+    assert_eq!(second.reports[0].user_name.as_deref(), Some("alice"));
+    assert_eq!(
+        second.reports[0].display_name.as_deref(),
+        Some("Alice Smith")
+    );
+    assert_eq!(
+        second.reports[0].avatar_url.as_deref(),
+        Some("https://cdn.example/alice.png")
+    );
 
     let searched = list(&state, "/reports?search=pin", &cookie).await?;
     assert_eq!(searched.total, 1);
     assert_eq!(searched.reports[0].title, "Login broken");
+
+    let by_reporter = list(&state, "/reports?search=alice", &cookie).await?;
+    assert_eq!(by_reporter.total, 1);
+    assert_eq!(by_reporter.reports[0].user_id, "42");
+
+    let by_display_name = list(&state, "/reports?search=Alice%20Smith", &cookie).await?;
+    assert_eq!(by_display_name.total, 1);
+    assert_eq!(by_display_name.reports[0].user_id, "42");
+    Ok(())
+}
+
+#[tokio::test]
+async fn reports_can_be_filtered_by_resolved_state() -> Result<(), Box<dyn Error>> {
+    let (state, store) = state().await?;
+    let cookie = common::login_cookie(&state).await?;
+
+    let first = store
+        .reports()
+        .create_report(&NewReport::new("42", "Login broken", "open", "rejected"))
+        .await?;
+    store
+        .reports()
+        .create_report(&NewReport::new("7", "Crash", "click", "boom"))
+        .await?;
+    store.reports().set_resolved(first.id, true).await?;
+
+    let resolved = list(&state, "/reports?resolved=true", &cookie).await?;
+    let open = list(&state, "/reports?resolved=false", &cookie).await?;
+    let all = list(&state, "/reports", &cookie).await?;
+    let combined = list(&state, "/reports?search=login&resolved=true", &cookie).await?;
+
+    assert_eq!(resolved.total, 1);
+    assert_eq!(resolved.reports[0].title, "Login broken");
+    assert_eq!(open.total, 1);
+    assert_eq!(open.reports[0].title, "Crash");
+    assert_eq!(all.total, 2);
+    assert_eq!(combined.total, 1);
+    assert_eq!(combined.reports[0].title, "Login broken");
+
+    let invalid = router(state)
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .uri("/reports?resolved=maybe")
+                .body(Body::empty())?,
+            &cookie,
+        ))
+        .await?;
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
     Ok(())
 }
 

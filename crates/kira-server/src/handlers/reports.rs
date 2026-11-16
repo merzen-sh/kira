@@ -29,6 +29,7 @@ pub struct ReportListQuery {
     page: Option<u32>,
     page_limit: Option<u32>,
     search: Option<String>,
+    resolved: Option<bool>,
 }
 
 /// List bug reports, newest first.
@@ -40,7 +41,8 @@ pub struct ReportListQuery {
     params(
         ("page" = Option<u32>, Query, description = "Page number, starting at 1"),
         ("page_limit" = Option<u32>, Query, description = "Reports per page, 1-100 (default 20)"),
-        ("search" = Option<String>, Query, description = "Case-insensitive substring of the title, steps, details, or reporter ID")
+        ("search" = Option<String>, Query, description = "Case-insensitive substring of the title, steps, details, reporter ID, username, or display name"),
+        ("resolved" = Option<bool>, Query, description = "Filter by resolved state")
     ),
     responses(
         (status = 200, body = ReportList),
@@ -63,7 +65,7 @@ pub async fn list_reports(
     match state
         .database()
         .reports()
-        .list_reports(page, page_limit, search)
+        .list_reports(page, page_limit, search, query.resolved)
         .await
     {
         Ok(reports) => Json(reports).into_response(),

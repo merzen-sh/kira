@@ -6,9 +6,22 @@ use sqlx::FromRow;
 use crate::query::{escape_like, page_offset};
 use crate::{Database, StoreError};
 
-const REPORT_COLUMNS: &str = "id, user_id, title, steps, details, resolved, created_at";
+const REPORT_COLUMNS: &str = "r.id, r.user_id, u.user_name, u.display_name, u.avatar_url, \
+    r.title, r.steps, r.details, r.resolved, r.created_at";
 
-const FILTER: &str = "(? = '' OR title LIKE ? ESCAPE '\\' OR steps LIKE ? ESCAPE '\\' OR details LIKE ? ESCAPE '\\' OR user_id LIKE ? ESCAPE '\\')";
+const REPORT_JOIN: &str = "reports r LEFT JOIN guild_users u ON u.user_id = r.user_id";
+
+const REPORT_RETURNING: &str = "id, user_id, NULL AS user_name, NULL AS display_name, \
+    NULL AS avatar_url, title, steps, details, resolved, created_at";
+
+const FILTER: &str = "(? = '' \
+        OR r.title LIKE ? ESCAPE '\\' \
+        OR r.steps LIKE ? ESCAPE '\\' \
+        OR r.details LIKE ? ESCAPE '\\' \
+        OR r.user_id LIKE ? ESCAPE '\\' \
+        OR COALESCE(u.user_name, '') LIKE ? ESCAPE '\\' \
+        OR COALESCE(u.display_name, '') LIKE ? ESCAPE '\\') \
+    AND (? IS NULL OR r.resolved = ?)";
 
 /// A report to insert into storage.
 #[derive(Debug, Clone, Copy)]
@@ -47,6 +60,16 @@ pub struct ResolveOutcome {
     pub changed: bool,
 }
 
+/// A report removed from storage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DeletedReport {
+    /// Deleted report ID.
+    pub id: i64,
+    /// Deleted report title.
+    pub title: String,
+}
+
 /// Queries for bug reports.
 #[derive(Clone)]
 pub struct ReportRepository {
@@ -59,11 +82,12 @@ impl ReportRepository {
     }
 
     /// Insert a report and return it with its generated ID, timestamp, and
-    /// default unresolved state.
+    /// default unresolved state. Reporter fields are `None` on the returned
+    /// value; read the report back to resolve them from tracked users.
     pub async fn create_report(&self, report: &NewReport<'_>) -> Result<Report, StoreError> {
         let sql = format!(
             "INSERT INTO reports (user_id, title, steps, details) \
-             VALUES (?, ?, ?, ?) RETURNING {REPORT_COLUMNS}"
+             VALUES (?, ?, ?, ?) RETURNING {REPORT_RETURNING}"
         );
 
         let row = sqlx::query_as::<_, ReportRow>(&sql)
@@ -78,31 +102,36 @@ impl ReportRepository {
     }
 
     /// List reports newest first, optionally filtered by a case-insensitive
-    /// substring of the title, steps, details, or reporter ID.
+    /// substring of the title, steps, details, or reporter, and by resolved state.
     pub async fn list_reports(
         &self,
         page: u32,
         page_limit: u32,
         search: Option<&str>,
+        resolved: Option<bool>,
     ) -> Result<ReportList, StoreError> {
         let search = search.map(str::trim).filter(|value| !value.is_empty());
         let search = search.unwrap_or_default();
         let pattern = format!("%{}%", escape_like(search));
         let (limit, offset) = page_offset(page, page_limit);
 
-        let count_sql = format!("SELECT COUNT(*) FROM reports WHERE {FILTER}");
+        let count_sql = format!("SELECT COUNT(*) FROM {REPORT_JOIN} WHERE {FILTER}");
         let total: i64 = sqlx::query_scalar(&count_sql)
             .bind(search)
             .bind(&pattern)
             .bind(&pattern)
             .bind(&pattern)
             .bind(&pattern)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(resolved)
+            .bind(resolved)
             .fetch_one(self.db.pool())
             .await?;
 
         let list_sql = format!(
-            "SELECT {REPORT_COLUMNS} FROM reports WHERE {FILTER} \
-             ORDER BY id DESC LIMIT ? OFFSET ?"
+            "SELECT {REPORT_COLUMNS} FROM {REPORT_JOIN} WHERE {FILTER} \
+             ORDER BY r.id DESC LIMIT ? OFFSET ?"
         );
         let rows = sqlx::query_as::<_, ReportRow>(&list_sql)
             .bind(search)
@@ -110,6 +139,10 @@ impl ReportRepository {
             .bind(&pattern)
             .bind(&pattern)
             .bind(&pattern)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(resolved)
+            .bind(resolved)
             .bind(limit)
             .bind(offset)
             .fetch_all(self.db.pool())
@@ -143,47 +176,41 @@ impl ReportRepository {
         id: i64,
         resolved: bool,
     ) -> Result<Option<ResolveOutcome>, StoreError> {
-        let sql = format!(
-            "UPDATE reports SET resolved = ? WHERE id = ? AND resolved <> ? \
-             RETURNING {REPORT_COLUMNS}"
-        );
-
-        let row = sqlx::query_as::<_, ReportRow>(&sql)
+        let mut tx = self.db.begin().await?;
+        let result = sqlx::query("UPDATE reports SET resolved = ? WHERE id = ? AND resolved <> ?")
             .bind(resolved)
             .bind(id)
             .bind(resolved)
-            .fetch_optional(self.db.pool())
+            .execute(&mut *tx)
             .await?;
-
-        if let Some(row) = row {
-            return Ok(Some(ResolveOutcome {
-                report: row.into(),
-                changed: true,
-            }));
-        }
-
         let row = sqlx::query_as::<_, ReportRow>(&format!(
-            "SELECT {REPORT_COLUMNS} FROM reports WHERE id = ?"
+            "SELECT {REPORT_COLUMNS} FROM {REPORT_JOIN} WHERE r.id = ?"
         ))
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        tx.commit().await?;
+
+        let Some(report) = row.map(Report::from) else {
+            return Ok(None);
+        };
+
+        Ok(Some(ResolveOutcome {
+            report,
+            changed: result.rows_affected() > 0,
+        }))
+    }
+
+    /// Delete a report, returning the deleted ID and title when it existed.
+    pub async fn delete_report(&self, id: i64) -> Result<Option<DeletedReport>, StoreError> {
+        let row = sqlx::query_as::<_, (i64, String)>(
+            "DELETE FROM reports WHERE id = ? RETURNING id, title",
+        )
         .bind(id)
         .fetch_optional(self.db.pool())
         .await?;
 
-        Ok(row.map(|row| ResolveOutcome {
-            report: row.into(),
-            changed: false,
-        }))
-    }
-
-    /// Delete a report, returning the deleted row when it existed.
-    pub async fn delete_report(&self, id: i64) -> Result<Option<Report>, StoreError> {
-        let sql = format!("DELETE FROM reports WHERE id = ? RETURNING {REPORT_COLUMNS}");
-        let row = sqlx::query_as::<_, ReportRow>(&sql)
-            .bind(id)
-            .fetch_optional(self.db.pool())
-            .await?;
-
-        Ok(row.map(Report::from))
+        Ok(row.map(|(id, title)| DeletedReport { id, title }))
     }
 }
 
@@ -191,6 +218,9 @@ impl ReportRepository {
 struct ReportRow {
     id: i64,
     user_id: String,
+    user_name: Option<String>,
+    display_name: Option<String>,
+    avatar_url: Option<String>,
     title: String,
     steps: String,
     details: String,
@@ -203,6 +233,9 @@ impl From<ReportRow> for Report {
         Self::new(
             row.id,
             row.user_id,
+            row.user_name,
+            row.display_name,
+            row.avatar_url,
             row.title,
             row.steps,
             row.details,
@@ -222,6 +255,75 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reporters_are_resolved_from_tracked_users() -> Result<(), StoreError> {
+        let database = crate::memory().await;
+        database
+            .users()
+            .join(
+                "42",
+                "alice",
+                "Alice",
+                false,
+                Some("https://cdn.example/avatar.png"),
+            )
+            .await?;
+        let reports = database.reports();
+
+        reports.create_report(&report("Tracked", "42")).await?;
+        reports.create_report(&report("Untracked", "99")).await?;
+
+        let page = reports.list_reports(1, 20, None, None).await?;
+        let tracked = page.reports.iter().find(|report| report.user_id == "42");
+        assert_eq!(
+            tracked.and_then(|report| report.user_name.as_deref()),
+            Some("alice")
+        );
+        assert_eq!(
+            tracked.and_then(|report| report.display_name.as_deref()),
+            Some("Alice")
+        );
+        assert_eq!(
+            tracked.and_then(|report| report.avatar_url.as_deref()),
+            Some("https://cdn.example/avatar.png")
+        );
+
+        let untracked = page.reports.iter().find(|report| report.user_id == "99");
+        assert!(untracked.is_some());
+        assert_eq!(
+            untracked.and_then(|report| report.user_name.as_deref()),
+            None
+        );
+        assert_eq!(
+            untracked.and_then(|report| report.display_name.as_deref()),
+            None
+        );
+        assert_eq!(
+            untracked.and_then(|report| report.avatar_url.as_deref()),
+            None
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn resolved_filter_narrows_the_list() -> Result<(), StoreError> {
+        let reports = crate::memory().await.reports();
+        let first = reports.create_report(&report("First", "1")).await?;
+        reports.create_report(&report("Second", "2")).await?;
+        reports.set_resolved(first.id, true).await?;
+
+        let resolved = reports.list_reports(1, 20, None, Some(true)).await?;
+        let open = reports.list_reports(1, 20, None, Some(false)).await?;
+        let all = reports.list_reports(1, 20, None, None).await?;
+
+        assert_eq!(resolved.total, 1);
+        assert_eq!(resolved.reports[0].title, "First");
+        assert_eq!(open.total, 1);
+        assert_eq!(open.reports[0].title, "Second");
+        assert_eq!(all.total, 2);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn created_reports_are_unresolved_and_listed_newest_first() -> Result<(), StoreError> {
         let reports = crate::memory().await.reports();
 
@@ -232,7 +334,7 @@ mod tests {
         assert!(!first.created_at.is_empty());
         assert!(second.id > first.id);
 
-        let page = reports.list_reports(1, 20, None).await?;
+        let page = reports.list_reports(1, 20, None, None).await?;
 
         assert_eq!(page.total, 2);
         assert_eq!(page.reports[0].title, "Second");
@@ -248,12 +350,12 @@ mod tests {
             .create_report(&NewReport::new("7", "Unrelated", "clicked login", "crash"))
             .await?;
 
-        let by_title = reports.list_reports(1, 20, Some("login")).await?;
-        let by_user = reports.list_reports(1, 20, Some("42")).await?;
-        let by_details = reports.list_reports(1, 20, Some("crash")).await?;
-        let missing = reports.list_reports(1, 20, Some("absent")).await?;
-        let percent = reports.list_reports(1, 20, Some("%")).await?;
-        let underscore = reports.list_reports(1, 20, Some("_")).await?;
+        let by_title = reports.list_reports(1, 20, Some("login"), None).await?;
+        let by_user = reports.list_reports(1, 20, Some("42"), None).await?;
+        let by_details = reports.list_reports(1, 20, Some("crash"), None).await?;
+        let missing = reports.list_reports(1, 20, Some("absent"), None).await?;
+        let percent = reports.list_reports(1, 20, Some("%"), None).await?;
+        let underscore = reports.list_reports(1, 20, Some("_"), None).await?;
 
         assert_eq!(by_title.total, 2);
         assert_eq!(by_user.total, 1);
@@ -271,7 +373,7 @@ mod tests {
             reports.create_report(&report(title, "1")).await?;
         }
 
-        let page = reports.list_reports(2, 2, None).await?;
+        let page = reports.list_reports(2, 2, None, None).await?;
 
         assert_eq!(page.total, 3);
         assert_eq!(page.page, 2);
@@ -331,7 +433,7 @@ mod tests {
 
         assert!(reports.delete_report(report.id).await?.is_some());
         assert!(reports.delete_report(report.id).await?.is_none());
-        assert_eq!(reports.list_reports(1, 20, None).await?.total, 0);
+        assert_eq!(reports.list_reports(1, 20, None, None).await?.total, 0);
         Ok(())
     }
 }

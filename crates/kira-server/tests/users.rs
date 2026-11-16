@@ -47,10 +47,10 @@ async fn users_are_listed_searched_filtered_and_paginated() -> Result<(), Box<dy
     let cookie = common::login_cookie(&state).await?;
     let users = database.users();
 
-    users.join("1", "alice", "Alice", false).await?;
-    users.join("2", "bob", "Bobby", false).await?;
-    users.join("3", "kira", "Kira", true).await?;
-    users.leave("2", "bob", "Bobby", false).await?;
+    users.join("1", "alice", "Alice", false, None).await?;
+    users.join("2", "bob", "Bobby", false, None).await?;
+    users.join("3", "kira", "Kira", true, None).await?;
+    users.leave("2", "bob", "Bobby", false, None).await?;
 
     let page = list(&state, "/guild/users?page=1&page_limit=1", &cookie).await?;
     assert_eq!(page.total, 3);
@@ -89,10 +89,10 @@ async fn user_stats_count_active_and_left_members() -> Result<(), Box<dyn Error>
     let cookie = common::login_cookie(&state).await?;
     let users = database.users();
 
-    users.join("1", "alice", "Alice", false).await?;
-    users.join("2", "bob", "Bobby", false).await?;
-    users.join("3", "kira", "Kira", true).await?;
-    users.leave("2", "bob", "Bobby", false).await?;
+    users.join("1", "alice", "Alice", false, None).await?;
+    users.join("2", "bob", "Bobby", false, None).await?;
+    users.join("3", "kira", "Kira", true, None).await?;
+    users.leave("2", "bob", "Bobby", false, None).await?;
 
     let response = router(state)
         .oneshot(common::with_cookie(

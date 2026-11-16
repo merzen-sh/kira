@@ -70,6 +70,7 @@ pub(crate) async fn reconcile(
                 &member.user.name,
             );
             let joined_at = member.joined_at.as_ref().and_then(Timestamp::to_rfc3339);
+            let avatar_url = member.user.face();
 
             users
                 .import_member(
@@ -77,6 +78,7 @@ pub(crate) async fn reconcile(
                     &member.user.name,
                     &display_name,
                     member.user.bot,
+                    Some(&avatar_url),
                     joined_at.as_deref(),
                     &snapshot,
                 )
@@ -130,9 +132,10 @@ async fn sync_batches<S: MemberSource>(
                 FetchOutcome::Found {
                     user_name,
                     display_name,
+                    avatar_url,
                 } => {
                     users
-                        .record_sync(&user_id, &user_name, &display_name)
+                        .record_sync(&user_id, &user_name, &display_name, Some(&avatar_url))
                         .await?;
                 }
                 FetchOutcome::Missing => {
@@ -154,6 +157,7 @@ enum FetchOutcome {
     Found {
         user_name: String,
         display_name: String,
+        avatar_url: String,
     },
     Missing,
     Failed,
@@ -191,6 +195,7 @@ async fn fetch_member(http: &Http, guild_id: GuildId, user_id: &str) -> FetchOut
                 return FetchOutcome::Found {
                     user_name: user.name.clone(),
                     display_name,
+                    avatar_url: user.face(),
                 };
             }
             Err(serenity::Error::Http(error))
@@ -236,6 +241,7 @@ mod tests {
                 FetchOutcome::Found {
                     user_name: format!("user{user_id}"),
                     display_name: format!("User {user_id}"),
+                    avatar_url: format!("https://cdn.example/avatar{user_id}.png"),
                 }
             }
         }
@@ -245,9 +251,9 @@ mod tests {
     async fn a_pass_attempts_every_due_user_and_resets_the_checkpoint() -> Result<(), StoreError> {
         let database = kira_store::Database::connect("sqlite::memory:").await?;
         let users = database.users();
-        users.join("1", "a", "A", false).await?;
-        users.join("2", "b", "B", false).await?;
-        users.join("3", "c", "C", false).await?;
+        users.join("1", "a", "A", false, None).await?;
+        users.join("2", "b", "B", false, None).await?;
+        users.join("3", "c", "C", false, None).await?;
 
         let source = FakeSource {
             calls: RefCell::new(Vec::new()),
@@ -268,8 +274,8 @@ mod tests {
     async fn bot_accounts_are_synced_and_flagged() -> Result<(), StoreError> {
         let database = kira_store::Database::connect("sqlite::memory:").await?;
         let users = database.users();
-        users.join("1", "kira", "Kira", true).await?;
-        users.join("2", "alice", "Alice", false).await?;
+        users.join("1", "kira", "Kira", true, None).await?;
+        users.join("2", "alice", "Alice", false, None).await?;
 
         let source = FakeSource {
             calls: RefCell::new(Vec::new()),

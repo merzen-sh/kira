@@ -11,6 +11,12 @@ pub struct Report {
     pub id: i64,
     /// Discord user ID of the reporter.
     pub user_id: String,
+    /// Reporter username resolved from the tracked guild user, when available.
+    pub user_name: Option<String>,
+    /// Reporter display name resolved from the tracked guild user, when available.
+    pub display_name: Option<String>,
+    /// Reporter avatar URL resolved from the tracked guild user, when available.
+    pub avatar_url: Option<String>,
     /// Short description of what is broken.
     pub title: String,
     /// Steps the reporter took to reproduce the problem.
@@ -26,9 +32,16 @@ pub struct Report {
 impl Report {
     /// Build a report with every field populated.
     #[must_use]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "a report row maps one-to-one onto these fields"
+    )]
     pub fn new(
         id: i64,
         user_id: impl Into<String>,
+        user_name: Option<String>,
+        display_name: Option<String>,
+        avatar_url: Option<String>,
         title: impl Into<String>,
         steps: impl Into<String>,
         details: impl Into<String>,
@@ -38,6 +51,9 @@ impl Report {
         Self {
             id,
             user_id: user_id.into(),
+            user_name,
+            display_name,
+            avatar_url,
             title: title.into(),
             steps: steps.into(),
             details: details.into(),
@@ -53,7 +69,7 @@ impl Report {
 pub struct ReportList {
     /// Reports on this page, newest first.
     pub reports: Vec<Report>,
-    /// Total number of reports matching the search.
+    /// Total number of reports matching the filters.
     pub total: u64,
     /// Page number, starting at 1.
     pub page: u32,

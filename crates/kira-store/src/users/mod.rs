@@ -37,26 +37,29 @@ impl UserRepository {
         user_name: &str,
         display_name: &str,
         is_bot: bool,
+        avatar_url: Option<&str>,
     ) -> Result<(), StoreError> {
         let mut tx = self.db.begin().await?;
 
         let sql = format!(
             "INSERT INTO guild_users \
-                (user_id, user_name, display_name, status, join_at, leave_at, is_bot) \
-             VALUES (?, ?, ?, 'active', {NOW}, NULL, ?) \
+                (user_id, user_name, display_name, status, join_at, leave_at, is_bot, avatar_url) \
+             VALUES (?, ?, ?, 'active', {NOW}, NULL, ?, ?) \
              ON CONFLICT(user_id) DO UPDATE SET \
                 user_name = excluded.user_name, \
                 display_name = excluded.display_name, \
                 status = 'active', \
                 join_at = excluded.join_at, \
                 leave_at = NULL, \
-                is_bot = excluded.is_bot"
+                is_bot = excluded.is_bot, \
+                avatar_url = COALESCE(excluded.avatar_url, guild_users.avatar_url)"
         );
         sqlx::query(&sql)
             .bind(user_id)
             .bind(user_name)
             .bind(display_name)
             .bind(is_bot)
+            .bind(avatar_url)
             .execute(&mut *tx)
             .await?;
 
@@ -73,25 +76,28 @@ impl UserRepository {
         user_name: &str,
         display_name: &str,
         is_bot: bool,
+        avatar_url: Option<&str>,
     ) -> Result<(), StoreError> {
         let mut tx = self.db.begin().await?;
 
         let sql = format!(
             "INSERT INTO guild_users \
-                (user_id, user_name, display_name, status, join_at, leave_at, is_bot) \
-             VALUES (?, ?, ?, 'left', {NOW}, {NOW}, ?) \
+                (user_id, user_name, display_name, status, join_at, leave_at, is_bot, avatar_url) \
+             VALUES (?, ?, ?, 'left', {NOW}, {NOW}, ?, ?) \
              ON CONFLICT(user_id) DO UPDATE SET \
                 user_name = excluded.user_name, \
                 display_name = excluded.display_name, \
                 status = 'left', \
                 leave_at = excluded.leave_at, \
-                is_bot = excluded.is_bot"
+                is_bot = excluded.is_bot, \
+                avatar_url = COALESCE(excluded.avatar_url, guild_users.avatar_url)"
         );
         sqlx::query(&sql)
             .bind(user_id)
             .bind(user_name)
             .bind(display_name)
             .bind(is_bot)
+            .bind(avatar_url)
             .execute(&mut *tx)
             .await?;
 
@@ -107,12 +113,17 @@ impl UserRepository {
     /// Join event. Users who rejoined while the bot was offline are reactivated
     /// and get a Join event. `snapshot` guards against a leave that was handled
     /// after the reconciliation snapshot was taken.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the arguments mirror the imported member fields"
+    )]
     pub async fn import_member(
         &self,
         user_id: &str,
         user_name: &str,
         display_name: &str,
         is_bot: bool,
+        avatar_url: Option<&str>,
         joined_at: Option<&str>,
         snapshot: &str,
     ) -> Result<(), StoreError> {
@@ -128,8 +139,8 @@ impl UserRepository {
             None => {
                 let sql = format!(
                     "INSERT INTO guild_users \
-                        (user_id, user_name, display_name, status, join_at, leave_at, is_bot) \
-                     VALUES (?, ?, ?, 'active', COALESCE(?, {NOW}), NULL, ?)"
+                        (user_id, user_name, display_name, status, join_at, leave_at, is_bot, avatar_url) \
+                     VALUES (?, ?, ?, 'active', COALESCE(?, {NOW}), NULL, ?, ?)"
                 );
                 sqlx::query(&sql)
                     .bind(user_id)
@@ -137,6 +148,7 @@ impl UserRepository {
                     .bind(display_name)
                     .bind(joined_at)
                     .bind(is_bot)
+                    .bind(avatar_url)
                     .execute(&mut *tx)
                     .await?;
                 insert_event(&mut tx, user_id, "join").await?;
@@ -147,11 +159,16 @@ impl UserRepository {
                     .is_some_and(|left_at| left_at >= snapshot)
                 {
                     // A leave arrived after the snapshot; the member page is stale.
-                    sqlx::query("UPDATE guild_users SET is_bot = ? WHERE user_id = ?")
-                        .bind(is_bot)
-                        .bind(user_id)
-                        .execute(&mut *tx)
-                        .await?;
+                    sqlx::query(
+                        "UPDATE guild_users \
+                         SET is_bot = ?, avatar_url = COALESCE(?, avatar_url) \
+                         WHERE user_id = ?",
+                    )
+                    .bind(is_bot)
+                    .bind(avatar_url)
+                    .bind(user_id)
+                    .execute(&mut *tx)
+                    .await?;
                     tx.commit().await?;
                     return Ok(());
                 }
@@ -159,7 +176,8 @@ impl UserRepository {
                 let sql = format!(
                     "UPDATE guild_users \
                      SET user_name = ?, display_name = ?, status = 'active', \
-                         join_at = COALESCE(?, {NOW}), leave_at = NULL, is_bot = ? \
+                         join_at = COALESCE(?, {NOW}), leave_at = NULL, is_bot = ?, \
+                         avatar_url = COALESCE(?, avatar_url) \
                      WHERE user_id = ?"
                 );
                 sqlx::query(&sql)
@@ -167,6 +185,7 @@ impl UserRepository {
                     .bind(display_name)
                     .bind(joined_at)
                     .bind(is_bot)
+                    .bind(avatar_url)
                     .bind(user_id)
                     .execute(&mut *tx)
                     .await?;
@@ -174,12 +193,15 @@ impl UserRepository {
             }
             Some(_) => {
                 sqlx::query(
-                    "UPDATE guild_users SET user_name = ?, display_name = ?, is_bot = ? \
+                    "UPDATE guild_users \
+                     SET user_name = ?, display_name = ?, is_bot = ?, \
+                         avatar_url = COALESCE(?, avatar_url) \
                      WHERE user_id = ? AND status = 'active'",
                 )
                 .bind(user_name)
                 .bind(display_name)
                 .bind(is_bot)
+                .bind(avatar_url)
                 .bind(user_id)
                 .execute(&mut *tx)
                 .await?;
