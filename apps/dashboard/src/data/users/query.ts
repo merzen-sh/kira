@@ -9,6 +9,7 @@ export async function listUsers({
   pageLimit,
   search,
   status,
+  kind,
 }: UserListParams) {
   try {
     return await unwrap(
@@ -19,6 +20,7 @@ export async function listUsers({
             page_limit: pageLimit,
             search: search || undefined,
             status: status || undefined,
+            kind: kind || undefined,
           },
         },
       }),
