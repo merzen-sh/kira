@@ -10,11 +10,10 @@ use serenity::model::application::{Command, CommandInteraction, ModalInteraction
 use serenity::model::id::GuildId;
 use serenity::prelude::Context;
 
+use crate::errors::BotError;
+
 /// Register the bot's slash commands in `guild_id`, or globally when unset.
-pub(crate) async fn register(
-    ctx: &Context,
-    guild_id: Option<u64>,
-) -> Result<(), Box<serenity::Error>> {
+pub(crate) async fn register(ctx: &Context, guild_id: Option<u64>) -> Result<(), BotError> {
     let commands: Vec<CreateCommand> = vec![ping::command(), report::command()];
 
     match guild_id {
@@ -32,10 +31,7 @@ pub(crate) async fn register(
 }
 
 /// Answer a command interaction, ignoring commands this bot does not own.
-pub(crate) async fn handle(
-    ctx: &Context,
-    command: &CommandInteraction,
-) -> Result<(), Box<serenity::Error>> {
+pub(crate) async fn handle(ctx: &Context, command: &CommandInteraction) -> Result<(), BotError> {
     match command.data.name.as_str() {
         ping::NAME => ping::respond(ctx, command).await,
         report::NAME => report::open(ctx, command).await,
@@ -44,10 +40,7 @@ pub(crate) async fn handle(
 }
 
 /// Handle a submitted modal, ignoring modals this bot does not own.
-pub(crate) async fn handle_modal(
-    ctx: &Context,
-    modal: &ModalInteraction,
-) -> Result<(), Box<serenity::Error>> {
+pub(crate) async fn handle_modal(ctx: &Context, modal: &ModalInteraction) -> Result<(), BotError> {
     match modal.data.custom_id.as_str() {
         report::MODAL_ID => report::submit(ctx, modal).await,
         _ => Ok(()),

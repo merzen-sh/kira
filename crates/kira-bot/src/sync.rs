@@ -1,7 +1,6 @@
 //! Guild member reconciliation and periodic metadata refresh.
 
 use std::collections::HashSet;
-use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -11,6 +10,7 @@ use serenity::http::{Http, StatusCode};
 use serenity::model::Timestamp;
 use serenity::model::id::{GuildId, UserId};
 
+use crate::errors::BotError;
 use crate::members;
 
 /// How often the worker looks for users due for a refresh.
@@ -34,8 +34,8 @@ pub(crate) async fn run(http: Arc<Http>, guild_id: GuildId, users: UserRepositor
 
     loop {
         match sync_once(&users, &source).await {
-            Ok(()) => tracing::debug!("Guild user metadata sync finished."),
-            Err(error) => tracing::error!("Guild user metadata sync failed: {error:?}"),
+            Ok(()) => tracing::debug!("guild user metadata sync finished"),
+            Err(error) => tracing::error!(error = ?error, "guild user metadata sync failed"),
         }
 
         tokio::time::sleep(SYNC_INTERVAL).await;
@@ -51,14 +51,14 @@ pub(crate) async fn reconcile(
     http: Arc<Http>,
     guild_id: GuildId,
     users: &UserRepository,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+) -> Result<(), BotError> {
     let snapshot = users.snapshot_time().await?;
     let mut after = None;
     let mut seen = HashSet::new();
 
     loop {
         let members = guild_id.members(&http, Some(RECONCILE_PAGE), after).await?;
-        let fetched = members.len();
+        let fetched = u64::try_from(members.len()).unwrap_or(u64::MAX);
 
         for member in members {
             let id = member.user.id;
@@ -76,7 +76,7 @@ pub(crate) async fn reconcile(
                 .import_member(
                     &id.to_string(),
                     &member.user.name,
-                    &display_name,
+                    display_name,
                     member.user.bot,
                     Some(&avatar_url),
                     joined_at.as_deref(),
@@ -86,7 +86,7 @@ pub(crate) async fn reconcile(
             seen.insert(id.to_string());
         }
 
-        if fetched < RECONCILE_PAGE as usize {
+        if fetched < RECONCILE_PAGE {
             break;
         }
     }
@@ -110,7 +110,9 @@ async fn sync_once<S: MemberSource>(users: &UserRepository, source: &S) -> Resul
     match sync_batches(users, source, &mut cursor).await {
         Ok(()) => users.finish_sync().await,
         Err(error) => {
-            let _ = users.release_sync().await;
+            if let Err(release_error) = users.release_sync().await {
+                tracing::warn!(error = ?release_error, "failed to release the sync lock");
+            }
             Err(error)
         }
     }
@@ -180,7 +182,7 @@ impl MemberSource for DiscordMembers {
 
 async fn fetch_member(http: &Http, guild_id: GuildId, user_id: &str) -> FetchOutcome {
     let Ok(id) = user_id.parse::<u64>() else {
-        tracing::warn!("Skipping guild user with invalid ID: {user_id}");
+        tracing::warn!(%user_id, "skipping guild user with invalid id");
         return FetchOutcome::Missing;
     };
 
@@ -188,10 +190,12 @@ async fn fetch_member(http: &Http, guild_id: GuildId, user_id: &str) -> FetchOut
         match guild_id.member(http, UserId::new(id)).await {
             Ok(member) => {
                 let user = &member.user;
-                let display_name = member
-                    .nick
-                    .or_else(|| user.global_name.clone())
-                    .unwrap_or_else(|| user.name.clone());
+                let display_name = members::display_name(
+                    member.nick.as_deref(),
+                    user.global_name.as_deref(),
+                    &user.name,
+                )
+                .to_owned();
                 return FetchOutcome::Found {
                     user_name: user.name.clone(),
                     display_name,
@@ -205,11 +209,11 @@ async fn fetch_member(http: &Http, guild_id: GuildId, user_id: &str) -> FetchOut
                 return FetchOutcome::Missing;
             }
             Err(error) if attempt < MAX_ATTEMPTS => {
-                tracing::warn!("Fetching guild user {user_id} failed (attempt {attempt}): {error}");
+                tracing::warn!(%user_id, attempt, error = %error, "fetching guild user failed");
                 tokio::time::sleep(RETRY_DELAY).await;
             }
             Err(error) => {
-                tracing::error!("Fetching guild user {user_id} failed: {error}");
+                tracing::error!(%user_id, error = %error, "fetching guild user failed");
                 return FetchOutcome::Failed;
             }
         }
