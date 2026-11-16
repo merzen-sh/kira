@@ -97,7 +97,7 @@ export interface paths {
             cookie?: never;
         };
         /** Return the configured Discord server's details. */
-        get: operations["get_guild"];
+        get: operations["guild"];
         put?: never;
         post?: never;
         delete?: never;
@@ -114,7 +114,7 @@ export interface paths {
             cookie?: never;
         };
         /** Return the configured Discord server's channels. */
-        get: operations["get_guild_channels"];
+        get: operations["guild_channels"];
         put?: never;
         post?: never;
         delete?: never;
@@ -804,7 +804,7 @@ export interface operations {
             };
         };
     };
-    get_guild: {
+    guild: {
         parameters: {
             query?: never;
             header?: never;
@@ -847,7 +847,7 @@ export interface operations {
             };
         };
     };
-    get_guild_channels: {
+    guild_channels: {
         parameters: {
             query?: never;
             header?: never;
