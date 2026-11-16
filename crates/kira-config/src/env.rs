@@ -8,6 +8,10 @@ use crate::ConfigError;
 ///
 /// A missing `.env` is expected: deployments may inject variables directly.
 /// Other failures (permissions, malformed lines) are returned to the caller.
+///
+/// # Errors
+///
+/// Returns an error when the file exists but cannot be read or parsed.
 pub fn load_env() -> Result<(), ConfigError> {
     match dotenvy::dotenv() {
         Ok(_) => Ok(()),

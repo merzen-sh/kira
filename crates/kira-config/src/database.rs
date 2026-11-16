@@ -16,11 +16,20 @@ pub struct DatabaseConfig {
 
 impl DatabaseConfig {
     /// Load SQLite storage configuration from the process environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `.env` cannot be loaded or a `KIRA_*` variable has
+    /// the wrong shape.
     pub fn from_env() -> Result<Self, ConfigError> {
         env::from_env("KIRA_")
     }
 
     /// Parse SQLite storage configuration from environment entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a variable has the wrong shape.
     pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,

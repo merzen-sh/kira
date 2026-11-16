@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use axum::http::{HeaderMap, HeaderValue, header};
 use kira_config::{SameSite, ServerConfig};
+use kira_core::secret::SecretString;
 use ring::digest::{SHA256, digest};
 use ring::hmac;
 use ring::rand::{SecureRandom, SystemRandom};
@@ -30,9 +31,10 @@ pub const SESSION_TTL: Duration = Duration::from_secs(12 * 60 * 60);
 
 /// Authentication settings for the server.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct AuthConfig {
     /// Configured PIN or password. Generated when absent.
-    pub password: Option<String>,
+    pub password: Option<SecretString>,
     /// Exact dashboard origins allowed to call the API.
     pub allowed_origins: Vec<String>,
     /// Set the `Secure` cookie attribute.
@@ -57,19 +59,25 @@ impl AuthConfig {
     #[must_use]
     pub fn with_password(password: impl Into<String>) -> Self {
         Self {
-            password: Some(password.into()),
+            password: Some(SecretString::new(password)),
             ..Self::default()
         }
     }
 
     /// Resolve authentication settings from the server configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the origin allowlist is malformed, a non-loopback
+    /// dashboard has no explicit origins, or `SameSite=None` lacks `Secure`.
     pub fn from_server_config(config: &ServerConfig) -> Result<Self, ServerError> {
         let password = config
             .password
-            .as_deref()
+            .as_ref()
+            .map(SecretString::expose)
             .map(str::trim)
             .filter(|pin| !pin.is_empty())
-            .map(str::to_owned);
+            .map(SecretString::new);
 
         let allowed_origins = match config.allowed_origins.as_deref() {
             Some(value) => parse_origins(value)?,
@@ -113,12 +121,16 @@ struct Inner {
 
 impl Auth {
     /// Build authentication state, generating a PIN and signing key when needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the operating system cannot provide random bytes.
     pub fn new(config: AuthConfig) -> Result<Self, ServerError> {
         let (pin, generated_pin) = match config.password {
             Some(pin) => (pin, None),
             None => {
                 let pin = generate_pin()?;
-                (pin.clone(), Some(pin))
+                (SecretString::new(pin.clone()), Some(pin))
             }
         };
 
@@ -129,7 +141,7 @@ impl Auth {
 
         Ok(Self {
             inner: Arc::new(Inner {
-                pin: digest(&SHA256, pin.as_bytes()),
+                pin: digest(&SHA256, pin.expose().as_bytes()),
                 key: hmac::Key::new(hmac::HMAC_SHA256, &key_bytes),
                 epoch: Instant::now(),
                 generated_pin,
@@ -214,18 +226,26 @@ impl Auth {
     }
 
     /// Check a PIN, returning a session cookie header on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LoginError::InvalidPin`] when the PIN does not match, or
+    /// [`LoginError::TooManyAttempts`] while the caller is rate limited.
     pub fn login(&self, pin: &str, peer: Option<IpAddr>) -> Result<HeaderValue, LoginError> {
         let now = Instant::now();
-        self.limiter().check(peer, now)?;
+        // Check and record under one lock so a concurrent burst cannot all
+        // pass the limit before any failure is counted.
+        let mut limiter = self.limiter();
+        limiter.check(peer, now)?;
 
         let candidate = digest(&SHA256, pin.as_bytes());
         let matches: bool = candidate.as_ref().ct_eq(self.inner.pin.as_ref()).into();
 
         if matches {
-            self.limiter().reset(peer);
+            limiter.reset(peer);
             Ok(self.session_cookie())
         } else {
-            self.limiter().record_failure(peer, now);
+            limiter.record_failure(peer, now);
             Err(LoginError::InvalidPin)
         }
     }

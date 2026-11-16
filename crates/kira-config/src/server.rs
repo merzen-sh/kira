@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 
+use kira_core::secret::SecretString;
 use serde::Deserialize;
 
 use crate::ConfigError;
@@ -20,9 +21,10 @@ pub struct ServerConfig {
 
     /// Dashboard PIN or password (`KIRA_PASSWORD`).
     ///
-    /// When unset, the server generates one at startup and prints it.
+    /// When unset, the server generates one at startup and prints it. The value
+    /// is redacted from `Debug` output.
     #[serde(default)]
-    pub password: Option<String>,
+    pub password: Option<SecretString>,
 
     /// Comma-separated dashboard origins allowed to call the API
     /// (`KIRA_ALLOWED_ORIGINS`).
@@ -56,11 +58,21 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     /// Load server configuration from the process environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `.env` cannot be loaded, `KIRA_GUILD_ID` is
+    /// missing, or another `KIRA_*` variable has the wrong shape.
     pub fn from_env() -> Result<Self, ConfigError> {
         env::from_env("KIRA_")
     }
 
     /// Parse server configuration from an iterator of environment entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `KIRA_GUILD_ID` is missing or another variable
+    /// has the wrong shape.
     pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
@@ -153,7 +165,10 @@ mod tests {
             ("KIRA_COOKIE_SAMESITE", "strict"),
         ])?;
 
-        assert_eq!(c.password.as_deref(), Some("secret"));
+        assert_eq!(
+            c.password.as_ref().map(SecretString::expose),
+            Some("secret")
+        );
         assert_eq!(c.allowed_origins.as_deref(), Some("http://127.0.0.1:3000"));
         assert!(c.cookie_secure);
         assert!(c.https);
@@ -166,7 +181,7 @@ mod tests {
     fn server_config_defaults_cookie_settings() -> Result<(), ConfigError> {
         let c = ServerConfig::try_from_iter([("KIRA_GUILD_ID", "1")])?;
 
-        assert_eq!(c.password, None);
+        assert!(c.password.is_none());
         assert_eq!(c.allowed_origins, None);
         assert!(!c.cookie_secure);
         assert!(!c.https);

@@ -19,11 +19,20 @@ pub struct CliConfig {
 
 impl CliConfig {
     /// Load local dashboard configuration from the process environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `.env` cannot be loaded or `KIRA_CLI_BIND` has the
+    /// wrong shape.
     pub fn from_env() -> Result<Self, ConfigError> {
         env::from_env("KIRA_")
     }
 
     /// Parse local dashboard configuration from environment entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a variable has the wrong shape.
     pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
