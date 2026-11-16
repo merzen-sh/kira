@@ -122,7 +122,7 @@ impl EventHandler for Handler {
 
         if let Err(error) = database
             .users()
-            .join(&user.id.to_string(), &user.name, &display_name)
+            .join(&user.id.to_string(), &user.name, &display_name, user.bot)
             .await
         {
             tracing::error!("Failed to record guild join: {error:?}");
@@ -154,7 +154,7 @@ impl EventHandler for Handler {
 
         if let Err(error) = database
             .users()
-            .leave(&user.id.to_string(), &user.name, &display_name)
+            .leave(&user.id.to_string(), &user.name, &display_name, user.bot)
             .await
         {
             tracing::error!("Failed to record guild leave: {error:?}");

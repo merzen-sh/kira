@@ -33,7 +33,8 @@ The API layer lives in `src/data/`:
   query treats `401` as signed out.
 - Each API domain owns `keys.ts` and `query.ts` (plus `mutation.ts` when
   needed). `health/` is the first domain; `reports/` backs the paginated,
-  searchable bug report table, and `users/` backs the guild user list.
+  searchable bug report table, and `users/` backs the guild member list with
+  separate user and bot types.
   `monitor/` backs the system monitor page and polls every 10 seconds.
 - TanStack Query owns server state. Components consume exported query hooks;
   they do not call `fetch` directly.

@@ -3,6 +3,7 @@ export interface UserListParams {
   pageLimit: number;
   search: string;
   status: string;
+  kind: string;
 }
 
 export const userKeys = {

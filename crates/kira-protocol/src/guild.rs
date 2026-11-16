@@ -95,6 +95,8 @@ pub struct GuildUser {
     pub display_name: String,
     /// Membership status, `active` or `left`.
     pub status: String,
+    /// Whether the account is a Discord bot.
+    pub is_bot: bool,
     /// Time the user most recently joined, as an ISO 8601 timestamp.
     pub join_at: String,
     /// Time the user most recently left, as an ISO 8601 timestamp.
@@ -109,6 +111,7 @@ impl GuildUser {
         user_name: impl Into<String>,
         display_name: impl Into<String>,
         status: impl Into<String>,
+        is_bot: bool,
         join_at: impl Into<String>,
         leave_at: Option<String>,
     ) -> Self {
@@ -117,6 +120,7 @@ impl GuildUser {
             user_name: user_name.into(),
             display_name: display_name.into(),
             status: status.into(),
+            is_bot,
             join_at: join_at.into(),
             leave_at,
         }
@@ -154,22 +158,25 @@ impl GuildUserList {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]
 pub struct GuildUserStats {
-    /// Total number of tracked users.
+    /// Total number of tracked human users.
     pub total: u64,
-    /// Number of users currently in the guild.
+    /// Number of human users currently in the guild.
     pub active: u64,
-    /// Number of users who left the guild.
+    /// Number of human users who left the guild.
     pub left: u64,
+    /// Number of tracked bot accounts.
+    pub bots: u64,
 }
 
 impl GuildUserStats {
-    /// Build stats from the total and active counts.
+    /// Build stats from the human total, active count, and bot count.
     #[must_use]
-    pub fn new(total: u64, active: u64) -> Self {
+    pub fn new(total: u64, active: u64, bots: u64) -> Self {
         Self {
             total,
             active,
             left: total.saturating_sub(active),
+            bots,
         }
     }
 }

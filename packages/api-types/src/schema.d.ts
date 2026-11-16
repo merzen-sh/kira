@@ -284,6 +284,8 @@ export interface components {
         GuildUser: {
             /** @description Guild nickname or global display name. */
             display_name: string;
+            /** @description Whether the account is a Discord bot. */
+            is_bot: boolean;
             /** @description Time the user most recently joined, as an ISO 8601 timestamp. */
             join_at: string;
             /** @description Time the user most recently left, as an ISO 8601 timestamp. */
@@ -319,17 +321,22 @@ export interface components {
         GuildUserStats: {
             /**
              * Format: int64
-             * @description Number of users currently in the guild.
+             * @description Number of human users currently in the guild.
              */
             active: number;
             /**
              * Format: int64
-             * @description Number of users who left the guild.
+             * @description Number of tracked bot accounts.
+             */
+            bots: number;
+            /**
+             * Format: int64
+             * @description Number of human users who left the guild.
              */
             left: number;
             /**
              * Format: int64
-             * @description Total number of tracked users.
+             * @description Total number of tracked human users.
              */
             total: number;
         };
@@ -792,6 +799,8 @@ export interface operations {
                 search?: string;
                 /** @description Membership filter: `active` or `left` */
                 status?: string;
+                /** @description Account filter: `user`, `bot`, or `all` (default `all`) */
+                kind?: string;
             };
             header?: never;
             path?: never;

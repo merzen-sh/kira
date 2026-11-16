@@ -62,6 +62,8 @@ pub(crate) async fn reconcile(
 
         for member in members {
             let id = member.user.id;
+            after = Some(id);
+
             let display_name = members::display_name(
                 member.nick.as_deref(),
                 member.user.global_name.as_deref(),
@@ -74,12 +76,12 @@ pub(crate) async fn reconcile(
                     &id.to_string(),
                     &member.user.name,
                     &display_name,
+                    member.user.bot,
                     joined_at.as_deref(),
                     &snapshot,
                 )
                 .await?;
             seen.insert(id.to_string());
-            after = Some(id);
         }
 
         if fetched < RECONCILE_PAGE as usize {
@@ -243,9 +245,9 @@ mod tests {
     async fn a_pass_attempts_every_due_user_and_resets_the_checkpoint() -> Result<(), StoreError> {
         let database = kira_store::Database::connect("sqlite::memory:").await?;
         let users = database.users();
-        users.join("1", "a", "A").await?;
-        users.join("2", "b", "B").await?;
-        users.join("3", "c", "C").await?;
+        users.join("1", "a", "A", false).await?;
+        users.join("2", "b", "B", false).await?;
+        users.join("3", "c", "C", false).await?;
 
         let source = FakeSource {
             calls: RefCell::new(Vec::new()),
@@ -259,6 +261,32 @@ mod tests {
 
         // `finish_sync` released the lock and cleared the cursor.
         assert_eq!(users.claim_sync().await?, Some(String::new()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn bot_accounts_are_synced_and_flagged() -> Result<(), StoreError> {
+        let database = kira_store::Database::connect("sqlite::memory:").await?;
+        let users = database.users();
+        users.join("1", "kira", "Kira", true).await?;
+        users.join("2", "alice", "Alice", false).await?;
+
+        let source = FakeSource {
+            calls: RefCell::new(Vec::new()),
+            missing: "",
+        };
+
+        sync_once(&users, &source).await?;
+
+        assert_eq!(*source.calls.borrow(), vec!["1", "2"]);
+        let page = users.list(1, 20, None, None, None).await?;
+        assert_eq!(page.total, 2);
+        let bot = page.users.iter().find(|user| user.user_id == "1");
+        assert_eq!(bot.map(|user| user.is_bot), Some(true));
+
+        let bots = users.list(1, 20, None, None, Some(true)).await?;
+        assert_eq!(bots.total, 1);
+        assert_eq!(bots.users[0].user_id, "1");
         Ok(())
     }
 }

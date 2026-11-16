@@ -34,6 +34,12 @@ const STATUS_ITEMS = {
   left: "Left",
 };
 
+const KIND_ITEMS = {
+  all: "All members",
+  user: "Users",
+  bot: "Bots",
+};
+
 function formatDate(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString() : "—";
 }
@@ -43,6 +49,7 @@ function UsersPage() {
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
   const [status, setStatus] = useState("");
+  const [kind, setKind] = useState("all");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -58,6 +65,7 @@ function UsersPage() {
     pageLimit: PAGE_LIMIT,
     search: term,
     status,
+    kind,
   });
   const stats = useUserStatsQuery();
   const users = data?.users ?? [];
@@ -77,10 +85,31 @@ function UsersPage() {
         <div>
           <h1 className="text-xl font-semibold">Users</h1>
           <p className="text-sm text-muted-foreground">
-            Guild members tracked from Discord join and leave events.
+            Guild members and bot accounts tracked from Discord join and leave
+            events.
           </p>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          <Select
+            value={kind}
+            onValueChange={(value) => {
+              setKind(String(value ?? "all"));
+              setPage(1);
+            }}
+            items={KIND_ITEMS}
+          >
+            <SelectTrigger
+              aria-label="Filter by account type"
+              className="w-full sm:w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All members</SelectItem>
+              <SelectItem value="user">Users</SelectItem>
+              <SelectItem value="bot">Bots</SelectItem>
+            </SelectContent>
+          </Select>
           <Select
             value={status || "all"}
             onValueChange={(value) => {
@@ -105,8 +134,8 @@ function UsersPage() {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search users…"
-            aria-label="Search users"
+            placeholder="Search members…"
+            aria-label="Search members"
             className="w-full sm:w-64"
           />
         </div>
@@ -114,7 +143,7 @@ function UsersPage() {
 
       <section
         aria-label="User statistics"
-        className="grid gap-3 sm:grid-cols-3"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
       >
         <StatCard
           label="Total users"
@@ -134,6 +163,12 @@ function UsersPage() {
           pending={stats.isPending}
           error={stats.isError}
         />
+        <StatCard
+          label="Bots"
+          value={stats.data?.bots}
+          pending={stats.isPending}
+          error={stats.isError}
+        />
       </section>
 
       {isError ? (
@@ -148,6 +183,7 @@ function UsersPage() {
             <TableRow>
               <TableHead>Username</TableHead>
               <TableHead>Display name</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead>Left</TableHead>
@@ -156,16 +192,16 @@ function UsersPage() {
           <TableBody>
             {isPending ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  Loading users…
+                <TableCell colSpan={6} className="text-muted-foreground">
+                  Loading members…
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  {term || status
-                    ? "No users match these filters."
-                    : "No users yet."}
+                <TableCell colSpan={6} className="text-muted-foreground">
+                  {term || status || kind !== "all"
+                    ? "No members match these filters."
+                    : "No members yet."}
                 </TableCell>
               </TableRow>
             ) : (
@@ -173,6 +209,11 @@ function UsersPage() {
                 <TableRow key={user.user_id}>
                   <TableCell className="font-medium">{user.user_name}</TableCell>
                   <TableCell>{user.display_name}</TableCell>
+                  <TableCell>
+                    <Badge variant={user.is_bot ? "outline" : "secondary"}>
+                      {user.is_bot ? "Bot" : "User"}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={user.status === "active" ? "default" : "secondary"}
@@ -195,7 +236,7 @@ function UsersPage() {
 
       <footer className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          {total} {total === 1 ? "user" : "users"}
+          {total} {total === 1 ? "member" : "members"}
         </p>
         <div className="flex items-center gap-2">
           <Button

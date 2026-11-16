@@ -18,6 +18,7 @@ pub struct UserListQuery {
     page_limit: Option<u32>,
     search: Option<String>,
     status: Option<String>,
+    kind: Option<String>,
 }
 
 /// List tracked guild users, newest join first.
@@ -30,7 +31,8 @@ pub struct UserListQuery {
         ("page" = Option<u32>, Query, description = "Page number, starting at 1"),
         ("page_limit" = Option<u32>, Query, description = "Users per page, 1-100 (default 20)"),
         ("search" = Option<String>, Query, description = "Case-insensitive substring of the user ID, username, or display name"),
-        ("status" = Option<String>, Query, description = "Membership filter: `active` or `left`")
+        ("status" = Option<String>, Query, description = "Membership filter: `active` or `left`"),
+        ("kind" = Option<String>, Query, description = "Account filter: `user`, `bot`, or `all` (default `all`)")
     ),
     responses(
         (status = 200, body = GuildUserList),
@@ -66,10 +68,28 @@ pub async fn list_guild_users(
             .into_response();
     }
 
+    let kind = query
+        .kind
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let is_bot = match kind {
+        None | Some("all") => None,
+        Some("user") => Some(false),
+        Some("bot") => Some(true),
+        Some(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("kind must be user, bot, or all")),
+            )
+                .into_response();
+        }
+    };
+
     match state
         .database()
         .users()
-        .list(page, page_limit, search, status)
+        .list(page, page_limit, search, status, is_bot)
         .await
     {
         Ok(users) => Json(users).into_response(),
