@@ -17,6 +17,28 @@ async fn wait_flag(mut rx: watch::Receiver<bool>) {
     }
 }
 
+async fn record_started(database: &kira_store::Database) {
+    let actor = kira_protocol::AuditEntity::new("system", None, Some("Kira".to_owned()));
+    let mut metadata = serde_json::Map::new();
+    metadata.insert("version".to_owned(), env!("CARGO_PKG_VERSION").into());
+    let event = kira_store::audit::NewAuditEvent::new(
+        "system.started",
+        kira_protocol::SOURCE_SYSTEM,
+        &actor,
+        None,
+        &metadata,
+    );
+
+    if let Err(error) = database.audit().record(&event).await {
+        tracing::error!(
+            action = event.action,
+            source = event.source,
+            actor_kind = event.actor.kind,
+            "failed to record startup audit event: {error:?}"
+        );
+    }
+}
+
 #[cfg(feature = "server")]
 pub async fn run_all(
     discord: DiscordConfig,
@@ -26,6 +48,7 @@ pub async fn run_all(
     let database = kira_store::Database::connect(&database.url)
         .await
         .context("opening database")?;
+    record_started(&database).await;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, guild_rx) = watch::channel(Vec::new());
     let (channel_tx, channel_rx) = watch::channel(Vec::new());
@@ -93,6 +116,7 @@ pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result
     let database = kira_store::Database::connect(&database.url)
         .await
         .context("opening database")?;
+    record_started(&database).await;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, _guild_rx) = watch::channel(Vec::new());
     let (channel_tx, _channel_rx) = watch::channel(Vec::new());
@@ -133,6 +157,31 @@ pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result
     }
 
     bot_result.context("Discord bot failed")
+}
+
+#[cfg(test)]
+mod system_audit_tests {
+    use super::record_started;
+
+    #[tokio::test]
+    async fn startup_records_a_system_event() -> Result<(), Box<dyn std::error::Error>> {
+        let database = kira_store::Database::connect("sqlite::memory:").await?;
+
+        record_started(&database).await;
+
+        let events = database
+            .audit()
+            .list_events(1, 20, None, None, None, None)
+            .await?;
+        assert_eq!(events.total, 1);
+        let event = &events.events[0];
+        assert_eq!(event.action, "system.started");
+        assert_eq!(event.source, "system");
+        assert_eq!(event.actor.kind, "system");
+        assert_eq!(event.actor.name.as_deref(), Some("Kira"));
+        assert_eq!(event.metadata["version"], env!("CARGO_PKG_VERSION"));
+        Ok(())
+    }
 }
 
 #[cfg(all(test, feature = "server"))]

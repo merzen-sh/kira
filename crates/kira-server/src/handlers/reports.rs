@@ -4,12 +4,24 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use kira_protocol::{ErrorResponse, Report, ReportList, ReportStats, UpdateReport};
+use kira_protocol::{
+    AuditEntity, ErrorResponse, Report, ReportList, ReportStats, SOURCE_DASHBOARD, UpdateReport,
+};
+use kira_store::audit::NewAuditEvent;
 use serde::Deserialize;
+use serde_json::Map;
 
 use crate::errors::storage_error;
+use crate::handlers::audit::{dashboard_actor, record};
 use crate::handlers::pagination;
 use crate::state::AppState;
+
+/// Action recorded when a dashboard admin resolves a report.
+const ACTION_REPORT_RESOLVED: &str = "report.resolved";
+/// Action recorded when a dashboard admin reopens a report.
+const ACTION_REPORT_REOPENED: &str = "report.reopened";
+/// Action recorded when a dashboard admin deletes a report.
+const ACTION_REPORT_DELETED: &str = "report.deleted";
 
 /// Query parameters for `GET /reports`.
 #[derive(Debug, Deserialize)]
@@ -103,13 +115,32 @@ pub async fn update_report(
     Path(id): Path<i64>,
     Json(body): Json<UpdateReport>,
 ) -> Response {
-    match state
-        .database()
-        .reports()
-        .set_resolved(id, body.resolved)
-        .await
-    {
-        Ok(Some(report)) => Json(report).into_response(),
+    let resolved = body.resolved;
+
+    match state.database().reports().set_resolved(id, resolved).await {
+        Ok(Some(outcome)) => {
+            if outcome.changed {
+                let action = if resolved {
+                    ACTION_REPORT_RESOLVED
+                } else {
+                    ACTION_REPORT_REOPENED
+                };
+                let actor = dashboard_actor();
+                let target = AuditEntity::new(
+                    "report",
+                    Some(outcome.report.id.to_string()),
+                    Some(outcome.report.title.clone()),
+                );
+                let metadata = Map::new();
+                record(
+                    state.database(),
+                    &NewAuditEvent::new(action, SOURCE_DASHBOARD, &actor, Some(&target), &metadata),
+                )
+                .await;
+            }
+
+            Json(outcome.report).into_response()
+        }
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("report was not found")),
@@ -136,8 +167,26 @@ pub async fn update_report(
 )]
 pub async fn delete_report(State(state): State<AppState>, Path(id): Path<i64>) -> Response {
     match state.database().reports().delete_report(id).await {
-        Ok(true) => StatusCode::NO_CONTENT.into_response(),
-        Ok(false) => (
+        Ok(Some(report)) => {
+            let actor = dashboard_actor();
+            let target =
+                AuditEntity::new("report", Some(report.id.to_string()), Some(report.title));
+            let metadata = Map::new();
+            record(
+                state.database(),
+                &NewAuditEvent::new(
+                    ACTION_REPORT_DELETED,
+                    SOURCE_DASHBOARD,
+                    &actor,
+                    Some(&target),
+                    &metadata,
+                ),
+            )
+            .await;
+
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("report was not found")),
         )

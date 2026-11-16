@@ -7,7 +7,7 @@ use sqlx::FromRow;
 use crate::query::{escape_like, page_offset};
 use crate::{Database, StoreError};
 
-const EVENT_COLUMNS: &str = "id, action, actor_kind, actor_id, actor_name, \
+const EVENT_COLUMNS: &str = "id, action, source, actor_kind, actor_id, actor_name, \
     target_kind, target_id, target_name, metadata, occurred_at, recorded_at";
 
 const FILTER: &str = "(? = '' \
@@ -19,7 +19,8 @@ const FILTER: &str = "(? = '' \
         OR COALESCE(target_id, '') LIKE ? ESCAPE '\\' \
         OR COALESCE(target_name, '') LIKE ? ESCAPE '\\') \
     AND (? IS NULL OR action = ?) \
-    AND (? IS NULL OR actor_kind = ?)";
+    AND (? IS NULL OR actor_kind = ?) \
+    AND (? IS NULL OR source = ?)";
 
 /// An audit event to insert into storage.
 #[derive(Debug, Clone, Copy)]
@@ -27,6 +28,8 @@ const FILTER: &str = "(? = '' \
 pub struct NewAuditEvent<'a> {
     /// Action that occurred.
     pub action: &'a str,
+    /// Where the event originated.
+    pub source: &'a str,
     /// Who or what performed the action.
     pub actor: &'a AuditEntity,
     /// What the action affected, when it has a target.
@@ -40,12 +43,14 @@ impl<'a> NewAuditEvent<'a> {
     #[must_use]
     pub const fn new(
         action: &'a str,
+        source: &'a str,
         actor: &'a AuditEntity,
         target: Option<&'a AuditEntity>,
         metadata: &'a Map<String, Value>,
     ) -> Self {
         Self {
             action,
+            source,
             actor,
             target,
             metadata,
@@ -68,9 +73,9 @@ impl AuditRepository {
     pub async fn record(&self, event: &NewAuditEvent<'_>) -> Result<AuditEvent, StoreError> {
         let sql = format!(
             "INSERT INTO audit_events \
-                (action, actor_kind, actor_id, actor_name, target_kind, target_id, \
+                (action, source, actor_kind, actor_id, actor_name, target_kind, target_id, \
                  target_name, metadata) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
              RETURNING {EVENT_COLUMNS}"
         );
         let (target_kind, target_id, target_name) =
@@ -84,6 +89,7 @@ impl AuditRepository {
 
         let row = sqlx::query_as::<_, AuditEventRow>(&sql)
             .bind(event.action)
+            .bind(event.source)
             .bind(&event.actor.kind)
             .bind(&event.actor.id)
             .bind(&event.actor.name)
@@ -98,7 +104,7 @@ impl AuditRepository {
     }
 
     /// List audit events newest first, optionally filtered by a
-    /// case-insensitive substring, exact action, or actor kind.
+    /// case-insensitive substring, exact action, actor kind, or source.
     pub async fn list_events(
         &self,
         page: u32,
@@ -106,6 +112,7 @@ impl AuditRepository {
         search: Option<&str>,
         action: Option<&str>,
         actor_kind: Option<&str>,
+        source: Option<&str>,
     ) -> Result<AuditEventList, StoreError> {
         let search = search.map(str::trim).filter(|value| !value.is_empty());
         let search = search.unwrap_or_default();
@@ -126,6 +133,8 @@ impl AuditRepository {
             .bind(action)
             .bind(actor_kind)
             .bind(actor_kind)
+            .bind(source)
+            .bind(source)
             .fetch_one(self.db.pool())
             .await?;
 
@@ -146,6 +155,8 @@ impl AuditRepository {
             .bind(action)
             .bind(actor_kind)
             .bind(actor_kind)
+            .bind(source)
+            .bind(source)
             .bind(limit)
             .bind(offset)
             .fetch_all(self.db.pool())
@@ -169,8 +180,12 @@ impl AuditRepository {
             sqlx::query_scalar("SELECT DISTINCT actor_kind FROM audit_events ORDER BY actor_kind")
                 .fetch_all(self.db.pool())
                 .await?;
+        let sources: Vec<String> =
+            sqlx::query_scalar("SELECT DISTINCT source FROM audit_events ORDER BY source")
+                .fetch_all(self.db.pool())
+                .await?;
 
-        Ok(AuditFacets::new(actions, actor_kinds))
+        Ok(AuditFacets::new(actions, actor_kinds, sources))
     }
 }
 
@@ -178,6 +193,7 @@ impl AuditRepository {
 struct AuditEventRow {
     id: i64,
     action: String,
+    source: String,
     actor_kind: String,
     actor_id: Option<String>,
     actor_name: Option<String>,
@@ -198,6 +214,7 @@ impl From<AuditEventRow> for AuditEvent {
         Self::new(
             row.id,
             row.action,
+            row.source,
             AuditEntity::new(row.actor_kind, row.actor_id, row.actor_name),
             target,
             match serde_json::from_str(&row.metadata) {
@@ -212,7 +229,7 @@ impl From<AuditEventRow> for AuditEvent {
 
 #[cfg(test)]
 mod tests {
-    use kira_protocol::AuditEntity;
+    use kira_protocol::{AuditEntity, SOURCE_BOT, SOURCE_DASHBOARD, SOURCE_SYSTEM};
     use serde_json::json;
 
     use super::NewAuditEvent;
@@ -240,13 +257,20 @@ mod tests {
         let first = audit
             .record(&NewAuditEvent::new(
                 "report.created",
+                SOURCE_BOT,
                 &alice,
                 None,
                 &report_metadata,
             ))
             .await?;
         let second = audit
-            .record(&NewAuditEvent::new("report.resolved", &alice, None, &empty))
+            .record(&NewAuditEvent::new(
+                "report.resolved",
+                SOURCE_DASHBOARD,
+                &alice,
+                None,
+                &empty,
+            ))
             .await?;
 
         assert!(!first.occurred_at.is_empty());
@@ -255,7 +279,7 @@ mod tests {
         assert!(second.metadata.is_empty());
         assert!(second.id > first.id);
 
-        let page = audit.list_events(1, 20, None, None, None).await?;
+        let page = audit.list_events(1, 20, None, None, None, None).await?;
         assert_eq!(page.total, 2);
         assert_eq!(page.events[0].action, "report.resolved");
         assert_eq!(page.events[1].action, "report.created");
@@ -272,35 +296,69 @@ mod tests {
         let empty = metadata(json!({}));
 
         audit
-            .record(&NewAuditEvent::new("report.created", &alice, None, &trace))
+            .record(&NewAuditEvent::new(
+                "report.created",
+                SOURCE_BOT,
+                &alice,
+                None,
+                &trace,
+            ))
             .await?;
         audit
-            .record(&NewAuditEvent::new("report.resolved", &alice, None, &empty))
+            .record(&NewAuditEvent::new(
+                "report.resolved",
+                SOURCE_DASHBOARD,
+                &alice,
+                None,
+                &empty,
+            ))
             .await?;
         audit
-            .record(&NewAuditEvent::new("system.startup", &system, None, &empty))
+            .record(&NewAuditEvent::new(
+                "system.startup",
+                SOURCE_SYSTEM,
+                &system,
+                None,
+                &empty,
+            ))
             .await?;
         audit
             .record(&NewAuditEvent::new(
                 "report.created",
+                SOURCE_DASHBOARD,
                 &percent,
                 None,
                 &empty,
             ))
             .await?;
 
-        let by_actor = audit.list_events(1, 20, Some("alice"), None, None).await?;
+        let by_actor = audit
+            .list_events(1, 20, Some("alice"), None, None, None)
+            .await?;
         let by_action = audit
-            .list_events(1, 20, Some("startup"), None, None)
+            .list_events(1, 20, Some("startup"), None, None, None)
             .await?;
-        let by_metadata = audit.list_events(1, 20, Some("abc123"), None, None).await?;
+        let by_metadata = audit
+            .list_events(1, 20, Some("abc123"), None, None, None)
+            .await?;
         let exact_action = audit
-            .list_events(1, 20, None, Some("report.resolved"), None)
+            .list_events(1, 20, None, Some("report.resolved"), None, None)
             .await?;
-        let actor_kind = audit.list_events(1, 20, None, None, Some("system")).await?;
-        let missing = audit.list_events(1, 20, Some("absent"), None, None).await?;
-        let literal_percent = audit.list_events(1, 20, Some("%"), None, None).await?;
-        let underscore = audit.list_events(1, 20, Some("_"), None, None).await?;
+        let actor_kind = audit
+            .list_events(1, 20, None, None, Some("system"), None)
+            .await?;
+        let source = audit
+            .list_events(1, 20, None, None, None, Some(SOURCE_BOT))
+            .await?;
+        let missing = audit
+            .list_events(1, 20, Some("absent"), None, None, None)
+            .await?;
+        let literal_percent = audit
+            .list_events(1, 20, Some("%"), None, None, None)
+            .await?;
+        let underscore = audit
+            .list_events(1, 20, Some("_"), None, None, None)
+            .await?;
 
         assert_eq!(by_actor.total, 2);
         assert_eq!(by_action.total, 1);
@@ -308,6 +366,8 @@ mod tests {
         assert_eq!(exact_action.total, 1);
         assert_eq!(actor_kind.total, 1);
         assert_eq!(actor_kind.events[0].action, "system.startup");
+        assert_eq!(source.total, 1);
+        assert_eq!(source.events[0].action, "report.created");
         assert_eq!(missing.total, 0);
         assert_eq!(literal_percent.total, 1);
         assert_eq!(underscore.total, 0);
@@ -324,6 +384,7 @@ mod tests {
             audit
                 .record(&NewAuditEvent::new(
                     "report.created",
+                    SOURCE_BOT,
                     &alice,
                     None,
                     &event_metadata,
@@ -331,8 +392,8 @@ mod tests {
                 .await?;
         }
 
-        let first = audit.list_events(1, 2, None, None, None).await?;
-        let second = audit.list_events(2, 2, None, None, None).await?;
+        let first = audit.list_events(1, 2, None, None, None, None).await?;
+        let second = audit.list_events(2, 2, None, None, None, None).await?;
 
         assert_eq!(first.total, 3);
         assert_eq!(first.events.len(), 2);
@@ -350,13 +411,31 @@ mod tests {
         let empty = metadata(json!({}));
 
         audit
-            .record(&NewAuditEvent::new("report.resolved", &alice, None, &empty))
+            .record(&NewAuditEvent::new(
+                "report.resolved",
+                SOURCE_DASHBOARD,
+                &alice,
+                None,
+                &empty,
+            ))
             .await?;
         audit
-            .record(&NewAuditEvent::new("report.created", &alice, None, &empty))
+            .record(&NewAuditEvent::new(
+                "report.created",
+                SOURCE_BOT,
+                &alice,
+                None,
+                &empty,
+            ))
             .await?;
         audit
-            .record(&NewAuditEvent::new("system.startup", &system, None, &empty))
+            .record(&NewAuditEvent::new(
+                "system.startup",
+                SOURCE_SYSTEM,
+                &system,
+                None,
+                &empty,
+            ))
             .await?;
 
         let facets = audit.facets().await?;
@@ -365,6 +444,7 @@ mod tests {
             ["report.created", "report.resolved", "system.startup"]
         );
         assert_eq!(facets.actor_kinds, ["system", "user"]);
+        assert_eq!(facets.sources, ["bot", "dashboard", "system"]);
         Ok(())
     }
 }

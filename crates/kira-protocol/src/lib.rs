@@ -8,7 +8,10 @@ mod health;
 mod monitor;
 mod reports;
 
-pub use audit::{AuditEntity, AuditEvent, AuditEventList, AuditFacets};
+pub use audit::{
+    AuditEntity, AuditEvent, AuditEventList, AuditFacets, SOURCE_BOT, SOURCE_DASHBOARD,
+    SOURCE_SYSTEM,
+};
 pub use auth::LoginRequest;
 pub use error::ErrorResponse;
 pub use guild::{

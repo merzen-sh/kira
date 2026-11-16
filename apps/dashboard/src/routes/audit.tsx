@@ -82,6 +82,7 @@ function AuditPage() {
   const [term, setTerm] = useState("");
   const [action, setAction] = useState("");
   const [actorKind, setActorKind] = useState("");
+  const [source, setSource] = useState("");
   const [selected, setSelected] = useState<AuditEvent | null>(null);
 
   useEffect(() => {
@@ -95,7 +96,7 @@ function AuditPage() {
 
   useEffect(() => {
     setSelected(null);
-  }, [page, term, action, actorKind]);
+  }, [page, term, action, actorKind, source]);
 
   const facets = useAuditFacetsQuery();
   const { data, isPending, isError, error } = useAuditEventsQuery({
@@ -104,11 +105,12 @@ function AuditPage() {
     search: term,
     action,
     actorKind,
+    source,
   });
   const events = data?.events ?? [];
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
-  const filtered = Boolean(term || action || actorKind);
+  const filtered = Boolean(term || action || actorKind || source);
 
   const actionItems = {
     all: "All actions",
@@ -120,6 +122,12 @@ function AuditPage() {
     all: "All actors",
     ...Object.fromEntries(
       (facets.data?.actor_kinds ?? []).map((value) => [value, value]),
+    ),
+  };
+  const sourceItems = {
+    all: "All sources",
+    ...Object.fromEntries(
+      (facets.data?.sources ?? []).map((value) => [value, value]),
     ),
   };
 
@@ -179,6 +187,29 @@ function AuditPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={source || "all"}
+            onValueChange={(value) => {
+              setSource(value === "all" ? "" : String(value ?? ""));
+              setPage(1);
+            }}
+            items={sourceItems}
+          >
+            <SelectTrigger
+              aria-label="Filter by source"
+              className="w-full sm:w-36"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sources</SelectItem>
+              {(facets.data?.sources ?? []).map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             type="search"
             value={search}
@@ -207,6 +238,7 @@ function AuditPage() {
             <TableRow>
               <TableHead>Occurred</TableHead>
               <TableHead>Action</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Actor</TableHead>
               <TableHead>Target</TableHead>
               <TableHead className="text-right">Details</TableHead>
@@ -215,13 +247,13 @@ function AuditPage() {
           <TableBody>
             {isPending ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
+                <TableCell colSpan={6} className="text-muted-foreground">
                   Loading audit events…
                 </TableCell>
               </TableRow>
             ) : events.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
+                <TableCell colSpan={6} className="text-muted-foreground">
                   {filtered
                     ? "No audit events match these filters."
                     : "No audit events yet."}
@@ -235,6 +267,9 @@ function AuditPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">{event.action}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{event.source}</Badge>
                   </TableCell>
                   <TableCell>
                     <Entity entity={event.actor} />
@@ -281,6 +316,10 @@ function AuditPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-muted-foreground">Source</dt>
+                <dd>{selected.source}</dd>
+              </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Actor</dt>
                 <dd>{entityText(selected.actor)}</dd>

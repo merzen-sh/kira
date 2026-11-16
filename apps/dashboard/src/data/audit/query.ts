@@ -10,6 +10,7 @@ export async function listAuditEvents({
   search,
   action,
   actorKind,
+  source,
 }: AuditListParams) {
   try {
     return await unwrap(
@@ -21,6 +22,7 @@ export async function listAuditEvents({
             search: search || undefined,
             action: action || undefined,
             actor_kind: actorKind || undefined,
+            source: source || undefined,
           },
         },
       }),

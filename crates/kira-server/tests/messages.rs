@@ -9,21 +9,24 @@ use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
 use kira_protocol::{ChannelDetails, ErrorResponse, GuildDetails, SentMessage};
 use kira_server::{AppState, router};
+use kira_store::Database;
 use tokio::sync::{mpsc, watch};
 use tower::ServiceExt;
 
 async fn state() -> (
     AppState,
     mpsc::Receiver<kira_core::messaging::OutgoingMessage>,
+    Database,
 ) {
     let (guild_sender, guilds) = watch::channel(Vec::new());
     let (channel_sender, channels) = watch::channel(Vec::new());
     let (messages, receiver) = mpsc::channel(1);
+    let database = common::database().await;
     let state = AppState::new(
         1,
         guilds,
         channels,
-        common::database().await,
+        database.clone(),
         messages,
         common::auth(),
     );
@@ -31,7 +34,7 @@ async fn state() -> (
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
     channel_sender.send_replace(vec![ChannelDetails::new("10", "1", "general", "text")]);
 
-    (state, receiver)
+    (state, receiver, database)
 }
 
 async fn post(
@@ -54,7 +57,7 @@ async fn post(
 
 #[tokio::test]
 async fn message_is_sent_to_the_selected_channel() -> Result<(), Box<dyn Error>> {
-    let (state, mut messages) = state().await;
+    let (state, mut messages, _database) = state().await;
     let cookie = common::login_cookie(&state).await?;
     tokio::spawn(async move {
         let Some(message) = messages.recv().await else {
@@ -75,7 +78,7 @@ async fn message_is_sent_to_the_selected_channel() -> Result<(), Box<dyn Error>>
 
 #[tokio::test]
 async fn raw_message_is_forwarded() -> Result<(), Box<dyn Error>> {
-    let (state, mut messages) = state().await;
+    let (state, mut messages, _database) = state().await;
     let cookie = common::login_cookie(&state).await?;
     let handle = tokio::spawn(async move {
         let message = messages.recv().await?;
@@ -97,7 +100,7 @@ async fn raw_message_is_forwarded() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn empty_message_is_rejected() -> Result<(), Box<dyn Error>> {
-    let (state, _messages) = state().await;
+    let (state, _messages, _database) = state().await;
     let cookie = common::login_cookie(&state).await?;
 
     let res = post(state, &cookie, "10", "{}").await?;
@@ -111,7 +114,7 @@ async fn empty_message_is_rejected() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn unknown_channel_is_rejected() -> Result<(), Box<dyn Error>> {
-    let (state, _messages) = state().await;
+    let (state, _messages, _database) = state().await;
     let cookie = common::login_cookie(&state).await?;
 
     let res = post(state, &cookie, "11", r#"{"content":"Hello"}"#).await?;
@@ -143,7 +146,7 @@ async fn non_text_channel_is_rejected() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn content_over_the_limit_is_rejected() -> Result<(), Box<dyn Error>> {
-    let (state, _messages) = state().await;
+    let (state, _messages, _database) = state().await;
     let cookie = common::login_cookie(&state).await?;
     let body = serde_json::json!({ "content": "x".repeat(2001) }).to_string();
 
@@ -154,7 +157,7 @@ async fn content_over_the_limit_is_rejected() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn embeds_only_payload_is_accepted() -> Result<(), Box<dyn Error>> {
-    let (state, mut messages) = state().await;
+    let (state, mut messages, _database) = state().await;
     let cookie = common::login_cookie(&state).await?;
     tokio::spawn(async move {
         if let Some(message) = messages.recv().await {
@@ -169,7 +172,7 @@ async fn embeds_only_payload_is_accepted() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn stalled_delivery_times_out() -> Result<(), Box<dyn Error>> {
-    let (state, mut messages) = state().await;
+    let (state, mut messages, database) = state().await;
     let cookie = common::login_cookie(&state).await?;
     // Pause after building the state: opening the report store must not race
     // the paused clock's auto-advance.
@@ -183,5 +186,73 @@ async fn stalled_delivery_times_out() -> Result<(), Box<dyn Error>> {
 
     let res = post(state, &cookie, "10", r#"{"content":"Hello"}"#).await?;
     assert_eq!(res.status(), StatusCode::GATEWAY_TIMEOUT);
+
+    let events = database
+        .audit()
+        .list_events(1, 20, None, Some("message.sent"), None, None)
+        .await?;
+    assert_eq!(events.total, 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn published_announcement_records_an_audit_event() -> Result<(), Box<dyn Error>> {
+    let (guild_sender, guilds) = watch::channel(Vec::new());
+    let (channel_sender, channels) = watch::channel(Vec::new());
+    let (messages, mut receiver) = mpsc::channel(1);
+    let database = common::database().await;
+    let state = AppState::new(
+        1,
+        guilds,
+        channels,
+        database.clone(),
+        messages,
+        common::auth(),
+    );
+    guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);
+    channel_sender.send_replace(vec![ChannelDetails::new("10", "1", "general", "text")]);
+    let cookie = common::login_cookie(&state).await?;
+
+    tokio::spawn(async move {
+        if let Some(message) = receiver.recv().await {
+            let _ = message.reply.send(Ok("99".into()));
+        }
+    });
+
+    let res = post(
+        state,
+        &cookie,
+        "10",
+        r#"{"content":"Hello","embeds":[{"title":"x"}]}"#,
+    )
+    .await?;
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let events = database
+        .audit()
+        .list_events(1, 20, None, Some("message.sent"), None, None)
+        .await?;
+    assert_eq!(events.total, 1);
+    let event = &events.events[0];
+    assert_eq!(event.action, "message.sent");
+    assert_eq!(event.source, "dashboard");
+    assert_eq!(event.actor.kind, "admin");
+    assert_eq!(
+        event
+            .target
+            .as_ref()
+            .and_then(|target| target.id.as_deref()),
+        Some("10")
+    );
+    assert_eq!(
+        event
+            .target
+            .as_ref()
+            .and_then(|target| target.name.as_deref()),
+        Some("general")
+    );
+    assert_eq!(event.metadata["message_id"], "99");
+    assert_eq!(event.metadata["content_length"], 5);
+    assert_eq!(event.metadata["has_embeds"], true);
     Ok(())
 }

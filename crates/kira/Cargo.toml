@@ -14,8 +14,10 @@ anyhow.workspace = true
 kira-bot = { path = "../kira-bot" }
 kira-config = { path = "../kira-config" }
 kira-core = { path = "../kira-core" }
+kira-protocol = { path = "../kira-protocol" }
 kira-server = { path = "../kira-server", optional = true }
 kira-store = { path = "../kira-store" }
+serde_json.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 

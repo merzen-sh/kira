@@ -3,6 +3,13 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Audit source for actions taken through the dashboard.
+pub const SOURCE_DASHBOARD: &str = "dashboard";
+/// Audit source for actions taken by the Discord bot.
+pub const SOURCE_BOT: &str = "bot";
+/// Audit source for actions taken by Kira itself.
+pub const SOURCE_SYSTEM: &str = "system";
+
 /// A party that caused or was affected by an audit event.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[non_exhaustive]
@@ -35,6 +42,8 @@ pub struct AuditEvent {
     pub id: i64,
     /// Action that occurred, for example `report.resolved`.
     pub action: String,
+    /// Where the event originated: `dashboard`, `bot`, or `system`.
+    pub source: String,
     /// Who or what performed the action.
     pub actor: AuditEntity,
     /// What the action affected, when it has a target.
@@ -50,9 +59,14 @@ pub struct AuditEvent {
 impl AuditEvent {
     /// Build an audit event with every field populated.
     #[must_use]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "a full event row maps one-to-one onto these fields"
+    )]
     pub fn new(
         id: i64,
         action: impl Into<String>,
+        source: impl Into<String>,
         actor: AuditEntity,
         target: Option<AuditEntity>,
         metadata: serde_json::Map<String, serde_json::Value>,
@@ -62,6 +76,7 @@ impl AuditEvent {
         Self {
             id,
             action: action.into(),
+            source: source.into(),
             actor,
             target,
             metadata,
@@ -106,15 +121,18 @@ pub struct AuditFacets {
     pub actions: Vec<String>,
     /// Distinct actor kinds, sorted alphabetically.
     pub actor_kinds: Vec<String>,
+    /// Distinct event sources, sorted alphabetically.
+    pub sources: Vec<String>,
 }
 
 impl AuditFacets {
     /// Build the available filter values.
     #[must_use]
-    pub fn new(actions: Vec<String>, actor_kinds: Vec<String>) -> Self {
+    pub fn new(actions: Vec<String>, actor_kinds: Vec<String>, sources: Vec<String>) -> Self {
         Self {
             actions,
             actor_kinds,
+            sources,
         }
     }
 }
