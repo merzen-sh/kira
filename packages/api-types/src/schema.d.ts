@@ -292,6 +292,8 @@ export interface components {
             occurred_at: string;
             /** @description Time the event was stored, as an ISO 8601 timestamp. */
             recorded_at: string;
+            /** @description Where the event originated: `dashboard`, `bot`, or `system`. */
+            source: string;
             target?: components["schemas"]["AuditEntity"] | null;
         };
         /** @description A page of audit events returned by `GET /audit/events`. */
@@ -320,6 +322,8 @@ export interface components {
             actions: string[];
             /** @description Distinct actor kinds, sorted alphabetically. */
             actor_kinds: string[];
+            /** @description Distinct event sources, sorted alphabetically. */
+            sources: string[];
         };
         /** @description A channel belonging to the Discord server targeted by `GET /guild/channels`. */
         ChannelDetails: {
@@ -576,6 +580,8 @@ export interface operations {
                 action?: string;
                 /** @description Exact actor kind filter */
                 actor_kind?: string;
+                /** @description Exact event source: `dashboard`, `bot`, or `system` */
+                source?: string;
             };
             header?: never;
             path?: never;

@@ -161,3 +161,109 @@ async fn reports_can_be_resolved_and_deleted() -> Result<(), Box<dyn Error>> {
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
     Ok(())
 }
+
+#[tokio::test]
+async fn report_mutations_record_audit_events() -> Result<(), Box<dyn Error>> {
+    let (state, store) = state().await?;
+    let cookie = common::login_cookie(&state).await?;
+    let report = store
+        .reports()
+        .create_report(&NewReport::new("42", "Crash", "click", "boom"))
+        .await?;
+    let report_id = report.id.to_string();
+
+    let resolved = router(state.clone())
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/reports/{report_id}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"resolved":true}"#))?,
+            &cookie,
+        ))
+        .await?;
+    assert_eq!(resolved.status(), StatusCode::OK);
+
+    let unchanged = router(state.clone())
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/reports/{report_id}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"resolved":true}"#))?,
+            &cookie,
+        ))
+        .await?;
+    assert_eq!(unchanged.status(), StatusCode::OK);
+
+    let reopened = router(state.clone())
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/reports/{report_id}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"resolved":false}"#))?,
+            &cookie,
+        ))
+        .await?;
+    assert_eq!(reopened.status(), StatusCode::OK);
+
+    let deleted = router(state.clone())
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/reports/{report_id}"))
+                .body(Body::empty())?,
+            &cookie,
+        ))
+        .await?;
+    assert_eq!(deleted.status(), StatusCode::NO_CONTENT);
+
+    let missing = router(state)
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/reports/{report_id}"))
+                .body(Body::empty())?,
+            &cookie,
+        ))
+        .await?;
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+    let events = store
+        .audit()
+        .list_events(1, 20, None, None, None, None)
+        .await?;
+
+    assert_eq!(events.total, 4);
+    let report_events = events
+        .events
+        .iter()
+        .filter(|event| event.action.starts_with("report."))
+        .collect::<Vec<_>>();
+    assert_eq!(report_events.len(), 3);
+    assert_eq!(report_events[0].action, "report.deleted");
+    assert_eq!(report_events[1].action, "report.reopened");
+    assert_eq!(report_events[2].action, "report.resolved");
+
+    for event in report_events {
+        assert_eq!(event.source, "dashboard");
+        assert_eq!(event.actor.kind, "admin");
+        assert_eq!(
+            event
+                .target
+                .as_ref()
+                .and_then(|target| target.id.as_deref()),
+            Some(report_id.as_str())
+        );
+        assert_eq!(
+            event
+                .target
+                .as_ref()
+                .and_then(|target| target.name.as_deref()),
+            Some("Crash")
+        );
+        assert!(event.metadata.is_empty());
+    }
+    Ok(())
+}

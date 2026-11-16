@@ -197,10 +197,12 @@ and waits for Ctrl-C/SIGTERM.
   shutdown. It also starts a task that samples host CPU, memory, and disk every
   10 seconds, stores the samples in SQLite, and prunes rows older than 24 hours.
 - The audit log is a standalone module with no dependency on the bot or the
-  other repositories. `audit_events` stores a generic action, actor, optional
-  target, JSON metadata, and occurrence/recording timestamps. The API exposes
-  query endpoints plus distinct filter values; in-process producers write
-  through the repository, and no existing feature records events yet.
+  other repositories. `audit_events` stores a generic action, source, actor,
+  optional target, JSON metadata, and occurrence/recording timestamps. The API
+  exposes query endpoints plus distinct filter values, and in-process producers
+  write through the repository. Startup, dashboard authentication, report and
+  message mutations, and the bot's `/report` flow record events; audit write
+  failures are logged without failing the completed action.
 - A `tokio::sync::watch` channel fans a single shutdown signal out to both
   components. On a signal, the server stops accepting connections and the bot
   calls `shard_manager.shutdown_all()`.

@@ -1,14 +1,45 @@
 //! Authentication handlers.
 
+use std::net::IpAddr;
+
 use axum::Json;
 use axum::extract::{Extension, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use kira_protocol::{ErrorResponse, LoginRequest};
+use kira_protocol::{AuditEntity, ErrorResponse, LoginRequest, SOURCE_DASHBOARD};
+use kira_store::audit::NewAuditEvent;
+use serde_json::Map;
 
 use crate::errors::LoginError;
+use crate::handlers::audit::{dashboard_actor, record};
 use crate::middleware::PeerAddress;
 use crate::state::AppState;
+
+/// Action recorded after a successful dashboard login.
+const ACTION_LOGIN: &str = "auth.login";
+/// Action recorded when a dashboard login is rejected.
+const ACTION_LOGIN_FAILED: &str = "auth.login.failed";
+
+async fn record_login(state: &AppState, peer: Option<IpAddr>, action: &str, reason: Option<&str>) {
+    let mut metadata = Map::new();
+    if let Some(peer) = peer {
+        metadata.insert("peer".to_owned(), peer.to_string().into());
+    }
+    if let Some(reason) = reason {
+        metadata.insert("reason".to_owned(), reason.into());
+    }
+
+    let actor = if reason.is_some() {
+        AuditEntity::new("anonymous", None, None)
+    } else {
+        dashboard_actor()
+    };
+    record(
+        state.database(),
+        &NewAuditEvent::new(action, SOURCE_DASHBOARD, &actor, None, &metadata),
+    )
+    .await;
+}
 
 /// Authenticate with the dashboard PIN and receive a session cookie.
 #[utoipa::path(
@@ -32,13 +63,20 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Response {
     let mut response = match state.auth().login(&body.pin, peer.0) {
-        Ok(cookie) => (StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response(),
-        Err(LoginError::InvalidPin) => (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse::new("invalid PIN")),
-        )
-            .into_response(),
+        Ok(cookie) => {
+            record_login(&state, peer.0, ACTION_LOGIN, None).await;
+            (StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response()
+        }
+        Err(LoginError::InvalidPin) => {
+            record_login(&state, peer.0, ACTION_LOGIN_FAILED, Some("invalid_pin")).await;
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(ErrorResponse::new("invalid PIN")),
+            )
+                .into_response()
+        }
         Err(LoginError::TooManyAttempts { retry_after }) => {
+            record_login(&state, peer.0, ACTION_LOGIN_FAILED, Some("rate_limited")).await;
             let seconds = retry_after.as_secs().max(1);
             let mut response = (
                 StatusCode::TOO_MANY_REQUESTS,

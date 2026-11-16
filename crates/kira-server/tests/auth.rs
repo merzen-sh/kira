@@ -65,6 +65,31 @@ async fn a_wrong_pin_is_rejected_without_a_cookie() -> Result<(), Box<dyn Error>
 }
 
 #[tokio::test]
+async fn login_success_and_failure_are_audited() -> Result<(), Box<dyn Error>> {
+    let database = common::database().await;
+    let state = common::state_with_database(database.clone());
+
+    assert_eq!(
+        login(&state, "000000").await?.status(),
+        StatusCode::UNAUTHORIZED
+    );
+    login_cookie(&state).await?;
+
+    let events = database
+        .audit()
+        .list_events(1, 20, None, None, None, None)
+        .await?;
+    assert_eq!(events.total, 2);
+    assert_eq!(events.events[0].action, "auth.login");
+    assert_eq!(events.events[0].source, "dashboard");
+    assert_eq!(events.events[0].actor.kind, "admin");
+    assert_eq!(events.events[1].action, "auth.login.failed");
+    assert_eq!(events.events[1].actor.kind, "anonymous");
+    assert_eq!(events.events[1].metadata["reason"], "invalid_pin");
+    Ok(())
+}
+
+#[tokio::test]
 async fn a_malformed_login_body_is_rejected() -> Result<(), Box<dyn Error>> {
     let response = router(state().await)
         .oneshot(

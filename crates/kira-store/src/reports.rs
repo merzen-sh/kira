@@ -37,6 +37,16 @@ impl<'a> NewReport<'a> {
     }
 }
 
+/// Result of changing a report's resolved state.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ResolveOutcome {
+    /// Updated report.
+    pub report: Report,
+    /// Whether the stored state actually changed.
+    pub changed: bool,
+}
+
 /// Queries for bug reports.
 #[derive(Clone)]
 pub struct ReportRepository {
@@ -126,32 +136,54 @@ impl ReportRepository {
         ))
     }
 
-    /// Set the resolved state of a report, returning it when it exists.
+    /// Set the resolved state of a report, returning the report and whether
+    /// the stored state changed. Returns `None` when the report is missing.
     pub async fn set_resolved(
         &self,
         id: i64,
         resolved: bool,
-    ) -> Result<Option<Report>, StoreError> {
-        let sql =
-            format!("UPDATE reports SET resolved = ? WHERE id = ? RETURNING {REPORT_COLUMNS}");
+    ) -> Result<Option<ResolveOutcome>, StoreError> {
+        let sql = format!(
+            "UPDATE reports SET resolved = ? WHERE id = ? AND resolved <> ? \
+             RETURNING {REPORT_COLUMNS}"
+        );
 
         let row = sqlx::query_as::<_, ReportRow>(&sql)
             .bind(resolved)
+            .bind(id)
+            .bind(resolved)
+            .fetch_optional(self.db.pool())
+            .await?;
+
+        if let Some(row) = row {
+            return Ok(Some(ResolveOutcome {
+                report: row.into(),
+                changed: true,
+            }));
+        }
+
+        let row = sqlx::query_as::<_, ReportRow>(&format!(
+            "SELECT {REPORT_COLUMNS} FROM reports WHERE id = ?"
+        ))
+        .bind(id)
+        .fetch_optional(self.db.pool())
+        .await?;
+
+        Ok(row.map(|row| ResolveOutcome {
+            report: row.into(),
+            changed: false,
+        }))
+    }
+
+    /// Delete a report, returning the deleted row when it existed.
+    pub async fn delete_report(&self, id: i64) -> Result<Option<Report>, StoreError> {
+        let sql = format!("DELETE FROM reports WHERE id = ? RETURNING {REPORT_COLUMNS}");
+        let row = sqlx::query_as::<_, ReportRow>(&sql)
             .bind(id)
             .fetch_optional(self.db.pool())
             .await?;
 
         Ok(row.map(Report::from))
-    }
-
-    /// Delete a report, returning whether it existed.
-    pub async fn delete_report(&self, id: i64) -> Result<bool, StoreError> {
-        let result = sqlx::query("DELETE FROM reports WHERE id = ?")
-            .bind(id)
-            .execute(self.db.pool())
-            .await?;
-
-        Ok(result.rows_affected() > 0)
     }
 }
 
@@ -255,10 +287,22 @@ mod tests {
         let report = reports.create_report(&report("Broken", "1")).await?;
 
         let resolved = reports.set_resolved(report.id, true).await?;
-        assert_eq!(resolved.map(|report| report.resolved), Some(true));
+        assert_eq!(
+            resolved.map(|outcome| (outcome.report.resolved, outcome.changed)),
+            Some((true, true))
+        );
+
+        let unchanged = reports.set_resolved(report.id, true).await?;
+        assert_eq!(
+            unchanged.map(|outcome| (outcome.report.resolved, outcome.changed)),
+            Some((true, false))
+        );
 
         let unresolved = reports.set_resolved(report.id, false).await?;
-        assert_eq!(unresolved.map(|report| report.resolved), Some(false));
+        assert_eq!(
+            unresolved.map(|outcome| (outcome.report.resolved, outcome.changed)),
+            Some((false, true))
+        );
 
         assert!(reports.set_resolved(report.id + 1, true).await?.is_none());
         Ok(())
@@ -285,8 +329,8 @@ mod tests {
         let reports = crate::memory().await.reports();
         let report = reports.create_report(&report("Broken", "1")).await?;
 
-        assert!(reports.delete_report(report.id).await?);
-        assert!(!reports.delete_report(report.id).await?);
+        assert!(reports.delete_report(report.id).await?.is_some());
+        assert!(reports.delete_report(report.id).await?.is_none());
         assert_eq!(reports.list_reports(1, 20, None).await?.total, 0);
         Ok(())
     }
