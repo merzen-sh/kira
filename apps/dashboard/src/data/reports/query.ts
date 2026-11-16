@@ -4,7 +4,12 @@ import { GET, toResourceError, unwrap } from "@/data/fetcher";
 import type { ResourceError, UseCustomQueryOptions } from "@/data/types";
 import { reportKeys } from "./keys";
 
-export async function listReports(page: number, pageLimit: number, search: string) {
+export async function listReports(
+  page: number,
+  pageLimit: number,
+  search: string,
+  resolved: string,
+) {
   try {
     return await unwrap(
       GET("/reports", {
@@ -13,6 +18,12 @@ export async function listReports(page: number, pageLimit: number, search: strin
             page,
             page_limit: pageLimit,
             search: search || undefined,
+            resolved:
+              resolved === "resolved"
+                ? true
+                : resolved === "open"
+                  ? false
+                  : undefined,
           },
         },
       }),
@@ -51,15 +62,16 @@ export const useReportsQuery = (
   page: number,
   pageLimit: number,
   search: string,
+  resolved: string,
   {
     enabled = true,
     ...options
   }: UseCustomQueryOptions<ResourceData, ResourceError> = {},
 ) =>
   useQuery<ResourceData, ResourceError>({
-    queryKey: reportKeys.list({ page, pageLimit, search }),
+    queryKey: reportKeys.list({ page, pageLimit, search, resolved }),
     // Skip the abort signal: reading it lets StrictMode's dev remount cancel and refetch.
-    queryFn: () => listReports(page, pageLimit, search),
+    queryFn: () => listReports(page, pageLimit, search, resolved),
     enabled,
     ...options,
   });
