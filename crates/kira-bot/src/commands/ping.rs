@@ -6,6 +6,8 @@ use serenity::builder::{
 use serenity::model::application::CommandInteraction;
 use serenity::prelude::Context;
 
+use crate::errors::BotError;
+
 /// Name of the `/ping` slash command.
 pub(super) const NAME: &str = "ping";
 
@@ -13,10 +15,7 @@ pub(super) fn command() -> CreateCommand {
     CreateCommand::new(NAME).description("Check that the bot is alive.")
 }
 
-pub(super) async fn respond(
-    ctx: &Context,
-    command: &CommandInteraction,
-) -> Result<(), Box<serenity::Error>> {
+pub(super) async fn respond(ctx: &Context, command: &CommandInteraction) -> Result<(), BotError> {
     let response =
         CreateInteractionResponse::Message(CreateInteractionResponseMessage::new().content("pong"));
 

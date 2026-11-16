@@ -37,7 +37,8 @@ pub(crate) async fn record(database: &Database, event: &NewAuditEvent<'_>) {
             actor_kind = event.actor.kind,
             actor_id = event.actor.id.as_deref().unwrap_or("-"),
             target_kind = event.target.map_or("-", |target| target.kind.as_str()),
-            "failed to record audit event: {error:?}"
+            error = ?error,
+            "failed to record audit event"
         );
     }
 }

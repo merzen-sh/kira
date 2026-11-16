@@ -361,10 +361,9 @@ async fn cors_preflight_reflects_allowed_origins() -> Result<(), Box<dyn Error>>
 
 #[tokio::test]
 async fn secure_cookies_are_marked_secure_when_configured() -> Result<(), Box<dyn Error>> {
-    let auth = Auth::new(AuthConfig {
-        cookie_secure: true,
-        ..AuthConfig::with_password(PIN)
-    })?;
+    let mut config = AuthConfig::with_password(PIN);
+    config.cookie_secure = true;
+    let auth = Auth::new(config)?;
     let (_guild_sender, guilds) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _receiver) = mpsc::channel(1);

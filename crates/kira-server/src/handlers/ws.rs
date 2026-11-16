@@ -12,7 +12,7 @@ async fn handle_socket(mut socket: WebSocket) {
         let message = match result {
             Ok(message) => message,
             Err(error) => {
-                tracing::error!("websocket receive failed: {error}");
+                tracing::error!(error = %error, "websocket receive failed");
                 break;
             }
         };
@@ -20,13 +20,13 @@ async fn handle_socket(mut socket: WebSocket) {
         match message {
             Message::Text(text) => {
                 if let Err(error) = socket.send(Message::Text(text)).await {
-                    tracing::error!("websocket send failed: {error}");
+                    tracing::error!(error = %error, "websocket send failed");
                     break;
                 }
             }
             Message::Binary(bytes) => {
                 if let Err(error) = socket.send(Message::Binary(bytes)).await {
-                    tracing::error!("websocket send failed: {error}");
+                    tracing::error!(error = %error, "websocket send failed");
                     break;
                 }
             }

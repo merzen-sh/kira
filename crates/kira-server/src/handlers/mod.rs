@@ -11,7 +11,7 @@ pub(crate) mod ws;
 
 pub use audit::{audit_facets, list_audit_events};
 pub use auth::{login, logout, session};
-pub use guild::{get_guild, get_guild_channels, send_guild_message};
+pub use guild::{guild, guild_channels, send_guild_message};
 pub use health::health;
 pub use monitor::system_monitor;
 pub use reports::{delete_report, list_reports, report_stats, update_report};

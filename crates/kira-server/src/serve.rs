@@ -16,6 +16,11 @@ use crate::state::AppState;
 use crate::{monitor, router};
 
 /// Bind to the configured address and serve until `shutdown` resolves.
+///
+/// # Errors
+///
+/// Returns an error when the bind is refused for security reasons, the
+/// authentication settings are invalid, or the listener cannot be bound.
 pub async fn serve(
     config: &ServerConfig,
     guilds: watch::Receiver<Vec<GuildDetails>>,
@@ -42,7 +47,8 @@ pub async fn serve(
             addr: config.bind,
             source,
         })?;
-    tracing::info!("Listening on http://{}", listener.local_addr()?);
+    let address = listener.local_addr()?;
+    tracing::info!(%address, "listening");
 
     serve_with_listener(
         listener,
@@ -66,6 +72,10 @@ fn ensure_secure_bind(
 }
 
 /// Serve on an already-bound listener until `shutdown` resolves.
+///
+/// # Errors
+///
+/// Returns an error when the HTTP server stops accepting connections.
 pub async fn serve_with_listener(
     listener: TcpListener,
     state: AppState,

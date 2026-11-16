@@ -22,6 +22,11 @@ use crate::state::{ChannelsKey, ConfigKey, DatabaseKey, GuildIdKey, GuildsKey};
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Run the Discord bot until the gateway stops or `shutdown` resolves.
+///
+/// # Errors
+///
+/// Returns an error when the Discord client cannot be built or the gateway
+/// stops with an error.
 pub async fn run(
     config: DiscordConfig,
     guild_id: Option<u64>,
@@ -39,7 +44,7 @@ pub async fn run(
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    let mut client = Client::builder(&config.token, intents)
+    let mut client = Client::builder(config.token.expose(), intents)
         .event_handler(Handler)
         .await?;
 
@@ -125,7 +130,7 @@ async fn send_message(http: &Http, message: &OutgoingMessage) -> Result<String, 
         http.send_message(ChannelId::new(channel_id), Vec::new(), body),
     )
     .await
-    .map_err(|_| "Discord request timed out".to_string())?
+    .map_err(|_| "discord request timed out".to_string())?
     .map_err(|error| error.to_string())?;
 
     Ok(sent.id.to_string())

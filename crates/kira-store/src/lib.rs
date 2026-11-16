@@ -1,4 +1,6 @@
 //! SQLite infrastructure and repositories shared by the bot and server.
+//!
+//! Repositories return [`StoreError`] when a query or migration fails.
 
 pub mod audit;
 mod database;

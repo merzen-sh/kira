@@ -25,13 +25,13 @@ pub struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
-        if let Err(error) = commands::register(&ctx, state::target_guild(&ctx).await).await {
-            tracing::error!("Failed to register slash commands: {error}");
+        let target = state::target_guild(&ctx).await;
+
+        if let Err(error) = commands::register(&ctx, target).await {
+            tracing::error!(error = ?error, "failed to register slash commands");
         }
 
-        if let (Some(database), Some(guild_id)) =
-            (state::database(&ctx).await, state::target_guild(&ctx).await)
-        {
+        if let (Some(database), Some(guild_id)) = (state::database(&ctx).await, target) {
             let result = crate::sync::reconcile(
                 Arc::clone(&ctx.http),
                 GuildId::new(guild_id),
@@ -40,12 +40,11 @@ impl EventHandler for Handler {
             .await;
 
             if let Err(error) = result {
-                tracing::error!("Failed to reconcile guild members: {error}");
+                tracing::error!(error = ?error, "failed to reconcile guild members");
             }
         }
 
         if let Some(sender) = state::guild_sender(&ctx).await {
-            let target = state::target_guild(&ctx).await;
             sender.send_replace(guilds::snapshot(&ctx.cache, target));
         }
         channels::publish(&ctx).await;
@@ -126,13 +125,13 @@ impl EventHandler for Handler {
             .join(
                 &user.id.to_string(),
                 &user.name,
-                &display_name,
+                display_name,
                 user.bot,
                 Some(&avatar_url),
             )
             .await
         {
-            tracing::error!("Failed to record guild join: {error:?}");
+            tracing::error!(error = ?error, "failed to record guild join");
         }
     }
 
@@ -165,13 +164,13 @@ impl EventHandler for Handler {
             .leave(
                 &user.id.to_string(),
                 &user.name,
-                &display_name,
+                display_name,
                 user.bot,
                 Some(&avatar_url),
             )
             .await
         {
-            tracing::error!("Failed to record guild leave: {error:?}");
+            tracing::error!(error = ?error, "failed to record guild leave");
         }
     }
 
@@ -183,7 +182,7 @@ impl EventHandler for Handler {
         };
 
         if let Err(error) = result {
-            tracing::error!("Failed to respond to interaction: {error}");
+            tracing::error!(error = ?error, "failed to respond to interaction");
         }
     }
 
@@ -200,7 +199,7 @@ impl EventHandler for Handler {
         }
 
         if let Err(error) = msg.channel_id.say(&ctx.http, "Pong!").await {
-            tracing::error!("Failed to send message: {error}");
+            tracing::error!(error = %error, "failed to send message");
         }
     }
 }

@@ -84,6 +84,10 @@ impl ReportRepository {
     /// Insert a report and return it with its generated ID, timestamp, and
     /// default unresolved state. Reporter fields are `None` on the returned
     /// value; read the report back to resolve them from tracked users.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the insert fails.
     pub async fn create_report(&self, report: &NewReport<'_>) -> Result<Report, StoreError> {
         let sql = format!(
             "INSERT INTO reports (user_id, title, steps, details) \
@@ -103,6 +107,10 @@ impl ReportRepository {
 
     /// List reports newest first, optionally filtered by a case-insensitive
     /// substring of the title, steps, details, or reporter, and by resolved state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when either query fails.
     pub async fn list_reports(
         &self,
         page: u32,
@@ -157,6 +165,10 @@ impl ReportRepository {
     }
 
     /// Count every report and how many are resolved.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the query fails.
     pub async fn report_stats(&self) -> Result<ReportStats, StoreError> {
         let (total, resolved): (i64, i64) =
             sqlx::query_as("SELECT COUNT(*), COALESCE(SUM(resolved), 0) FROM reports")
@@ -171,6 +183,10 @@ impl ReportRepository {
 
     /// Set the resolved state of a report, returning the report and whether
     /// the stored state changed. Returns `None` when the report is missing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update, read, or commit fails.
     pub async fn set_resolved(
         &self,
         id: i64,
@@ -202,6 +218,10 @@ impl ReportRepository {
     }
 
     /// Delete a report, returning the deleted ID and title when it existed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the delete fails.
     pub async fn delete_report(&self, id: i64) -> Result<Option<DeletedReport>, StoreError> {
         let row = sqlx::query_as::<_, (i64, String)>(
             "DELETE FROM reports WHERE id = ? RETURNING id, title",

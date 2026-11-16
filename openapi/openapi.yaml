@@ -197,7 +197,7 @@ paths:
       tags:
       - guild
       summary: Return the configured Discord server's details.
-      operationId: get_guild
+      operationId: guild
       responses:
         '200':
           content:
@@ -226,7 +226,7 @@ paths:
       tags:
       - guild
       summary: Return the configured Discord server's channels.
-      operationId: get_guild_channels
+      operationId: guild_channels
       responses:
         '200':
           content:
@@ -987,6 +987,7 @@ components:
         pin:
           type: string
           description: Dashboard PIN or password.
+      additionalProperties: false
     MonitorReport:
       type: object
       description: Current resource usage plus a bucketed history.
@@ -1169,6 +1170,7 @@ components:
         resolved:
           type: boolean
           description: New resolved state.
+      additionalProperties: false
   securitySchemes:
     cookie_auth:
       type: apiKey

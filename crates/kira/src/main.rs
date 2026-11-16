@@ -27,14 +27,14 @@ async fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some(other) => {
-            tracing::error!("Unknown argument: {other}");
+            tracing::error!(arg = %other, "unknown argument");
             tracing::error!("Usage: kira [--version] [--help]");
             ExitCode::from(2)
         }
         None => match run().await {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
-                tracing::error!("{error:#}");
+                tracing::error!(error = ?error, "startup failed");
                 ExitCode::FAILURE
             }
         },

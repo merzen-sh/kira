@@ -45,7 +45,7 @@ pub(crate) fn serve(path: &str) -> Response {
     let content_type = match header::HeaderValue::from_str(&content_type_for(path)) {
         Ok(value) => value,
         Err(error) => {
-            tracing::error!("invalid content type for {path}: {error}");
+            tracing::error!(%path, error = %error, "invalid content type");
             header::HeaderValue::from_static("application/octet-stream")
         }
     };
@@ -58,7 +58,7 @@ pub(crate) fn serve(path: &str) -> Response {
                 header::HeaderValue::from_static(cache_control_for(path)),
             ),
         ],
-        Body::from(file.data.into_owned()),
+        Body::from(file.data),
     )
         .into_response()
 }

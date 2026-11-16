@@ -14,6 +14,7 @@ use serenity::model::application::{
 };
 use serenity::prelude::Context;
 
+use crate::errors::BotError;
 use crate::state::DatabaseKey;
 
 /// Name of the `/report` slash command.
@@ -34,10 +35,7 @@ pub(super) fn command() -> CreateCommand {
 }
 
 /// Open the report modal for a `/report` command.
-pub(super) async fn open(
-    ctx: &Context,
-    command: &CommandInteraction,
-) -> Result<(), Box<serenity::Error>> {
+pub(super) async fn open(ctx: &Context, command: &CommandInteraction) -> Result<(), BotError> {
     let modal = CreateModal::new(MODAL_ID, "Report a bug").components(vec![
         CreateActionRow::InputText(
             CreateInputText::new(InputTextStyle::Short, "What is broken?", TITLE_ID)
@@ -67,10 +65,7 @@ pub(super) async fn open(
 }
 
 /// Save a submitted report modal and acknowledge it.
-pub(super) async fn submit(
-    ctx: &Context,
-    modal: &ModalInteraction,
-) -> Result<(), Box<serenity::Error>> {
+pub(super) async fn submit(ctx: &Context, modal: &ModalInteraction) -> Result<(), BotError> {
     let content = match submitted_fields(modal) {
         Some((title, steps, details)) => save(ctx, modal, title, steps, details).await,
         None => "Please fill in every field.".to_owned(),
@@ -100,14 +95,14 @@ async fn save(
     };
 
     let Some(store) = store else {
-        tracing::error!("Report storage is not available.");
+        tracing::error!("report storage is not available");
         return "Sorry, the report could not be saved.".to_owned();
     };
 
     match save_from_modal(&store, modal, title, steps, details).await {
         Ok(id) => format!("Thanks! Bug report #{id} was saved."),
         Err(error) => {
-            tracing::error!("Failed to save bug report: {error:?}");
+            tracing::error!(error = ?error, "failed to save bug report");
             "Sorry, the report could not be saved.".to_owned()
         }
     }
@@ -164,7 +159,8 @@ async fn save_report(
             actor_kind = event.actor.kind,
             actor_id = user_id,
             target_kind = event.target.map_or("-", |target| target.kind.as_str()),
-            "failed to record report audit event: {error:?}"
+            error = ?error,
+            "failed to record report audit event"
         );
     }
 

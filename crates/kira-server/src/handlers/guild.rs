@@ -31,6 +31,9 @@ const MESSAGE_TIMEOUT: Duration = Duration::from_secs(15);
 /// Channel kinds that can receive messages.
 const SENDABLE_KINDS: [&str; 4] = ["text", "news", "public_thread", "private_thread"];
 
+/// Discord's maximum message content length, in characters.
+const MAX_CONTENT_LENGTH: usize = 2000;
+
 /// Return the configured Discord server's details.
 #[utoipa::path(
     get,
@@ -44,7 +47,7 @@ const SENDABLE_KINDS: [&str; 4] = ["text", "news", "public_thread", "private_thr
         (status = 503, body = ErrorResponse)
     )
 )]
-pub async fn get_guild(State(state): State<AppState>) -> Response {
+pub async fn guild(State(state): State<AppState>) -> Response {
     match state.guild() {
         Some(guild) => Json(guild).into_response(),
         None => (
@@ -68,7 +71,7 @@ pub async fn get_guild(State(state): State<AppState>) -> Response {
         (status = 503, body = ErrorResponse)
     )
 )]
-pub async fn get_guild_channels(State(state): State<AppState>) -> Response {
+pub async fn guild_channels(State(state): State<AppState>) -> Response {
     match state.guild_channels() {
         Some(channels) => Json(channels).into_response(),
         None => (
@@ -93,7 +96,7 @@ fn validate_message(payload: &serde_json::Value) -> Result<MessageSummary, &'sta
         return Err("content or embeds is required");
     }
 
-    if content_length > 2000 {
+    if content_length > MAX_CONTENT_LENGTH {
         return Err("content must be 2000 characters or fewer");
     }
 
@@ -129,15 +132,15 @@ pub async fn send_guild_message(
     Path(channel_id): Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> Response {
-    let Some(channels) = state.guild_channels() else {
+    if !state.has_guild() {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(ErrorResponse::new("guild data is not available")),
         )
             .into_response();
-    };
+    }
 
-    let Some(channel) = channels.iter().find(|channel| channel.id == channel_id) else {
+    let Some(channel) = state.channel(&channel_id) else {
         return (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new("channel is not available")),

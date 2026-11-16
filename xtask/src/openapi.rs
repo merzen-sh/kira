@@ -19,6 +19,11 @@ fn document() -> Result<String> {
 }
 
 /// Write the OpenAPI document to `openapi/openapi.yaml` under `root`.
+///
+/// # Errors
+///
+/// Returns an error when the document cannot be built or the file cannot be
+/// written.
 pub fn generate(root: &Path) -> Result<()> {
     let path = output_path(root);
     if let Some(parent) = path.parent() {
@@ -29,6 +34,10 @@ pub fn generate(root: &Path) -> Result<()> {
 }
 
 /// Fail when the committed OpenAPI document differs from the generated one.
+///
+/// # Errors
+///
+/// Returns an error when the document cannot be built, read, or matched.
 pub fn check(root: &Path) -> Result<()> {
     let path = output_path(root);
     let expected = document()?;

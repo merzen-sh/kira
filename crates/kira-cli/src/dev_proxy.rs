@@ -1,5 +1,7 @@
 //! Development-only reverse proxy to the Vite dev server.
 
+use std::sync::LazyLock;
+
 use anyhow::Result;
 use axum::Json;
 use axum::body::{Body, to_bytes};
@@ -10,12 +12,15 @@ use kira_protocol::ErrorResponse;
 
 const MAX_BODY_SIZE: usize = 16 * 1024 * 1024;
 
+/// One client keeps connections to Vite alive across proxied requests.
+static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
+
 /// Forward a non-API request to the Vite dev server.
 pub(crate) async fn forward(base_url: &str, request: Request) -> Response {
     match forward_inner(base_url, request).await {
         Ok(response) => response,
         Err(error) => {
-            tracing::error!("vite dev proxy failed: {error:#}");
+            tracing::error!(error = ?error, "vite dev proxy failed");
             (
                 StatusCode::BAD_GATEWAY,
                 Json(ErrorResponse::new("vite dev server unavailable")),
@@ -36,7 +41,7 @@ async fn forward_inner(base_url: &str, request: Request) -> Result<Response> {
     let body = to_bytes(body, MAX_BODY_SIZE).await?;
     let method = reqwest::Method::from_bytes(parts.method.as_str().as_bytes())?;
 
-    let response = reqwest::Client::new()
+    let response = CLIENT
         .request(method, url)
         .headers(sanitize_headers(parts.headers))
         .body(body)

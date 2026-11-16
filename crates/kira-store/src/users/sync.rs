@@ -5,6 +5,10 @@ use crate::StoreError;
 
 impl UserRepository {
     /// Push a user's next sync out without recording a successful refresh.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update fails.
     pub async fn defer_sync(&self, user_id: &str) -> Result<(), StoreError> {
         let sql = format!(
             "UPDATE guild_users SET next_sync_at = {NEXT_SYNC} \
@@ -22,6 +26,10 @@ impl UserRepository {
     /// Active users due for a metadata refresh, ordered by ID.
     ///
     /// `after` is the checkpoint from the previous batch.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the query fails.
     pub async fn due_for_sync(&self, after: &str, limit: u32) -> Result<Vec<String>, StoreError> {
         let sql = format!(
             "SELECT user_id FROM guild_users \
@@ -42,6 +50,10 @@ impl UserRepository {
     ///
     /// Returns `false` when the user is no longer active, so a concurrent
     /// leave is never overwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update fails.
     pub async fn record_sync(
         &self,
         user_id: &str,
@@ -69,6 +81,10 @@ impl UserRepository {
 
     /// Claim the sync lock and return its checkpoint, or `None` when another
     /// sync is already running.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the lock update or checkpoint read fails.
     pub async fn claim_sync(&self) -> Result<Option<String>, StoreError> {
         let sql = format!(
             "UPDATE guild_sync_state \
@@ -91,6 +107,10 @@ impl UserRepository {
     }
 
     /// Save the checkpoint for the next run.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update fails.
     pub async fn save_sync_cursor(&self, cursor: &str) -> Result<(), StoreError> {
         let sql = format!(
             "UPDATE guild_sync_state \
@@ -106,6 +126,10 @@ impl UserRepository {
     }
 
     /// Release the lock but keep the checkpoint so the next run resumes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update fails.
     pub async fn release_sync(&self) -> Result<(), StoreError> {
         let sql = format!(
             "UPDATE guild_sync_state \
@@ -118,6 +142,10 @@ impl UserRepository {
     }
 
     /// Release the lock and clear the checkpoint after a complete pass.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`StoreError`] when the update fails.
     pub async fn finish_sync(&self) -> Result<(), StoreError> {
         let sql = format!(
             "UPDATE guild_sync_state \

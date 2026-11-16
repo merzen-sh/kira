@@ -116,8 +116,19 @@ impl ReportStats {
 
 /// Resolution change submitted to `PATCH /reports/{id}`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct UpdateReport {
     /// New resolved state.
     pub resolved: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UpdateReport;
+
+    #[test]
+    fn unknown_update_fields_are_rejected() {
+        assert!(serde_json::from_str::<UpdateReport>(r#"{"resolved":true,"extra":1}"#).is_err());
+    }
 }

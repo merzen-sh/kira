@@ -8,6 +8,10 @@ mod errors;
 pub use errors::ApiDocsError;
 
 /// Serialize the OpenAPI document to YAML.
+///
+/// # Errors
+///
+/// Returns an error when the document cannot be serialized.
 pub fn yaml() -> Result<String, ApiDocsError> {
     ApiDoc::openapi()
         .to_yaml()
