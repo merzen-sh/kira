@@ -6,6 +6,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, S
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
 use crate::StoreError;
+use crate::audit::AuditRepository;
 use crate::monitor::MonitorRepository;
 use crate::reports::ReportRepository;
 use crate::users::UserRepository;
@@ -60,6 +61,12 @@ impl Database {
     #[must_use]
     pub fn users(&self) -> UserRepository {
         UserRepository::new(self.clone())
+    }
+
+    /// Generic audit event persistence.
+    #[must_use]
+    pub fn audit(&self) -> AuditRepository {
+        AuditRepository::new(self.clone())
     }
 
     pub(crate) fn pool(&self) -> &SqlitePool {

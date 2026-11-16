@@ -18,6 +18,8 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/guild/users` | cookie | `200` with a `GuildUserList` page; accepts `page`, `page_limit` (1–100), `search`, `status` (`active` or `left`), and `kind` (`user`, `bot`, or `all`) |
 | `GET` | `/guild/users/stats` | cookie | `200` with a `GuildUserStats` summary of human total, active, left, and tracked bot counts |
 | `GET` | `/monitor` | cookie | `200` with a `MonitorReport` containing the latest sample and a bucketed history; accepts `range` (`1h`, `3h`, or `24h`; default `1h`) |
+| `GET` | `/audit/events` | cookie | `200` with an `AuditEventList` page; accepts `page`, `page_limit` (1–100), `search`, `action`, and `actor_kind` |
+| `GET` | `/audit/facets` | cookie | `200` with an `AuditFacets` list of distinct actions and actor kinds |
 | `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
 | `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), and `search` |
 | `GET` | `/reports/stats` | cookie | `200` with a `ReportStats` summary of total, open, and resolved reports |
@@ -68,6 +70,16 @@ rows as it records. `range` selects the history window and aggregation bucket:
 into 5-minute buckets. `current` is the newest raw sample, while `history` is
 chronological. Disk usage follows the filesystem containing the server's
 working directory.
+
+`/audit/events` is a generic audit log that is independent of the bot and the
+other API domains. Each event has an `action`, an `actor`, an optional `target`,
+a metadata JSON object, and `occurred_at`/`recorded_at` timestamps. `search` is
+a case-insensitive substring match against the action, actor, and target;
+`action` and `actor_kind` are exact filters. `GET /audit/facets` returns the
+distinct actions and actor kinds used by the dashboard filters. Events are
+retained indefinitely and are written in-process through the storage
+repository; no HTTP write route and no existing feature writes audit events
+yet.
 
 `GET /ws` requires a valid session cookie and an allowed `Origin` when one is
 sent. Text and binary frames are echoed; ping/pong are handled by Axum; close
