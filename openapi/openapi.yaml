@@ -259,6 +259,12 @@ paths:
         required: false
         schema:
           type: string
+      - name: kind
+        in: query
+        description: 'Account filter: `user`, `bot`, or `all` (default `all`)'
+        required: false
+        schema:
+          type: string
       responses:
         '200':
           content:
@@ -657,11 +663,15 @@ components:
       - user_name
       - display_name
       - status
+      - is_bot
       - join_at
       properties:
         display_name:
           type: string
           description: Guild nickname or global display name.
+        is_bot:
+          type: boolean
+          description: Whether the account is a Discord bot.
         join_at:
           type: string
           description: Time the user most recently joined, as an ISO 8601 timestamp.
@@ -715,21 +725,27 @@ components:
       - total
       - active
       - left
+      - bots
       properties:
         active:
           type: integer
           format: int64
-          description: Number of users currently in the guild.
+          description: Number of human users currently in the guild.
+          minimum: 0
+        bots:
+          type: integer
+          format: int64
+          description: Number of tracked bot accounts.
           minimum: 0
         left:
           type: integer
           format: int64
-          description: Number of users who left the guild.
+          description: Number of human users who left the guild.
           minimum: 0
         total:
           type: integer
           format: int64
-          description: Total number of tracked users.
+          description: Total number of tracked human users.
           minimum: 0
     HealthResponse:
       type: object

@@ -181,13 +181,17 @@ and waits for Ctrl-C/SIGTERM.
   caches only the configured guild. `/report` opens a modal and saves the
   submission to the report repository.
 - Guild membership is event-driven: member additions and removals write the
-  user state and a join/leave event in one transaction. On every `ready`, a
-  reconciliation pass imports the current member list, reactivates missed
-  rejoins, and marks tracked active users that are gone as left. A background
-  worker refreshes active users' names in batches on a three-day per-user
-  cooldown and never changes membership status; a `404` defers the user instead
-  of retrying forever. Member events require the `GUILD_MEMBERS` privileged
-  intent to be enabled for the bot in the Discord developer portal.
+  user state and a join/leave event in one transaction. Bot accounts are
+  recorded with an `is_bot` flag at join or reconciliation time and can be
+  filtered separately in the dashboard; stats count humans and bots separately.
+  Metadata sync refreshes names for both account types but never changes the
+  flag. On every `ready`, a reconciliation pass imports the current member
+  list, reactivates missed rejoins, and marks tracked active users that are
+  gone as left. A background worker refreshes active users' names in batches on
+  a three-day per-user cooldown and never changes membership status; a `404`
+  defers the user instead of retrying forever. Member events require the
+  `GUILD_MEMBERS` privileged intent to be enabled for the bot in the Discord
+  developer portal.
 - `kira-server::serve` binds the configured address and runs Axum with graceful
   shutdown. It also starts a task that samples host CPU, memory, and disk every
   10 seconds, stores the samples in SQLite, and prunes rows older than 24 hours.

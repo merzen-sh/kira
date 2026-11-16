@@ -47,12 +47,13 @@ async fn users_are_listed_searched_filtered_and_paginated() -> Result<(), Box<dy
     let cookie = common::login_cookie(&state).await?;
     let users = database.users();
 
-    users.join("1", "alice", "Alice").await?;
-    users.join("2", "bob", "Bobby").await?;
-    users.leave("2", "bob", "Bobby").await?;
+    users.join("1", "alice", "Alice", false).await?;
+    users.join("2", "bob", "Bobby", false).await?;
+    users.join("3", "kira", "Kira", true).await?;
+    users.leave("2", "bob", "Bobby", false).await?;
 
     let page = list(&state, "/guild/users?page=1&page_limit=1", &cookie).await?;
-    assert_eq!(page.total, 2);
+    assert_eq!(page.total, 3);
     assert_eq!(page.page, 1);
     assert_eq!(page.page_limit, 1);
     assert_eq!(page.users.len(), 1);
@@ -65,8 +66,16 @@ async fn users_are_listed_searched_filtered_and_paginated() -> Result<(), Box<dy
     assert_eq!(searched.users[0].user_id, "2");
 
     let active = list(&state, "/guild/users?status=active", &cookie).await?;
-    assert_eq!(active.total, 1);
-    assert_eq!(active.users[0].user_id, "1");
+    assert_eq!(active.total, 2);
+
+    let bots = list(&state, "/guild/users?kind=bot", &cookie).await?;
+    assert_eq!(bots.total, 1);
+    assert_eq!(bots.users[0].user_id, "3");
+    assert!(bots.users[0].is_bot);
+
+    let humans = list(&state, "/guild/users?kind=user", &cookie).await?;
+    assert_eq!(humans.total, 2);
+    assert!(humans.users.iter().all(|user| !user.is_bot));
 
     let left = list(&state, "/guild/users?status=left", &cookie).await?;
     assert_eq!(left.total, 1);
@@ -80,9 +89,10 @@ async fn user_stats_count_active_and_left_members() -> Result<(), Box<dyn Error>
     let cookie = common::login_cookie(&state).await?;
     let users = database.users();
 
-    users.join("1", "alice", "Alice").await?;
-    users.join("2", "bob", "Bobby").await?;
-    users.leave("2", "bob", "Bobby").await?;
+    users.join("1", "alice", "Alice", false).await?;
+    users.join("2", "bob", "Bobby", false).await?;
+    users.join("3", "kira", "Kira", true).await?;
+    users.leave("2", "bob", "Bobby", false).await?;
 
     let response = router(state)
         .oneshot(common::with_cookie(
@@ -96,7 +106,28 @@ async fn user_stats_count_active_and_left_members() -> Result<(), Box<dyn Error>
     assert_eq!(response.status(), StatusCode::OK);
     let bytes = response.into_body().collect().await?.to_bytes();
     let stats: GuildUserStats = serde_json::from_slice(&bytes)?;
-    assert_eq!((stats.total, stats.active, stats.left), (2, 1, 1));
+    assert_eq!(
+        (stats.total, stats.active, stats.left, stats.bots),
+        (2, 1, 1, 1)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn unknown_kind_filters_are_rejected() -> Result<(), Box<dyn Error>> {
+    let (state, _database) = state().await?;
+    let cookie = common::login_cookie(&state).await?;
+
+    let response = router(state)
+        .oneshot(common::with_cookie(
+            Request::builder()
+                .uri("/guild/users?kind=robot")
+                .body(Body::empty())?,
+            &cookie,
+        ))
+        .await?;
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     Ok(())
 }
 

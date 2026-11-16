@@ -8,9 +8,9 @@ use sqlx::FromRow;
 use crate::query::{escape_like, page_offset};
 use crate::{Database, StoreError};
 
-const USER_COLUMNS: &str = "user_id, user_name, display_name, status, join_at, leave_at";
+const USER_COLUMNS: &str = "user_id, user_name, display_name, status, is_bot, join_at, leave_at";
 
-const FILTER: &str = "(? = '' OR user_id LIKE ? ESCAPE '\\' OR user_name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\') AND (? IS NULL OR status = ?)";
+const FILTER: &str = "(? = '' OR user_id LIKE ? ESCAPE '\\' OR user_name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\') AND (? IS NULL OR status = ?) AND (? IS NULL OR is_bot = ?)";
 
 const NOW: &str = "strftime('%Y-%m-%dT%H:%M:%fZ','now')";
 
@@ -30,30 +30,33 @@ impl UserRepository {
         Self { db }
     }
 
-    /// Record a join or rejoin, reactivating the user in one transaction.
+    /// Record a join or rejoin, reactivating the member in one transaction.
     pub async fn join(
         &self,
         user_id: &str,
         user_name: &str,
         display_name: &str,
+        is_bot: bool,
     ) -> Result<(), StoreError> {
         let mut tx = self.db.begin().await?;
 
         let sql = format!(
             "INSERT INTO guild_users \
-                (user_id, user_name, display_name, status, join_at, leave_at) \
-             VALUES (?, ?, ?, 'active', {NOW}, NULL) \
+                (user_id, user_name, display_name, status, join_at, leave_at, is_bot) \
+             VALUES (?, ?, ?, 'active', {NOW}, NULL, ?) \
              ON CONFLICT(user_id) DO UPDATE SET \
                 user_name = excluded.user_name, \
                 display_name = excluded.display_name, \
                 status = 'active', \
                 join_at = excluded.join_at, \
-                leave_at = NULL"
+                leave_at = NULL, \
+                is_bot = excluded.is_bot"
         );
         sqlx::query(&sql)
             .bind(user_id)
             .bind(user_name)
             .bind(display_name)
+            .bind(is_bot)
             .execute(&mut *tx)
             .await?;
 
@@ -69,23 +72,26 @@ impl UserRepository {
         user_id: &str,
         user_name: &str,
         display_name: &str,
+        is_bot: bool,
     ) -> Result<(), StoreError> {
         let mut tx = self.db.begin().await?;
 
         let sql = format!(
             "INSERT INTO guild_users \
-                (user_id, user_name, display_name, status, join_at, leave_at) \
-             VALUES (?, ?, ?, 'left', {NOW}, {NOW}) \
+                (user_id, user_name, display_name, status, join_at, leave_at, is_bot) \
+             VALUES (?, ?, ?, 'left', {NOW}, {NOW}, ?) \
              ON CONFLICT(user_id) DO UPDATE SET \
                 user_name = excluded.user_name, \
                 display_name = excluded.display_name, \
                 status = 'left', \
-                leave_at = excluded.leave_at"
+                leave_at = excluded.leave_at, \
+                is_bot = excluded.is_bot"
         );
         sqlx::query(&sql)
             .bind(user_id)
             .bind(user_name)
             .bind(display_name)
+            .bind(is_bot)
             .execute(&mut *tx)
             .await?;
 
@@ -106,6 +112,7 @@ impl UserRepository {
         user_id: &str,
         user_name: &str,
         display_name: &str,
+        is_bot: bool,
         joined_at: Option<&str>,
         snapshot: &str,
     ) -> Result<(), StoreError> {
@@ -121,14 +128,15 @@ impl UserRepository {
             None => {
                 let sql = format!(
                     "INSERT INTO guild_users \
-                        (user_id, user_name, display_name, status, join_at, leave_at) \
-                     VALUES (?, ?, ?, 'active', COALESCE(?, {NOW}), NULL)"
+                        (user_id, user_name, display_name, status, join_at, leave_at, is_bot) \
+                     VALUES (?, ?, ?, 'active', COALESCE(?, {NOW}), NULL, ?)"
                 );
                 sqlx::query(&sql)
                     .bind(user_id)
                     .bind(user_name)
                     .bind(display_name)
                     .bind(joined_at)
+                    .bind(is_bot)
                     .execute(&mut *tx)
                     .await?;
                 insert_event(&mut tx, user_id, "join").await?;
@@ -139,6 +147,11 @@ impl UserRepository {
                     .is_some_and(|left_at| left_at >= snapshot)
                 {
                     // A leave arrived after the snapshot; the member page is stale.
+                    sqlx::query("UPDATE guild_users SET is_bot = ? WHERE user_id = ?")
+                        .bind(is_bot)
+                        .bind(user_id)
+                        .execute(&mut *tx)
+                        .await?;
                     tx.commit().await?;
                     return Ok(());
                 }
@@ -146,13 +159,14 @@ impl UserRepository {
                 let sql = format!(
                     "UPDATE guild_users \
                      SET user_name = ?, display_name = ?, status = 'active', \
-                         join_at = COALESCE(?, {NOW}), leave_at = NULL \
+                         join_at = COALESCE(?, {NOW}), leave_at = NULL, is_bot = ? \
                      WHERE user_id = ?"
                 );
                 sqlx::query(&sql)
                     .bind(user_name)
                     .bind(display_name)
                     .bind(joined_at)
+                    .bind(is_bot)
                     .bind(user_id)
                     .execute(&mut *tx)
                     .await?;
@@ -160,11 +174,12 @@ impl UserRepository {
             }
             Some(_) => {
                 sqlx::query(
-                    "UPDATE guild_users SET user_name = ?, display_name = ? \
+                    "UPDATE guild_users SET user_name = ?, display_name = ?, is_bot = ? \
                      WHERE user_id = ? AND status = 'active'",
                 )
                 .bind(user_name)
                 .bind(display_name)
+                .bind(is_bot)
                 .bind(user_id)
                 .execute(&mut *tx)
                 .await?;
@@ -183,7 +198,7 @@ impl UserRepository {
             .await?)
     }
 
-    /// IDs of every user currently tracked as active.
+    /// IDs of every tracked member currently marked active.
     pub async fn active_ids(&self) -> Result<Vec<String>, StoreError> {
         Ok(
             sqlx::query_scalar("SELECT user_id FROM guild_users WHERE status = 'active'")
@@ -223,11 +238,13 @@ impl UserRepository {
         Ok(())
     }
 
-    /// Count every tracked user and how many are active.
+    /// Count human users by status and tracked bot accounts.
     pub async fn stats(&self) -> Result<GuildUserStats, StoreError> {
-        let (total, active): (i64, i64) = sqlx::query_as(
-            "SELECT COUNT(*), \
-                COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) \
+        let (total, active, bots): (i64, i64, i64) = sqlx::query_as(
+            "SELECT \
+                COALESCE(SUM(CASE WHEN is_bot = 0 THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN is_bot = 0 AND status = 'active' THEN 1 ELSE 0 END), 0), \
+                COALESCE(SUM(CASE WHEN is_bot = 1 THEN 1 ELSE 0 END), 0) \
              FROM guild_users",
         )
         .fetch_one(self.db.pool())
@@ -236,6 +253,7 @@ impl UserRepository {
         Ok(GuildUserStats::new(
             u64::try_from(total).unwrap_or_default(),
             u64::try_from(active).unwrap_or_default(),
+            u64::try_from(bots).unwrap_or_default(),
         ))
     }
 
@@ -246,6 +264,7 @@ impl UserRepository {
         page_limit: u32,
         search: Option<&str>,
         status: Option<&str>,
+        is_bot: Option<bool>,
     ) -> Result<GuildUserList, StoreError> {
         let search = search.map(str::trim).filter(|value| !value.is_empty());
         let search = search.unwrap_or_default();
@@ -260,6 +279,8 @@ impl UserRepository {
             .bind(&pattern)
             .bind(status)
             .bind(status)
+            .bind(is_bot)
+            .bind(is_bot)
             .fetch_one(self.db.pool())
             .await?;
 
@@ -274,6 +295,8 @@ impl UserRepository {
             .bind(&pattern)
             .bind(status)
             .bind(status)
+            .bind(is_bot)
+            .bind(is_bot)
             .bind(limit)
             .bind(offset)
             .fetch_all(self.db.pool())
@@ -313,6 +336,7 @@ struct GuildUserRow {
     user_name: String,
     display_name: String,
     status: String,
+    is_bot: bool,
     join_at: String,
     leave_at: Option<String>,
 }
@@ -324,6 +348,7 @@ impl From<GuildUserRow> for GuildUser {
             row.user_name,
             row.display_name,
             row.status,
+            row.is_bot,
             row.join_at,
             row.leave_at,
         )
