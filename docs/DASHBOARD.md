@@ -14,8 +14,8 @@ Routing is file-based:
   `monitor.tsx`, `audit.tsx`, `reports.tsx`, and `users.tsx` are the page
   routes. The reports and users pages open with summary cards above their
   tables, the monitor page shows current CPU, memory, and disk usage with
-  range-selected history charts, and the audit page browses, filters, and
-  inspects generic audit events.
+  range-selected history charts, and the audit page browses, filters by action,
+  actor kind, and source, and inspects generic audit events.
 - The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
   creates the router from that tree.
 

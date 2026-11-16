@@ -4,6 +4,7 @@ export interface AuditListParams {
   search: string;
   action: string;
   actorKind: string;
+  source: string;
 }
 
 export const auditKeys = {
