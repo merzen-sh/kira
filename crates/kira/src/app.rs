@@ -34,7 +34,8 @@ async fn record_started(database: &kira_store::Database) {
             action = event.action,
             source = event.source,
             actor_kind = event.actor.kind,
-            "failed to record startup audit event: {error:?}"
+            error = ?error,
+            "failed to record startup audit event"
         );
     }
 }
