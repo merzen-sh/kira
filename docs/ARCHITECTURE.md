@@ -25,7 +25,7 @@ flowchart TB
     GW["Discord Gateway"]
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
-        BOT["kira-bot<br/>Serenity gateway + /ping and /report"]
+        BOT["kira-bot<br/>Serenity gateway + /ping, /report, and /mod"]
         SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, monitor, audit, guild, channels, users, messages, reports, /ws echo"]
         STORE["kira-store<br/>SQLite + migrations"]
     end
@@ -180,7 +180,9 @@ and waits for Ctrl-C/SIGTERM.
   `GUILD_MEMBERS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents,
   registers the config in Serenity's type map, and starts the gateway. It
   caches only the configured guild. `/report` opens a modal and saves the
-  submission to the report repository.
+  submission to the report repository. `/mod` exposes ban, kick, purge, lock,
+  and unlock; every subcommand re-checks the invoking member's Discord
+  permissions server-side and answers ephemerally.
 - Guild membership is event-driven: member additions and removals write the
   user state and a join/leave event in one transaction. Bot accounts are
   recorded with an `is_bot` flag at join or reconciliation time and can be
@@ -287,6 +289,8 @@ Implemented:
 - Discord `!ping` → `Pong!`.
 - Discord `/ping` slash command → `pong` (registered per guild, or globally in
   bot-only builds).
+- Discord `/mod` group with `ban`, `kick`, `purge`, `lock`, and `unlock`
+  subcommands, gated by server-side Discord permission checks.
 - `GET /health`, guild/channel reads, and guild message posting.
 - Local dashboard hosting, SPA fallback, asset caching, HTTP/WS proxying.
 - Dashboard navigation, health, guild header, theme toggle, and announcements.
