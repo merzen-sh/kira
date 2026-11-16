@@ -52,6 +52,7 @@ exhaustive_enums = "deny"
 exhaustive_structs = "deny"
 must_use_candidate = "deny"
 return_self_not_must_use = "deny"
+missing_errors_doc = "deny"
 missing_panics_doc = "deny"
 
 [profile.release]
