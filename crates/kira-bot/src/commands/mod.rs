@@ -1,5 +1,7 @@
 //! Slash commands defined and handled by the bot.
 
+mod moderation;
+mod permissions;
 mod ping;
 mod report;
 
@@ -14,7 +16,8 @@ use crate::errors::BotError;
 
 /// Register the bot's slash commands in `guild_id`, or globally when unset.
 pub(crate) async fn register(ctx: &Context, guild_id: Option<u64>) -> Result<(), BotError> {
-    let commands: Vec<CreateCommand> = vec![ping::command(), report::command()];
+    let commands: Vec<CreateCommand> =
+        vec![ping::command(), report::command(), moderation::command()];
 
     match guild_id {
         Some(guild_id) => {
@@ -35,6 +38,7 @@ pub(crate) async fn handle(ctx: &Context, command: &CommandInteraction) -> Resul
     match command.data.name.as_str() {
         ping::NAME => ping::respond(ctx, command).await,
         report::NAME => report::open(ctx, command).await,
+        moderation::NAME => moderation::handle(ctx, command).await,
         _ => Ok(()),
     }
 }
