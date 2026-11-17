@@ -27,6 +27,10 @@ const SEND_TIMEOUT: Duration = Duration::from_secs(10);
 ///
 /// Returns an error when the Discord client cannot be built or the gateway
 /// stops with an error.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the bot entry point wires the independent shared channels it owns"
+)]
 pub async fn run(
     config: DiscordConfig,
     guild_id: Option<u64>,
