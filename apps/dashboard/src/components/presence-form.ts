@@ -5,6 +5,12 @@ export type BotStatus = components["schemas"]["BotStatus"];
 export type ActivityKind = components["schemas"]["ActivityKind"];
 export type ActivitySelection = ActivityKind | "none";
 
+export const MAX_ACTIVITY_TEXT = 128;
+
+export function activityTextLength(text: string): number {
+  return Array.from(text).length;
+}
+
 export interface PresenceFormResult {
   presence?: BotPresence;
   error?: string;
@@ -25,8 +31,10 @@ export function presenceFromForm(
     return { error: "Activity text is required." };
   }
 
-  if (text.length > 128) {
-    return { error: "Activity text must be 128 characters or fewer." };
+  if (activityTextLength(text) > MAX_ACTIVITY_TEXT) {
+    return {
+      error: `Activity text must be ${MAX_ACTIVITY_TEXT} characters or fewer.`,
+    };
   }
 
   return { presence: { status, activity: { kind: activityKind, text } } };

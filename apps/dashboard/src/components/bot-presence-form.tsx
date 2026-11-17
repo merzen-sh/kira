@@ -16,6 +16,8 @@ import { usePresenceQuery } from "@/data/presence/query";
 import {
   type ActivitySelection,
   type BotStatus,
+  MAX_ACTIVITY_TEXT,
+  activityTextLength,
   presenceFromForm,
 } from "./presence-form";
 
@@ -158,11 +160,10 @@ export function BotPresenceForm({
             id={textId}
             value={activityText}
             onChange={(event) => setActivityText(event.target.value)}
-            maxLength={128}
             placeholder={ACTIVITY_PLACEHOLDERS[activityKind]}
           />
           <span className="text-xs font-normal text-muted-foreground">
-            {activityText.length}/128
+            {activityTextLength(activityText)}/{MAX_ACTIVITY_TEXT}
           </span>
         </div>
       ) : null}
