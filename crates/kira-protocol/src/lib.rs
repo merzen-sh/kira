@@ -6,6 +6,7 @@ mod error;
 mod guild;
 mod health;
 mod monitor;
+mod presence;
 mod reports;
 
 pub use audit::{
@@ -19,4 +20,5 @@ pub use guild::{
 };
 pub use health::HealthResponse;
 pub use monitor::{MonitorReport, MonitorSample};
+pub use presence::{ActivityKind, BotActivity, BotPresence, BotStatus};
 pub use reports::{Report, ReportList, ReportStats, UpdateReport};
