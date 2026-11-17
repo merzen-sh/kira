@@ -7,6 +7,7 @@ mod errors;
 mod guilds;
 pub mod handler;
 mod members;
+mod presence;
 mod state;
 mod sync;
 

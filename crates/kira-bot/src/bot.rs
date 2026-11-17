@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use kira_config::DiscordConfig;
 use kira_core::messaging::OutgoingMessage;
-use kira_protocol::{ChannelDetails, GuildDetails};
+use kira_protocol::{BotPresence, ChannelDetails, GuildDetails};
 use kira_store::Database;
 use serenity::Client;
 use serenity::http::Http;
@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, watch};
 
 use crate::errors::BotError;
 use crate::handler::Handler;
-use crate::state::{ChannelsKey, ConfigKey, DatabaseKey, GuildIdKey, GuildsKey};
+use crate::state::{ChannelsKey, ConfigKey, DatabaseKey, GuildIdKey, GuildsKey, PresenceKey};
 
 /// How long a single Discord send may take before the queue moves on.
 const SEND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -32,6 +32,7 @@ pub async fn run(
     guild_id: Option<u64>,
     guilds: watch::Sender<Vec<GuildDetails>>,
     channels: watch::Sender<Vec<ChannelDetails>>,
+    presence: watch::Receiver<BotPresence>,
     database: Database,
     messages: mpsc::Receiver<OutgoingMessage>,
     shutdown: impl Future<Output = ()> + Send,
@@ -44,9 +45,13 @@ pub async fn run(
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    let mut client = Client::builder(config.token.expose(), intents)
-        .event_handler(Handler)
-        .await?;
+    let initial = presence.borrow().clone();
+    let mut builder = Client::builder(config.token.expose(), intents)
+        .status(crate::presence::online_status(initial.status));
+    if let Some(activity) = crate::presence::activity(&initial) {
+        builder = builder.activity(activity);
+    }
+    let mut client = builder.event_handler(Handler).await?;
 
     let sync_task = guild_id.map(|guild_id| {
         tokio::spawn(crate::sync::run(
@@ -63,10 +68,16 @@ pub async fn run(
         data.insert::<GuildIdKey>(guild_id);
         data.insert::<GuildsKey>(guilds);
         data.insert::<ChannelsKey>(channels);
+        data.insert::<PresenceKey>(presence.clone());
         data.insert::<DatabaseKey>(database);
     }
 
     spawn_message_sender(client.http.clone(), messages);
+
+    let presence_task = tokio::spawn(crate::presence::run(
+        Arc::clone(&client.shard_manager),
+        presence,
+    ));
 
     // Keep a reference to the shard manager.
     let shard_manager = Arc::clone(&client.shard_manager);
@@ -102,6 +113,7 @@ pub async fn run(
     if let Some(task) = sync_task {
         task.abort();
     }
+    presence_task.abort();
 
     Ok(())
 }
