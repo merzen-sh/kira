@@ -4,9 +4,9 @@ use axum::{Router, middleware, routing};
 
 use crate::handlers::ws::ws_upgrade;
 use crate::handlers::{
-    audit_facets, delete_report, guild, guild_channels, guild_user_stats, health,
+    audit_facets, delete_report, get_presence, guild, guild_channels, guild_user_stats, health,
     list_audit_events, list_guild_users, list_reports, login, logout, report_stats,
-    send_guild_message, session, system_monitor, update_report,
+    send_guild_message, session, system_monitor, update_presence, update_report,
 };
 use crate::middleware::{cors_layer, record_peer, require_origin, require_session};
 #[cfg(debug_assertions)]
@@ -19,6 +19,10 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/session", routing::get(session))
         .route("/guild", routing::get(guild))
         .route("/guild/channels", routing::get(guild_channels))
+        .route(
+            "/bot/presence",
+            routing::get(get_presence).put(update_presence),
+        )
         .route("/guild/users", routing::get(list_guild_users))
         .route("/guild/users/stats", routing::get(guild_user_stats))
         .route("/monitor", routing::get(system_monitor))

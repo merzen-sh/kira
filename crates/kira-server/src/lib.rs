@@ -17,9 +17,9 @@ pub use handlers::monitor::MonitorQuery;
 pub use handlers::reports::ReportListQuery;
 pub use handlers::users::UserListQuery;
 pub use handlers::{
-    audit_facets, delete_report, guild, guild_channels, guild_user_stats, health,
+    audit_facets, delete_report, get_presence, guild, guild_channels, guild_user_stats, health,
     list_audit_events, list_guild_users, list_reports, login, logout, report_stats,
-    send_guild_message, session, system_monitor, update_report,
+    send_guild_message, session, system_monitor, update_presence, update_report,
 };
 pub use middleware::PeerAddress;
 pub use openapi::ApiDoc;

@@ -28,6 +28,7 @@ async fn state() -> (
         channels,
         database.clone(),
         messages,
+        common::presence(),
         common::auth(),
     );
 
@@ -133,6 +134,7 @@ async fn non_text_channel_is_rejected() -> Result<(), Box<dyn Error>> {
         channels,
         common::database().await,
         messages,
+        common::presence(),
         common::auth(),
     );
     let cookie = common::login_cookie(&state).await?;
@@ -208,6 +210,7 @@ async fn published_announcement_records_an_audit_event() -> Result<(), Box<dyn E
         channels,
         database.clone(),
         messages,
+        common::presence(),
         common::auth(),
     );
     guild_sender.send_replace(vec![GuildDetails::new("1", "Alpha")]);

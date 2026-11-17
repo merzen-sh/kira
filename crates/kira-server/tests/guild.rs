@@ -61,6 +61,7 @@ async fn guild_returns_the_configured_server() -> Result<(), Box<dyn Error>> {
         channels,
         common::database().await,
         messages,
+        common::presence(),
         common::auth(),
     );
     let cookie = common::login_cookie(&state).await?;
@@ -96,6 +97,7 @@ async fn guild_returns_503_when_the_target_is_missing() -> Result<(), Box<dyn Er
         channels,
         common::database().await,
         messages,
+        common::presence(),
         common::auth(),
     );
     let cookie = common::login_cookie(&state).await?;

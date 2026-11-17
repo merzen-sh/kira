@@ -89,6 +89,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bot/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the stored bot presence configuration. */
+        get: operations["get_presence"];
+        /** Save the bot presence configuration and apply it to the live bot. */
+        put: operations["update_presence"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guild": {
         parameters: {
             query?: never;
@@ -264,6 +282,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Kind of activity displayed in the bot's presence.
+         * @enum {string}
+         */
+        ActivityKind: "playing" | "watching" | "listening" | "competing" | "custom";
         /** @description A party that caused or was affected by an audit event. */
         AuditEntity: {
             /** @description Stable identifier within the kind, when one exists. */
@@ -325,6 +348,24 @@ export interface components {
             /** @description Distinct event sources, sorted alphabetically. */
             sources: string[];
         };
+        /** @description An activity displayed in the bot's presence. */
+        BotActivity: {
+            /** @description Activity kind. */
+            kind: components["schemas"]["ActivityKind"];
+            /** @description Activity text. */
+            text: string;
+        };
+        /** @description Stored presence configuration for the bot. */
+        BotPresence: {
+            activity?: components["schemas"]["BotActivity"] | null;
+            /** @description Online status. */
+            status: components["schemas"]["BotStatus"];
+        };
+        /**
+         * @description Discord online status of the bot.
+         * @enum {string}
+         */
+        BotStatus: "online" | "idle" | "dnd" | "invisible";
         /** @description A channel belonging to the Discord server targeted by `GET /guild/channels`. */
         ChannelDetails: {
             /** @description ID of the server the channel belongs to. */
@@ -795,6 +836,120 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_presence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotPresence"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_presence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BotPresence"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotPresence"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

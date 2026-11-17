@@ -373,6 +373,7 @@ async fn secure_cookies_are_marked_secure_when_configured() -> Result<(), Box<dy
         channels,
         common::database().await,
         messages,
+        common::presence(),
         auth,
     );
 

@@ -192,6 +192,84 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       security:
       - cookie_auth: []
+  /bot/presence:
+    get:
+      tags:
+      - bot
+      summary: Return the stored bot presence configuration.
+      operationId: get_presence
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BotPresence'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
+    put:
+      tags:
+      - bot
+      summary: Save the bot presence configuration and apply it to the live bot.
+      operationId: update_presence
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotPresence'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BotPresence'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+      - cookie_auth: []
   /guild:
     get:
       tags:
@@ -669,6 +747,15 @@ paths:
       - cookie_auth: []
 components:
   schemas:
+    ActivityKind:
+      type: string
+      description: Kind of activity displayed in the bot's presence.
+      enum:
+      - playing
+      - watching
+      - listening
+      - competing
+      - custom
     AuditEntity:
       type: object
       description: A party that caused or was affected by an audit event.
@@ -782,6 +869,41 @@ components:
           items:
             type: string
           description: Distinct event sources, sorted alphabetically.
+    BotActivity:
+      type: object
+      description: An activity displayed in the bot's presence.
+      required:
+      - kind
+      - text
+      properties:
+        kind:
+          $ref: '#/components/schemas/ActivityKind'
+          description: Activity kind.
+        text:
+          type: string
+          description: Activity text.
+    BotPresence:
+      type: object
+      description: Stored presence configuration for the bot.
+      required:
+      - status
+      properties:
+        activity:
+          oneOf:
+          - $ref: '#/components/schemas/BotActivity'
+            description: Activity, when one is configured.
+          - type: 'null'
+        status:
+          $ref: '#/components/schemas/BotStatus'
+          description: Online status.
+    BotStatus:
+      type: string
+      description: Discord online status of the bot.
+      enum:
+      - online
+      - idle
+      - dnd
+      - invisible
     ChannelDetails:
       type: object
       description: A channel belonging to the Discord server targeted by `GET /guild/channels`.
@@ -1187,5 +1309,7 @@ tags:
   description: Host CPU, memory, and disk usage
 - name: guild
   description: Discord server and channels
+- name: bot
+  description: Discord bot runtime configuration
 - name: reports
   description: User-submitted bug reports

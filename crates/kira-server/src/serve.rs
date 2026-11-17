@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 
 use kira_config::ServerConfig;
 use kira_core::messaging::MessageSender;
-use kira_protocol::{ChannelDetails, GuildDetails};
+use kira_protocol::{BotPresence, ChannelDetails, GuildDetails};
 use kira_store::Database;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -27,6 +27,7 @@ pub async fn serve(
     channels: watch::Receiver<Vec<ChannelDetails>>,
     database: Database,
     messages: MessageSender,
+    presence: watch::Sender<BotPresence>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
     ensure_secure_bind(
@@ -52,7 +53,15 @@ pub async fn serve(
 
     serve_with_listener(
         listener,
-        AppState::new(config.guild_id, guilds, channels, database, messages, auth),
+        AppState::new(
+            config.guild_id,
+            guilds,
+            channels,
+            database,
+            messages,
+            presence,
+            auth,
+        ),
         shutdown,
     )
     .await

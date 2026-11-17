@@ -5,6 +5,7 @@ pub(crate) mod auth;
 pub(crate) mod guild;
 pub(crate) mod health;
 pub(crate) mod monitor;
+pub(crate) mod presence;
 pub(crate) mod reports;
 pub(crate) mod users;
 pub(crate) mod ws;
@@ -14,6 +15,7 @@ pub use auth::{login, logout, session};
 pub use guild::{guild, guild_channels, send_guild_message};
 pub use health::health;
 pub use monitor::system_monitor;
+pub use presence::{get_presence, update_presence};
 pub use reports::{delete_report, list_reports, report_stats, update_report};
 pub use users::{guild_user_stats, list_guild_users};
 

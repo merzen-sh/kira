@@ -20,6 +20,7 @@ use crate::auth::COOKIE_NAME;
         (name = "audit", description = "Generic audit event log"),
         (name = "monitor", description = "Host CPU, memory, and disk usage"),
         (name = "guild", description = "Discord server and channels"),
+        (name = "bot", description = "Discord bot runtime configuration"),
         (name = "reports", description = "User-submitted bug reports")
     ),
     paths(
@@ -33,6 +34,8 @@ use crate::auth::COOKIE_NAME;
         crate::handlers::guild::guild,
         crate::handlers::guild::guild_channels,
         crate::handlers::guild::send_guild_message,
+        crate::handlers::presence::get_presence,
+        crate::handlers::presence::update_presence,
         crate::handlers::users::list_guild_users,
         crate::handlers::users::guild_user_stats,
         crate::handlers::reports::list_reports,
@@ -51,6 +54,10 @@ use crate::auth::COOKIE_NAME;
             kira_protocol::GuildDetails,
             kira_protocol::ChannelDetails,
             kira_protocol::SentMessage,
+            kira_protocol::BotPresence,
+            kira_protocol::BotActivity,
+            kira_protocol::BotStatus,
+            kira_protocol::ActivityKind,
             kira_protocol::GuildUser,
             kira_protocol::GuildUserList,
             kira_protocol::GuildUserStats,

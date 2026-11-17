@@ -58,7 +58,7 @@ pub async fn run_all(
     let (tx, rx) = watch::channel(false);
     let (guild_tx, guild_rx) = watch::channel(Vec::new());
     let (channel_tx, channel_rx) = watch::channel(Vec::new());
-    let (_presence_tx, presence_rx) = watch::channel(presence);
+    let (presence_tx, presence_rx) = watch::channel(presence);
     let (message_tx, message_rx) = mpsc::channel(16);
 
     let bot = kira_bot::run(
@@ -77,6 +77,7 @@ pub async fn run_all(
         channel_rx,
         database,
         message_tx,
+        presence_tx,
         wait_flag(rx.clone()),
     );
     tokio::pin!(bot);
