@@ -144,6 +144,17 @@ mod tests {
     }
 
     #[test]
+    fn unknown_activity_kind_is_rejected() {
+        assert!(
+            serde_json::from_value::<BotPresence>(serde_json::json!({
+                "status": "online",
+                "activity": { "kind": "streaming", "text": "Kira" }
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn as_str_matches_serialized_values() -> Result<(), serde_json::Error> {
         assert_eq!(serde_json::to_value(BotStatus::DoNotDisturb)?, "dnd");
         assert_eq!(BotStatus::DoNotDisturb.as_str(), "dnd");

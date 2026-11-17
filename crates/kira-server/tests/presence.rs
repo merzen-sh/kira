@@ -145,7 +145,7 @@ async fn blank_activity_text_is_rejected() -> Result<(), Box<dyn Error>> {
 async fn activity_text_limit_counts_characters() -> Result<(), Box<dyn Error>> {
     let (state, _receiver, database) = state_with_presence().await;
     let cookie = common::login_cookie(&state).await?;
-    let allowed = "é".repeat(128);
+    let allowed = "🎮".repeat(128);
 
     let res = put_presence(
         &state,
@@ -163,7 +163,7 @@ async fn activity_text_limit_counts_characters() -> Result<(), Box<dyn Error>> {
         &cookie,
         serde_json::json!({
             "status": "online",
-            "activity": { "kind": "playing", "text": "é".repeat(129) }
+            "activity": { "kind": "playing", "text": "🎮".repeat(129) }
         }),
     )
     .await?;
@@ -172,7 +172,7 @@ async fn activity_text_limit_counts_characters() -> Result<(), Box<dyn Error>> {
     let stored = database.presence().get().await?;
     assert_eq!(
         stored.activity.map(|activity| activity.text),
-        Some("é".repeat(128))
+        Some("🎮".repeat(128))
     );
     Ok(())
 }
@@ -236,6 +236,26 @@ async fn unknown_status_is_rejected() -> Result<(), Box<dyn Error>> {
     .await?;
 
     assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(database.presence().get().await?, BotPresence::default());
+    Ok(())
+}
+
+#[tokio::test]
+async fn unknown_activity_kind_is_rejected() -> Result<(), Box<dyn Error>> {
+    let (state, receiver, database) = state_with_presence().await;
+    let cookie = common::login_cookie(&state).await?;
+    let res = put_presence(
+        &state,
+        &cookie,
+        serde_json::json!({
+            "status": "online",
+            "activity": { "kind": "streaming", "text": "Kira" }
+        }),
+    )
+    .await?;
+
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(*receiver.borrow(), BotPresence::default());
     assert_eq!(database.presence().get().await?, BotPresence::default());
     Ok(())
 }
