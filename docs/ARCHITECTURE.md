@@ -26,7 +26,7 @@ flowchart TB
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
         BOT["kira-bot<br/>Serenity gateway + /ping, /report, and /mod"]
-        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, monitor, audit, guild, channels, users, messages, reports, /ws echo"]
+        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, monitor, audit, guild, bot presence, channels, users, messages, reports, /ws echo"]
         STORE["kira-store<br/>SQLite + migrations"]
     end
 

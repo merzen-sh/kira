@@ -18,6 +18,10 @@ Routing is file-based:
   shows current CPU, memory, and disk usage with range-selected history charts,
   and the audit page browses, filters by action, actor kind, and source, and
   inspects generic audit events.
+- The guild badge in the top bar opens a presence dropdown instead of
+  navigating. It contains the shared bot presence form and a link to `/server`,
+  which shows cached guild details plus the full presence editor. `/settings`
+  remains the dashboard-preferences placeholder.
 - The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
   creates the router from that tree.
 
@@ -40,7 +44,8 @@ The API layer lives in `src/data/`:
   separate user and bot types.
   `monitor/` backs the system monitor page and polls every 10 seconds.
   `audit/` backs the audit log's paginated, searchable, and filterable event
-  table.
+  table. `presence/` backs the guild-badge dropdown and the `/server` presence
+  editor.
 - TanStack Query owns server state. Components consume exported query hooks;
   they do not call `fetch` directly.
 - `__templates/` holds copyable conventions for new domains.

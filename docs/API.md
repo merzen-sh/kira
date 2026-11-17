@@ -15,6 +15,8 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 | `GET` | `/auth/session` | cookie | `204` with a valid session, `401` otherwise |
 | `GET` | `/guild` | cookie | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/guild/channels` | cookie | `200` with the configured server's channels, or `503` while unavailable |
+| `GET` | `/bot/presence` | cookie | `200` with the stored `BotPresence` |
+| `PUT` | `/bot/presence` | cookie | `200` with the saved `BotPresence`; `400` for invalid activity text, `422` for malformed values |
 | `GET` | `/guild/users` | cookie | `200` with a `GuildUserList` page; accepts `page`, `page_limit` (1–100), `search`, `status` (`active` or `left`), and `kind` (`user`, `bot`, or `all`) |
 | `GET` | `/guild/users/stats` | cookie | `200` with a `GuildUserStats` summary of human total, active, left, and tracked bot counts |
 | `GET` | `/monitor` | cookie | `200` with a `MonitorReport` containing the latest sample and a bucketed history; accepts `range` (`1h`, `3h`, or `24h`; default `1h`) |
@@ -43,6 +45,15 @@ cached list and rejects channel kinds that cannot receive messages with `400`.
 It then forwards the raw Discord message JSON to the bot over an in-process
 channel. The bot posts the payload unchanged and returns the Discord message
 ID; the request fails with `504` if the bot does not answer within 15 seconds.
+
+`GET /bot/presence` returns the stored bot presence and `PUT /bot/presence`
+replaces it. Status is one of `online`, `idle`, `dnd`, or `invisible`. Activity
+is `null` or `{ "kind": "playing" | "watching" | "listening" | "competing" |
+"custom", "text": "..." }`. Activity text is trimmed and limited to 128
+characters. The setting is stored in SQLite and applied to the live gateway;
+saving does not require an active shard. Successful updates record
+`bot.presence.updated`. These routes are independent of the cached guild data
+and do not return `503` when that cache is empty.
 
 `GET /guild/users` lists tracked guild members, newest join first. `search` is
 a case-insensitive substring match against the user ID, username, and display
