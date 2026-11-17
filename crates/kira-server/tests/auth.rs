@@ -316,6 +316,26 @@ async fn configured_origins_are_accepted() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
+async fn cors_preflight_allows_put_for_presence() -> Result<(), Box<dyn Error>> {
+    let response = router(state().await)
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/bot/presence")
+                .header(header::ORIGIN, ALLOWED_ORIGIN)
+                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "PUT")
+                .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "content-type")
+                .body(Body::empty())?,
+        )
+        .await?;
+
+    assert!(response.status().is_success());
+    let methods = response.headers()[header::ACCESS_CONTROL_ALLOW_METHODS].to_str()?;
+    assert!(methods.contains("PUT"), "preflight methods were {methods}");
+    Ok(())
+}
+
+#[tokio::test]
 async fn cors_preflight_reflects_allowed_origins() -> Result<(), Box<dyn Error>> {
     let response = router(state().await)
         .oneshot(

@@ -84,6 +84,7 @@ pub(crate) fn cors_layer(state: &AppState) -> CorsLayer {
         .allow_methods([
             Method::GET,
             Method::POST,
+            Method::PUT,
             Method::PATCH,
             Method::DELETE,
             Method::OPTIONS,
