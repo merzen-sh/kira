@@ -13,4 +13,8 @@ pub enum StoreError {
     /// The database schema migrations failed.
     #[error("database migration failed")]
     Migration(#[from] sqlx::migrate::MigrateError),
+
+    /// Stored data did not match the expected shape.
+    #[error("stored data is invalid: {0}")]
+    InvalidData(String),
 }

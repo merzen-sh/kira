@@ -1,7 +1,7 @@
 //! Shared state for the HTTP server.
 
 use kira_core::messaging::MessageSender;
-use kira_protocol::{ChannelDetails, GuildDetails};
+use kira_protocol::{BotPresence, ChannelDetails, GuildDetails};
 use kira_store::Database;
 use tokio::sync::watch;
 
@@ -15,6 +15,7 @@ pub struct AppState {
     channels: watch::Receiver<Vec<ChannelDetails>>,
     database: Database,
     messages: MessageSender,
+    presence: watch::Sender<BotPresence>,
     auth: Auth,
 }
 
@@ -28,6 +29,7 @@ impl AppState {
         channels: watch::Receiver<Vec<ChannelDetails>>,
         database: Database,
         messages: MessageSender,
+        presence: watch::Sender<BotPresence>,
         auth: Auth,
     ) -> Self {
         Self {
@@ -36,6 +38,7 @@ impl AppState {
             channels,
             database,
             messages,
+            presence,
             auth,
         }
     }
@@ -46,6 +49,10 @@ impl AppState {
 
     pub(crate) fn messages(&self) -> &MessageSender {
         &self.messages
+    }
+
+    pub(crate) fn presence(&self) -> &watch::Sender<BotPresence> {
+        &self.presence
     }
 
     pub(crate) fn auth(&self) -> &Auth {

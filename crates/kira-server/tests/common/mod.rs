@@ -9,6 +9,7 @@ use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
+use kira_protocol::BotPresence;
 use kira_server::{AppState, Auth, AuthConfig, router};
 use kira_store::Database;
 use tokio::sync::{mpsc, watch};
@@ -29,13 +30,18 @@ pub async fn database() -> Database {
         .expect("test database")
 }
 
+/// Presence sender for states that do not need to observe updates.
+pub fn presence() -> watch::Sender<BotPresence> {
+    watch::channel(BotPresence::default()).0
+}
+
 /// State with no cached guild data and the given database.
 pub fn state_with_database(database: Database) -> AppState {
     let (_guild_sender, guilds) = watch::channel(Vec::new());
     let (_channel_sender, channels) = watch::channel(Vec::new());
     let (messages, _receiver) = mpsc::channel(1);
 
-    AppState::new(1, guilds, channels, database, messages, auth())
+    AppState::new(1, guilds, channels, database, messages, presence(), auth())
 }
 
 /// State with no cached guild data.

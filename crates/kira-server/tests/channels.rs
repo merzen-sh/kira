@@ -51,6 +51,7 @@ async fn channels_return_the_configured_server_channels() -> Result<(), Box<dyn 
         channels,
         common::database().await,
         messages,
+        common::presence(),
         common::auth(),
     );
     let cookie = common::login_cookie(&state).await?;

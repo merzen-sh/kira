@@ -25,6 +25,11 @@ pub struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
+        if let Some(presence) = state::presence(&ctx).await {
+            let current = presence.borrow().clone();
+            crate::presence::apply(&ctx, &current);
+        }
+
         let target = state::target_guild(&ctx).await;
 
         if let Err(error) = commands::register(&ctx, target).await {

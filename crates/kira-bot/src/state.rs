@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use kira_config::DiscordConfig;
-use kira_protocol::{ChannelDetails, GuildDetails};
+use kira_protocol::{BotPresence, ChannelDetails, GuildDetails};
 use kira_store::Database;
 use serenity::model::id::GuildId;
 use serenity::prelude::{Context, TypeMapKey};
@@ -41,6 +41,14 @@ impl TypeMapKey for ChannelsKey {
     type Value = watch::Sender<Vec<ChannelDetails>>;
 }
 
+/// Type-map key holding the current bot presence configuration.
+#[non_exhaustive]
+pub struct PresenceKey;
+
+impl TypeMapKey for PresenceKey {
+    type Value = watch::Receiver<BotPresence>;
+}
+
 /// Type-map key holding database storage shared with the API server.
 #[non_exhaustive]
 pub struct DatabaseKey;
@@ -73,4 +81,9 @@ pub(crate) async fn guild_sender(ctx: &Context) -> Option<watch::Sender<Vec<Guil
 pub(crate) async fn database(ctx: &Context) -> Option<Database> {
     let data = ctx.data.read().await;
     data.get::<DatabaseKey>().cloned()
+}
+
+pub(crate) async fn presence(ctx: &Context) -> Option<watch::Receiver<BotPresence>> {
+    let data = ctx.data.read().await;
+    data.get::<PresenceKey>().cloned()
 }

@@ -50,9 +50,15 @@ pub async fn run_all(
         .await
         .context("opening database")?;
     record_started(&database).await;
+    let presence = database
+        .presence()
+        .get()
+        .await
+        .context("loading bot presence")?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, guild_rx) = watch::channel(Vec::new());
     let (channel_tx, channel_rx) = watch::channel(Vec::new());
+    let (presence_tx, presence_rx) = watch::channel(presence);
     let (message_tx, message_rx) = mpsc::channel(16);
 
     let bot = kira_bot::run(
@@ -60,6 +66,7 @@ pub async fn run_all(
         Some(server.guild_id),
         guild_tx,
         channel_tx,
+        presence_rx,
         database.clone(),
         message_rx,
         wait_flag(rx.clone()),
@@ -70,6 +77,7 @@ pub async fn run_all(
         channel_rx,
         database,
         message_tx,
+        presence_tx,
         wait_flag(rx.clone()),
     );
     tokio::pin!(bot);
@@ -118,9 +126,15 @@ pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result
         .await
         .context("opening database")?;
     record_started(&database).await;
+    let presence = database
+        .presence()
+        .get()
+        .await
+        .context("loading bot presence")?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, _guild_rx) = watch::channel(Vec::new());
     let (channel_tx, _channel_rx) = watch::channel(Vec::new());
+    let (_presence_tx, presence_rx) = watch::channel(presence);
     let (_message_tx, message_rx) = mpsc::channel(1);
 
     let bot = kira_bot::run(
@@ -128,6 +142,7 @@ pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result
         None,
         guild_tx,
         channel_tx,
+        presence_rx,
         database,
         message_rx,
         wait_flag(rx.clone()),

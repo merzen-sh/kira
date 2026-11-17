@@ -18,8 +18,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { GuildMenu } from "@/components/guild-menu";
 import { useLogoutMutation } from "@/data/auth/mutation";
-import { useGuildQuery } from "@/data/guild/query";
 import { useTheme } from "@/hooks/use-theme";
 
 const NAV_ITEMS = [
@@ -186,46 +186,13 @@ function TopBar() {
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center border-b border-border bg-card/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex min-w-0 flex-1 items-center">
-        <GuildBadge />
+        <GuildMenu />
       </div>
 
       <div className="flex shrink-0 items-center">
         <ThemeToggle />
       </div>
     </header>
-  );
-}
-
-function GuildBadge() {
-  const { data: guild, isError } = useGuildQuery();
-
-  if (!guild) {
-    return (
-      <span className="truncate text-xs text-muted-foreground">
-        {isError ? "Server unavailable" : "Loading server…"}
-      </span>
-    );
-  }
-
-  return (
-    <Link
-      to="/server"
-      title={guild.name}
-      className="flex min-w-0 items-center gap-2 rounded-md py-1 pr-2 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
-    >
-      {guild.icon_url ? (
-        <img
-          src={guild.icon_url}
-          alt=""
-          className="size-7 shrink-0 rounded-full object-cover ring-1 ring-border"
-        />
-      ) : (
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <Server className="size-4" />
-        </span>
-      )}
-      <span className="min-w-0 truncate text-sm font-medium">{guild.name}</span>
-    </Link>
   );
 }
 
