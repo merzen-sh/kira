@@ -8,6 +8,7 @@ use sqlx::{Sqlite, SqlitePool, Transaction};
 use crate::StoreError;
 use crate::audit::AuditRepository;
 use crate::monitor::MonitorRepository;
+use crate::presence::PresenceRepository;
 use crate::reports::ReportRepository;
 use crate::users::UserRepository;
 
@@ -60,6 +61,12 @@ impl Database {
     #[must_use]
     pub fn monitor(&self) -> MonitorRepository {
         MonitorRepository::new(self.clone())
+    }
+
+    /// Bot presence configuration.
+    #[must_use]
+    pub fn presence(&self) -> PresenceRepository {
+        PresenceRepository::new(self.clone())
     }
 
     /// Guild membership persistence and sync bookkeeping.

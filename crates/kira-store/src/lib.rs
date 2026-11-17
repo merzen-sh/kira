@@ -6,6 +6,7 @@ pub mod audit;
 mod database;
 mod errors;
 pub mod monitor;
+pub mod presence;
 mod query;
 pub mod reports;
 pub mod users;
