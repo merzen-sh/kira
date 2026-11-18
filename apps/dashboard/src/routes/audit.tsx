@@ -87,16 +87,13 @@ function AuditPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      setSelected(null);
       setTerm(search.trim());
       setPage(1);
     }, 300);
 
     return () => clearTimeout(timer);
   }, [search]);
-
-  useEffect(() => {
-    setSelected(null);
-  }, [page, term, action, actorKind, source]);
 
   const facets = useAuditFacetsQuery();
   const { data, isPending, isError, error } = useAuditEventsQuery({
@@ -144,6 +141,7 @@ function AuditPage() {
           <Select
             value={action || "all"}
             onValueChange={(value) => {
+              setSelected(null);
               setAction(value === "all" ? "" : String(value ?? ""));
               setPage(1);
             }}
@@ -167,6 +165,7 @@ function AuditPage() {
           <Select
             value={actorKind || "all"}
             onValueChange={(value) => {
+              setSelected(null);
               setActorKind(value === "all" ? "" : String(value ?? ""));
               setPage(1);
             }}
@@ -190,6 +189,7 @@ function AuditPage() {
           <Select
             value={source || "all"}
             onValueChange={(value) => {
+              setSelected(null);
               setSource(value === "all" ? "" : String(value ?? ""));
               setPage(1);
             }}
@@ -356,7 +356,10 @@ function AuditPage() {
             variant="outline"
             size="sm"
             disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
+            onClick={() => {
+              setSelected(null);
+              setPage(page - 1);
+            }}
           >
             Previous
           </Button>
@@ -367,7 +370,10 @@ function AuditPage() {
             variant="outline"
             size="sm"
             disabled={page >= lastPage}
-            onClick={() => setPage(page + 1)}
+            onClick={() => {
+              setSelected(null);
+              setPage(page + 1);
+            }}
           >
             Next
           </Button>
