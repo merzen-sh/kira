@@ -1,18 +1,105 @@
 #!/usr/bin/env bash
-# Block commits made while the checked-out branch is main.
+# Format staged Rust code and run lints before committing.
 set -euo pipefail
 
-branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+if git diff --cached --quiet; then
+    exit 0
+fi
 
-if [[ "$branch" == "main" ]]; then
-    cat >&2 <<'EOF'
-Commits to 'main' are blocked by .githooks/pre-commit.
+git_dir=$(git rev-parse --git-dir)
+patch_file=$(mktemp "$git_dir/pre-commit-unstaged.XXXXXX.patch")
+reapply_pending=0
 
-Create a branch, then commit:
-  git switch -c <branch-name>
+# Unstaged changes are saved as a patch while the staged snapshot is formatted.
+# Reapply them with a three-way merge so formatting changes merge cleanly and
+# the formatted index is restored afterwards.
+reapply_unstaged() {
+    [[ "$reapply_pending" == 1 ]] || return 0
+    reapply_pending=0
 
-To bypass this check intentionally:
-  git commit --no-verify
-EOF
+    local tree
+    tree=$(git write-tree)
+
+    if ! git apply --3way --binary "$patch_file"; then
+        # Leave a clean worktree at the formatted index; the patch still holds
+        # the unstaged changes for the user to reapply and resolve.
+        git read-tree "$tree"
+        git checkout-index -a -f
+        printf '\npre-commit: could not reapply your unstaged changes cleanly.\n' >&2
+        printf 'pre-commit: they are saved in %s\n' "$patch_file" >&2
+        printf 'pre-commit: the worktree was restored to the formatted staged state.\n' >&2
+        printf 'pre-commit: reapply and resolve with:\n' >&2
+        printf '  git apply --3way %s\n' "$patch_file" >&2
+        return 1
+    fi
+
+    git read-tree "$tree"
+    rm -f "$patch_file"
+}
+
+on_exit() {
+    local status=$?
+    trap - EXIT
+
+    if [[ "$reapply_pending" == 1 ]] && ! reapply_unstaged; then
+        status=1
+    fi
+
+    exit "$status"
+}
+trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+staged_paths=()
+while IFS= read -r -d '' path; do
+    staged_paths+=("$path")
+done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+
+# Restore tracked files that currently differ from the index, leaving other
+# files (and their mtimes) alone.
+reset_modified_to_index() {
+    local -a paths=()
+    local path
+    while IFS= read -r -d '' path; do
+        paths+=("$path")
+    done < <(git diff --name-only -z)
+
+    if ((${#paths[@]})); then
+        git checkout-index -f -- "${paths[@]}"
+    fi
+}
+
+git diff --binary >"$patch_file"
+if [[ -s "$patch_file" ]]; then
+    reapply_pending=1
+else
+    rm -f "$patch_file"
+fi
+
+reset_modified_to_index
+
+cargo fmt --all
+
+if ((${#staged_paths[@]})); then
+    git add -- "${staged_paths[@]}"
+fi
+
+# Drop formatting changes to files that were not staged.
+reset_modified_to_index
+
+if ((${#staged_paths[@]})); then
+    git diff --cached --check -- '*.rs'
+fi
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo clippy -p kira --no-default-features -- -D warnings
+
+if ((${#staged_paths[@]})) && ! cmp -s \
+    <(printf '%s\0' "${staged_paths[@]}" | LC_ALL=C sort -z) \
+    <(git diff --cached --name-only -z --diff-filter=ACMR | LC_ALL=C sort -z); then
+    printf 'pre-commit: the staged file set changed while formatting; check git status before committing.\n' >&2
     exit 1
 fi
+
+reapply_unstaged
