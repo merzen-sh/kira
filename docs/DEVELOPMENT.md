@@ -32,9 +32,10 @@ overridable variables `CARGO`, `BUN`, and `MPROCS` (defaults: `cargo`, `bun`,
 press Ctrl-C, none of the three processes are left behind.
 
 `make install-hooks` opts into the pre-commit hook. It formats the staged Rust
-snapshot, runs clippy, then reapplies your unstaged edits on top. If an unstaged
-edit overlaps lines changed by formatting, the commit aborts and the hook prints
-the path of the saved patch so you can reapply and resolve it.
+snapshot, runs clippy, then reapplies your unstaged edits on top. Untracked Rust
+files are left as they were. If formatting or linting fails, or formatting
+conflicts with an unstaged edit, the commit aborts and the hook restores the
+original index, worktree, and untracked files.
 
 `make check` runs:
 

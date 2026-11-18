@@ -7,42 +7,80 @@ if git diff --cached --quiet; then
 fi
 
 git_dir=$(git rev-parse --git-dir)
-patch_file=$(mktemp "$git_dir/pre-commit-unstaged.XXXXXX.patch")
-reapply_pending=0
+index_file=$(git rev-parse --git-path index)
+work_dir=$(mktemp -d "$git_dir/pre-commit.XXXXXX")
+index_backup="$work_dir/index"
+patch_file="$work_dir/unstaged.patch"
+untracked_manifest="$work_dir/untracked.manifest"
+untracked_backup="$work_dir/untracked"
+state_saved=0
 
-# Unstaged changes are saved as a patch while the staged snapshot is formatted.
-# Reapply them with a three-way merge so formatting changes merge cleanly and
-# the formatted index is restored afterwards.
-reapply_unstaged() {
-    [[ "$reapply_pending" == 1 ]] || return 0
-    reapply_pending=0
+mkdir -p "$untracked_backup"
 
-    local tree
-    tree=$(git write-tree)
+# Snapshot everything the hook may touch before modifying anything.
+cp -p -- "$index_file" "$index_backup"
+git diff --binary --no-ext-diff >"$patch_file"
+git ls-files --others --exclude-standard -z -- '*.rs' >"$untracked_manifest"
 
-    if ! git apply --3way --binary "$patch_file"; then
-        # Leave a clean worktree at the formatted index; the patch still holds
-        # the unstaged changes for the user to reapply and resolve.
-        git read-tree "$tree"
-        git checkout-index -a -f
-        printf '\npre-commit: could not reapply your unstaged changes cleanly.\n' >&2
-        printf 'pre-commit: they are saved in %s\n' "$patch_file" >&2
-        printf 'pre-commit: the worktree was restored to the formatted staged state.\n' >&2
-        printf 'pre-commit: reapply and resolve with:\n' >&2
-        printf '  git apply --3way %s\n' "$patch_file" >&2
-        return 1
+while IFS= read -r -d '' path; do
+    mkdir -p -- "$untracked_backup/$(dirname -- "$path")"
+    cp -pP -- "$path" "$untracked_backup/$path"
+done <"$untracked_manifest"
+state_saved=1
+
+restore_untracked() {
+    local path
+    [[ -s "$untracked_manifest" ]] || return 0
+
+    while IFS= read -r -d '' path; do
+        if [[ -f "$path" ]] && cmp -s -- "$untracked_backup/$path" "$path"; then
+            continue
+        fi
+        if ! cp -pP -- "$untracked_backup/$path" "$path"; then
+            return 1
+        fi
+    done <"$untracked_manifest"
+}
+
+restore_original_state() {
+    cp -p -- "$index_backup" "$index_file" || return 1
+    git checkout-index -a -f || return 1
+
+    if [[ -s "$patch_file" ]]; then
+        git apply --binary --whitespace=nowarn "$patch_file" || return 1
     fi
 
-    git read-tree "$tree"
-    rm -f "$patch_file"
+    restore_untracked
 }
 
 on_exit() {
     local status=$?
-    trap - EXIT
+    trap - EXIT INT TERM
+    set +e
 
-    if [[ "$reapply_pending" == 1 ]] && ! reapply_unstaged; then
+    if [[ "$state_saved" != 1 ]]; then
+        rm -rf -- "$work_dir"
+        exit "$status"
+    fi
+
+    if [[ "$status" -eq 0 ]]; then
+        if restore_untracked; then
+            rm -rf -- "$work_dir"
+            exit 0
+        fi
+        printf 'pre-commit: could not restore untracked files; restoring the original state.\n' >&2
         status=1
+    fi
+
+    if restore_original_state; then
+        rm -rf -- "$work_dir"
+        printf 'pre-commit: restored staged and unstaged changes.\n' >&2
+    else
+        printf 'pre-commit: could not restore the original state.\n' >&2
+        printf 'pre-commit: your index backup and unstaged patch are in %s\n' "$work_dir" >&2
+        printf 'pre-commit: restore the index with: cp -p %s %s\n' "$index_backup" "$index_file" >&2
+        printf 'pre-commit: restore the worktree with: git checkout-index -a -f\n' >&2
+        printf 'pre-commit: then apply the patch with: git apply --binary %s\n' "$patch_file" >&2
     fi
 
     exit "$status"
@@ -54,7 +92,7 @@ trap 'exit 143' TERM
 staged_paths=()
 while IFS= read -r -d '' path; do
     staged_paths+=("$path")
-done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+done < <(git diff --cached --name-only -z --no-renames --diff-filter=ACMR)
 
 # Restore tracked files that currently differ from the index, leaving other
 # files (and their mtimes) alone.
@@ -70,16 +108,15 @@ reset_modified_to_index() {
     fi
 }
 
-git diff --binary >"$patch_file"
-if [[ -s "$patch_file" ]]; then
-    reapply_pending=1
-else
-    rm -f "$patch_file"
-fi
-
+# Format the staged snapshot only: unstaged tracked changes are parked in the
+# patch and untracked files are restored after formatting.
 reset_modified_to_index
 
 cargo fmt --all
+
+# Check while every file is still formatted. Checking after restoring unrelated
+# files would fail on unformatted content that is not part of the commit.
+cargo fmt --all -- --check
 
 if ((${#staged_paths[@]})); then
     git add -- "${staged_paths[@]}"
@@ -87,19 +124,27 @@ fi
 
 # Drop formatting changes to files that were not staged.
 reset_modified_to_index
+restore_untracked
 
 if ((${#staged_paths[@]})); then
     git diff --cached --check -- '*.rs'
 fi
-cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo clippy -p kira --no-default-features -- -D warnings
 
 if ((${#staged_paths[@]})) && ! cmp -s \
     <(printf '%s\0' "${staged_paths[@]}" | LC_ALL=C sort -z) \
-    <(git diff --cached --name-only -z --diff-filter=ACMR | LC_ALL=C sort -z); then
+    <(git diff --cached --name-only -z --no-renames --diff-filter=ACMR | LC_ALL=C sort -z); then
     printf 'pre-commit: the staged file set changed while formatting; check git status before committing.\n' >&2
     exit 1
 fi
 
-reapply_unstaged
+# Reapply unstaged changes on top of the formatted staged snapshot.
+if [[ -s "$patch_file" ]]; then
+    formatted_tree=$(git write-tree)
+    if ! git apply --3way --binary "$patch_file"; then
+        printf 'pre-commit: formatting conflicts with your unstaged changes; restoring the original state.\n' >&2
+        exit 1
+    fi
+    git read-tree "$formatted_tree"
+fi
