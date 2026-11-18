@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
-# Block commits made while the checked-out branch is main.
+# Verify Rust formatting and lints before committing.
+#
+# The hook is read-only: it never formats, stages, or stashes files, so staged,
+# unstaged, partially staged, and untracked files are left exactly as they are.
 set -euo pipefail
 
-branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
-
-if [[ "$branch" == "main" ]]; then
-    cat >&2 <<'EOF'
-Commits to 'main' are blocked by .githooks/pre-commit.
-
-Create a branch, then commit:
-  git switch -c <branch-name>
-
-To bypass this check intentionally:
-  git commit --no-verify
-EOF
-    exit 1
+# Nothing staged: allow empty commits without running the full gate.
+if git diff --cached --quiet; then
+    exit 0
 fi
+
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo clippy -p kira --no-default-features -- -D warnings

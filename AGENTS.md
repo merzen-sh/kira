@@ -6,7 +6,7 @@ Kira is a Rust workspace plus Bun-managed JavaScript workspaces. It produces two
 
 - Rust 1.88 (edition 2024) and Bun.
 - `mprocs` and `cargo-watch` are needed for `make dev`.
-- `make install-hooks` opts into `.githooks/pre-commit`, which refuses commits on `main`; `make uninstall-hooks` removes it.
+- `make install-hooks` opts into `.githooks/pre-commit`, which checks Rust formatting and clippy before committing without modifying files; `make uninstall-hooks` removes it.
 - Run `bun install --frozen-lockfile` before `make check` or any OpenAPI/type generation; the Make target requires `node_modules`.
 - Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime, and `KIRA_GUILD_ID` is required whenever the server is built. `KIRA_PASSWORD` sets the dashboard PIN; when unset, `kira` prints a generated PIN at startup. A missing `.env` is tolerated and real environment variables take precedence.
 
