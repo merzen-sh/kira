@@ -11,13 +11,14 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 | `make release` | `cargo build --release -p kira` |
 | `make dev` | `mprocs` for Vite, `kira`, and `kira-cli`; stops all three on exit or Ctrl-C |
 | `make install` | `bun install --frozen-lockfile` (via the `node_modules` prerequisite) |
-| `make install-hooks` | Point Git at `.githooks`; formats staged Rust and runs clippy on commit |
+| `make install-hooks` | Point Git at `.githooks`; checks formatting and clippy on commit |
 | `make uninstall-hooks` | Remove the Git hooks path override |
 | `make dashboard` | Build the Vite dashboard into `dist/` |
 | `make build-cli` | Build dashboard, then release `kira-cli` without the dev proxy |
 | `make build-all` | Build dashboard, then both release binaries |
 | `make openapi` | Generate YAML and TypeScript types |
 | `make test` | `cargo test --workspace` |
+| `make test-hooks` | Focused pre-commit hook tests |
 | `make check` | Full gate (see below) |
 | `make fmt` / `make clippy` | Formatting / lints |
 | `make clean` | Remove Cargo output, `node_modules`, and dashboard `dist` |
@@ -31,11 +32,10 @@ overridable variables `CARGO`, `BUN`, and `MPROCS` (defaults: `cargo`, `bun`,
 `INT`, and `TERM` to kill the whole process group. When the command exits or you
 press Ctrl-C, none of the three processes are left behind.
 
-`make install-hooks` opts into the pre-commit hook. It formats the staged Rust
-snapshot, runs clippy, then reapplies your unstaged edits on top. Untracked Rust
-files are left as they were. If formatting or linting fails, or formatting
-conflicts with an unstaged edit, the commit aborts and the hook restores the
-original index, worktree, and untracked files.
+`make install-hooks` opts into the pre-commit hook. It runs
+`cargo fmt --all -- --check` and both clippy passes from `make check`. The hook
+is read-only: it never formats, stages, or stashes files, so staged, unstaged,
+partially staged, and untracked changes are left exactly as they are.
 
 `make check` runs:
 
@@ -88,7 +88,7 @@ Development builds use line-table debug info with split debuginfo.
 ```bash
 # First-time setup
 bun install --frozen-lockfile
-make install-hooks          # optional: format and lint before commits
+make install-hooks          # optional: check formatting and lints before commits
 cp .env.example .env        # fill DISCORD_TOKEN and KIRA_GUILD_ID
 
 # Run everything in development (Vite, kira, kira-cli); Ctrl-C stops all three

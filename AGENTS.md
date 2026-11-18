@@ -6,7 +6,7 @@ Kira is a Rust workspace plus Bun-managed JavaScript workspaces. It produces two
 
 - Rust 1.88 (edition 2024) and Bun.
 - `mprocs` and `cargo-watch` are needed for `make dev`.
-- `make install-hooks` opts into `.githooks/pre-commit`, which formats the staged Rust code and runs clippy before committing; `make uninstall-hooks` removes it.
+- `make install-hooks` opts into `.githooks/pre-commit`, which checks Rust formatting and clippy before committing without modifying files; `make uninstall-hooks` removes it.
 - Run `bun install --frozen-lockfile` before `make check` or any OpenAPI/type generation; the Make target requires `node_modules`.
 - Copy `.env.example` to `.env` when running `kira`; `DISCORD_TOKEN` is required only at runtime, and `KIRA_GUILD_ID` is required whenever the server is built. `KIRA_PASSWORD` sets the dashboard PIN; when unset, `kira` prints a generated PIN at startup. A missing `.env` is tolerated and real environment variables take precedence.
 
@@ -14,6 +14,7 @@ Kira is a Rust workspace plus Bun-managed JavaScript workspaces. It produces two
 
 - `make check` — authoritative gate: fmt, clippy with `-D warnings`, workspace tests, OpenAPI drift, TypeScript type drift, typecheck, and dependency-boundary assertions. Run this before claiming work is complete.
 - `make test` or `cargo test --workspace`.
+- `make test-hooks` or `bash scripts/test-pre-commit.sh` — focused pre-commit hook tests.
 - Focused test: `cargo test -p kira-server --test health`, or `cargo test -p kira-config <filter>`.
 - `make dev` — start Vite, `kira`, and `kira-cli` together under `mprocs`; exiting or pressing Ctrl-C kills all three.
 - `make` — default target, equivalent to `make build`.

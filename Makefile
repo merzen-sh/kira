@@ -4,7 +4,7 @@ MPROCS ?= mprocs
 
 .PHONY: all build build-cli build-all release dev install \
         install-hooks uninstall-hooks dashboard openapi \
-        test check fmt clippy clean
+        test test-hooks check fmt clippy clean
 
 # Default
 all: build
@@ -59,6 +59,9 @@ openapi: node_modules
 # Tests
 test:
 	$(CARGO) test --workspace
+
+test-hooks:
+	bash scripts/test-pre-commit.sh
 
 check: node_modules
 	$(CARGO) fmt --check
