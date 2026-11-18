@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use anyhow::{Context, Result};
 use kira_config::DatabaseConfig;
 use kira_config::DiscordConfig;
@@ -40,13 +42,11 @@ async fn record_started(database: &kira_store::Database) {
     }
 }
 
-#[cfg(feature = "server")]
-pub async fn run_all(
-    discord: DiscordConfig,
-    server: ServerConfig,
-    database: DatabaseConfig,
-) -> Result<()> {
-    let database = kira_store::Database::connect(&database.url)
+/// Open storage, record the startup event, and load the configured presence.
+async fn initialize(
+    config: &DatabaseConfig,
+) -> Result<(kira_store::Database, kira_protocol::BotPresence)> {
+    let database = kira_store::Database::connect(&config.url)
         .await
         .context("opening database")?;
     record_started(&database).await;
@@ -55,6 +55,51 @@ pub async fn run_all(
         .get()
         .await
         .context("loading bot presence")?;
+
+    Ok((database, presence))
+}
+
+/// Run `services` until it finishes or a shutdown signal arrives, then request
+/// shutdown and let `services` drain.
+async fn run_until_shutdown<F>(shutdown: &watch::Sender<bool>, services: F) -> Result<()>
+where
+    F: Future<Output = Result<()>>,
+{
+    tokio::pin!(services);
+
+    let mut services_result = None;
+    let mut signal_result = None;
+
+    tokio::select! {
+        result = &mut services => {
+            services_result = Some(result);
+        }
+        signal = kira_core::shutdown::wait_for_signal() => {
+            signal_result = Some(signal);
+        }
+    }
+
+    shutdown.send_replace(true);
+
+    let services_result = match services_result {
+        Some(result) => result,
+        None => services.await,
+    };
+
+    if let Some(signal) = signal_result {
+        signal.context("waiting for shutdown signal")?;
+    }
+
+    services_result
+}
+
+#[cfg(feature = "server")]
+pub async fn run_all(
+    discord: DiscordConfig,
+    server: ServerConfig,
+    database: DatabaseConfig,
+) -> Result<()> {
+    let (database, presence) = initialize(&database).await?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, guild_rx) = watch::channel(Vec::new());
     let (channel_tx, channel_rx) = watch::channel(Vec::new());
@@ -80,57 +125,31 @@ pub async fn run_all(
         presence_tx,
         wait_flag(rx.clone()),
     );
-    tokio::pin!(bot);
-    tokio::pin!(http);
+    run_until_shutdown(&tx, async {
+        tokio::pin!(bot);
+        tokio::pin!(http);
 
-    let mut bot_result = None;
-    let mut http_result = None;
-    let mut signal_result = None;
-
-    tokio::select! {
-        result = &mut bot => {
-            bot_result = Some(result);
+        tokio::select! {
+            bot_result = &mut bot => {
+                tx.send_replace(true);
+                let http_result = http.await;
+                bot_result.context("Discord bot failed")?;
+                http_result.context("HTTP server failed")
+            }
+            http_result = &mut http => {
+                tx.send_replace(true);
+                let bot_result = bot.await;
+                bot_result.context("Discord bot failed")?;
+                http_result.context("HTTP server failed")
+            }
         }
-        result = &mut http => {
-            http_result = Some(result);
-        }
-        signal = kira_core::shutdown::wait_for_signal() => {
-            signal_result = Some(signal);
-        }
-    }
-
-    tx.send_replace(true);
-
-    let bot_result = match bot_result {
-        Some(result) => result,
-        None => bot.await,
-    };
-    let http_result = match http_result {
-        Some(result) => result,
-        None => http.await,
-    };
-
-    if let Some(signal) = signal_result {
-        signal.context("waiting for shutdown signal")?;
-    }
-
-    bot_result.context("Discord bot failed")?;
-    http_result.context("HTTP server failed")?;
-
-    Ok(())
+    })
+    .await
 }
 
 #[cfg(not(feature = "server"))]
 pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result<()> {
-    let database = kira_store::Database::connect(&database.url)
-        .await
-        .context("opening database")?;
-    record_started(&database).await;
-    let presence = database
-        .presence()
-        .get()
-        .await
-        .context("loading bot presence")?;
+    let (database, presence) = initialize(&database).await?;
     let (tx, rx) = watch::channel(false);
     let (guild_tx, _guild_rx) = watch::channel(Vec::new());
     let (channel_tx, _channel_rx) = watch::channel(Vec::new());
@@ -147,37 +166,29 @@ pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result
         message_rx,
         wait_flag(rx.clone()),
     );
-    tokio::pin!(bot);
 
-    let mut bot_result = None;
-    let mut signal_result = None;
-
-    tokio::select! {
-        result = &mut bot => {
-            bot_result = Some(result);
-        }
-        signal = kira_core::shutdown::wait_for_signal() => {
-            signal_result = Some(signal);
-        }
-    }
-
-    tx.send_replace(true);
-
-    let bot_result = match bot_result {
-        Some(result) => result,
-        None => bot.await,
-    };
-
-    if let Some(signal) = signal_result {
-        signal.context("waiting for shutdown signal")?;
-    }
-
-    bot_result.context("Discord bot failed")
+    run_until_shutdown(&tx, async move { bot.await.context("Discord bot failed") }).await
 }
 
 #[cfg(test)]
 mod system_audit_tests {
-    use super::record_started;
+    use super::{initialize, record_started};
+
+    #[tokio::test]
+    async fn initialize_loads_presence() -> Result<(), Box<dyn std::error::Error>> {
+        let config =
+            kira_config::DatabaseConfig::try_from_iter([("KIRA_DATABASE_URL", "sqlite::memory:")])?;
+
+        let (database, presence) = initialize(&config).await?;
+
+        assert_eq!(presence, kira_protocol::BotPresence::default());
+        let events = database
+            .audit()
+            .list_events(1, 20, None, None, None, None)
+            .await?;
+        assert_eq!(events.total, 1);
+        Ok(())
+    }
 
     #[tokio::test]
     async fn startup_records_a_system_event() -> Result<(), Box<dyn std::error::Error>> {
