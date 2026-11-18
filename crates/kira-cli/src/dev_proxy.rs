@@ -41,7 +41,7 @@ async fn forward_inner(base_url: &str, request: Request) -> Result<Response> {
     let body = to_bytes(body, MAX_BODY_SIZE).await?;
     let method = reqwest::Method::from_bytes(parts.method.as_str().as_bytes())?;
 
-    let response = CLIENT
+    let mut response = CLIENT
         .request(method, url)
         .headers(sanitize_headers(parts.headers))
         .body(body)
@@ -49,7 +49,7 @@ async fn forward_inner(base_url: &str, request: Request) -> Result<Response> {
         .await?;
 
     let status = response.status();
-    let headers = sanitize_headers(response.headers().clone());
+    let headers = sanitize_headers(std::mem::take(response.headers_mut()));
     let body = response.bytes().await?;
 
     let mut result = Response::new(Body::from(body));
