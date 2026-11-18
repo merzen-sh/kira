@@ -27,6 +27,7 @@ import {
   useResolveReportMutation,
 } from "@/data/reports/mutation";
 import { useReportStatsQuery, useReportsQuery } from "@/data/reports/query";
+import { formatDateTime } from "@/lib/format-date";
 
 export const Route = createFileRoute("/reports")({
   component: ReportsPage,
@@ -269,7 +270,7 @@ function ReportsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {new Date(report.created_at).toLocaleString()}
+                    {formatDateTime(report.created_at)}
                   </TableCell>
                   <TableCell>
                     <Button

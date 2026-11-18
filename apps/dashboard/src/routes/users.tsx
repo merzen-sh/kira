@@ -21,6 +21,7 @@ import { Bot, UserCheck, UserMinus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { StatCard } from "@/components/stat-card";
+import { formatDateTime } from "@/lib/format-date";
 import { useUserStatsQuery, useUsersQuery } from "@/data/users/query";
 
 export const Route = createFileRoute("/users")({
@@ -40,10 +41,6 @@ const KIND_ITEMS = {
   user: "Users",
   bot: "Bots",
 };
-
-function formatDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleString() : "—";
-}
 
 function UsersPage() {
   const [page, setPage] = useState(1);
@@ -231,10 +228,10 @@ function UsersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(user.join_at)}
+                    {user.join_at ? formatDateTime(user.join_at) : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(user.leave_at)}
+                    {user.leave_at ? formatDateTime(user.leave_at) : "—"}
                   </TableCell>
                 </TableRow>
               ))

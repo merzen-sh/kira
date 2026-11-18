@@ -32,16 +32,13 @@ import {
   useAuditEventsQuery,
   useAuditFacetsQuery,
 } from "@/data/audit/query";
+import { formatDateTime } from "@/lib/format-date";
 
 export const Route = createFileRoute("/audit")({
   component: AuditPage,
 });
 
 const PAGE_LIMIT = 20;
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
 
 function entityText(entity: AuditEvent["actor"] | null | undefined) {
   if (!entity) {
@@ -263,7 +260,7 @@ function AuditPage() {
               events.map((event) => (
                 <TableRow key={event.id}>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {formatDate(event.occurred_at)}
+                    {formatDateTime(event.occurred_at)}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">{event.action}</Badge>
@@ -330,11 +327,11 @@ function AuditPage() {
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Occurred</dt>
-                <dd>{formatDate(selected.occurred_at)}</dd>
+                <dd>{formatDateTime(selected.occurred_at)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Recorded</dt>
-                <dd>{formatDate(selected.recorded_at)}</dd>
+                <dd>{formatDateTime(selected.recorded_at)}</dd>
               </div>
             </dl>
             <div>
