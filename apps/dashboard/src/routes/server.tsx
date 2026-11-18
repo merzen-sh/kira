@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from "@kira/ui/components/card";
 import { createFileRoute } from "@tanstack/react-router";
-import { Server } from "lucide-react";
+import Server from "lucide-react/icons/server";
 
 import { BotPresenceForm } from "@/components/bot-presence-form";
 import { useGuildQuery } from "@/data/guild/query";

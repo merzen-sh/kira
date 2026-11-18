@@ -1,21 +1,19 @@
 import { Button } from "@kira/ui/components/button";
 import { cn } from "@kira/ui/lib/utils";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import {
-  Activity,
-  Bug,
-  LayoutDashboard,
-  LogOut,
-  Megaphone,
-  Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
-  ScrollText,
-  Server,
-  Settings,
-  Sun,
-  Users,
-} from "lucide-react";
+import Activity from "lucide-react/icons/activity";
+import Bug from "lucide-react/icons/bug";
+import LayoutDashboard from "lucide-react/icons/layout-dashboard";
+import LogOut from "lucide-react/icons/log-out";
+import Megaphone from "lucide-react/icons/megaphone";
+import Moon from "lucide-react/icons/moon";
+import PanelLeftClose from "lucide-react/icons/panel-left-close";
+import PanelLeftOpen from "lucide-react/icons/panel-left-open";
+import ScrollText from "lucide-react/icons/scroll-text";
+import Server from "lucide-react/icons/server";
+import Settings from "lucide-react/icons/settings";
+import Sun from "lucide-react/icons/sun";
+import Users from "lucide-react/icons/users";
 import { useEffect, useState } from "react";
 
 import { GuildMenu } from "@/components/guild-menu";

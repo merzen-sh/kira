@@ -18,7 +18,10 @@ import {
   TableRow,
 } from "@kira/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bug, CircleAlert, CircleCheck, UserRound } from "lucide-react";
+import Bug from "lucide-react/icons/bug";
+import CircleAlert from "lucide-react/icons/circle-alert";
+import CircleCheck from "lucide-react/icons/circle-check";
+import UserRound from "lucide-react/icons/user-round";
 import { useEffect, useState } from "react";
 
 import { StatCard } from "@/components/stat-card";

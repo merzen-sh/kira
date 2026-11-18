@@ -17,7 +17,10 @@ import {
   TableRow,
 } from "@kira/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bot, UserCheck, UserMinus, Users } from "lucide-react";
+import Bot from "lucide-react/icons/bot";
+import UserCheck from "lucide-react/icons/user-check";
+import UserMinus from "lucide-react/icons/user-minus";
+import Users from "lucide-react/icons/users";
 import { useEffect, useState } from "react";
 
 import { StatCard } from "@/components/stat-card";

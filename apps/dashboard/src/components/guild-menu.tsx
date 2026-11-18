@@ -5,7 +5,9 @@ import {
 } from "@kira/ui/components/popover";
 import { cn } from "@kira/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, Server } from "lucide-react";
+import ChevronDown from "lucide-react/icons/chevron-down";
+import ChevronRight from "lucide-react/icons/chevron-right";
+import Server from "lucide-react/icons/server";
 import { useState } from "react";
 
 import { BotPresenceForm } from "@/components/bot-presence-form";
