@@ -45,6 +45,7 @@ function ReportsPage() {
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
   const [resolved, setResolved] = useState("all");
+  const [seenLastPage, setSeenLastPage] = useState(0);
   const resolve = useResolveReportMutation();
   const remove = useDeleteReportMutation();
 
@@ -68,12 +69,15 @@ function ReportsPage() {
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
-  // Another admin may delete the last row while this page is open.
-  useEffect(() => {
-    if (data && page > lastPage) {
+  // Another admin may delete the last row while this page is open. Clamp an
+  // over-shoot page during render (React re-renders immediately without
+  // committing the stale frame) instead of reacting in an effect.
+  if (data && lastPage !== seenLastPage) {
+    setSeenLastPage(lastPage);
+    if (page > lastPage) {
       setPage(lastPage);
     }
-  }, [data, lastPage, page]);
+  }
 
   function handleDelete(id: number) {
     if (!window.confirm("Delete this report?")) {

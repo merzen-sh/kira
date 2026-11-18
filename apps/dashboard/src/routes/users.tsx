@@ -51,6 +51,7 @@ function UsersPage() {
   const [term, setTerm] = useState("");
   const [status, setStatus] = useState("");
   const [kind, setKind] = useState("all");
+  const [seenLastPage, setSeenLastPage] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -73,12 +74,15 @@ function UsersPage() {
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
-  // Another admin may change the data while this page is open.
-  useEffect(() => {
-    if (data && page > lastPage) {
+  // Another admin may change the data while this page is open. Clamp an
+  // over-shoot page during render (React re-renders immediately without
+  // committing the stale frame) instead of reacting in an effect.
+  if (data && lastPage !== seenLastPage) {
+    setSeenLastPage(lastPage);
+    if (page > lastPage) {
       setPage(lastPage);
     }
-  }, [data, lastPage, page]);
+  }
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6 md:p-8">
