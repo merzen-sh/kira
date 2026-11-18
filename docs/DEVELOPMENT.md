@@ -9,8 +9,10 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 |---|---|
 | `make build` | `cargo build -p kira` |
 | `make release` | `cargo build --release -p kira` |
-| `make dev` | `mprocs` for Vite, `kira`, and `kira-cli` |
+| `make dev` | `mprocs` for Vite, `kira`, and `kira-cli`; stops all three on exit or Ctrl-C |
 | `make install` | `bun install --frozen-lockfile` (via the `node_modules` prerequisite) |
+| `make install-hooks` | Point Git at `.githooks`; the hook refuses commits on `main` |
+| `make uninstall-hooks` | Remove the Git hooks path override |
 | `make dashboard` | Build the Vite dashboard into `dist/` |
 | `make build-cli` | Build dashboard, then release `kira-cli` without the dev proxy |
 | `make build-all` | Build dashboard, then both release binaries |
@@ -19,6 +21,15 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 | `make check` | Full gate (see below) |
 | `make fmt` / `make clippy` | Formatting / lints |
 | `make clean` | Remove Cargo output, `node_modules`, and dashboard `dist` |
+
+`make` with no target is equivalent to `make build`. The Makefile uses the
+overridable variables `CARGO`, `BUN`, and `MPROCS` (defaults: `cargo`, `bun`,
+`mprocs`), so a tool can be selected per invocation, for example
+`make dashboard BUN=/opt/bun/bin/bun`.
+
+`make dev` runs Vite, `kira`, and `kira-cli` under `mprocs` and traps `EXIT`,
+`INT`, and `TERM` to kill the whole process group. When the command exits or you
+press Ctrl-C, none of the three processes are left behind.
 
 `make check` runs:
 
@@ -71,9 +82,10 @@ Development builds use line-table debug info with split debuginfo.
 ```bash
 # First-time setup
 bun install --frozen-lockfile
+make install-hooks          # optional: block commits on main
 cp .env.example .env        # fill DISCORD_TOKEN and KIRA_GUILD_ID
 
-# Run everything in development (Vite, kira, kira-cli)
+# Run everything in development (Vite, kira, kira-cli); Ctrl-C stops all three
 make dev
 
 # Run the main service (bot + API on :8080)
