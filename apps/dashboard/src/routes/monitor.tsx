@@ -13,7 +13,10 @@ import {
   SelectValue,
 } from "@kira/ui/components/select";
 import { createFileRoute } from "@tanstack/react-router";
-import { Cpu, HardDrive, MemoryStick, type LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import Cpu from "lucide-react/icons/cpu";
+import HardDrive from "lucide-react/icons/hard-drive";
+import MemoryStick from "lucide-react/icons/memory-stick";
 import { useState } from "react";
 
 import { UsageChart, type UsagePoint } from "@/components/usage-chart";

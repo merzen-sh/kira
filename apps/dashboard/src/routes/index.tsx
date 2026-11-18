@@ -5,7 +5,8 @@ import {
   CardTitle,
 } from "@kira/ui/components/card";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Bug, Users } from "lucide-react";
+import Bug from "lucide-react/icons/bug";
+import Users from "lucide-react/icons/users";
 
 import { useReportStatsQuery } from "@/data/reports/query";
 import { useUserStatsQuery } from "@/data/users/query";

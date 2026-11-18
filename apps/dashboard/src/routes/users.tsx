@@ -17,10 +17,14 @@ import {
   TableRow,
 } from "@kira/ui/components/table";
 import { createFileRoute } from "@tanstack/react-router";
-import { Bot, UserCheck, UserMinus, Users } from "lucide-react";
+import Bot from "lucide-react/icons/bot";
+import UserCheck from "lucide-react/icons/user-check";
+import UserMinus from "lucide-react/icons/user-minus";
+import Users from "lucide-react/icons/users";
 import { useEffect, useState } from "react";
 
 import { StatCard } from "@/components/stat-card";
+import { formatDateTime } from "@/lib/format-date";
 import { useUserStatsQuery, useUsersQuery } from "@/data/users/query";
 
 export const Route = createFileRoute("/users")({
@@ -41,16 +45,13 @@ const KIND_ITEMS = {
   bot: "Bots",
 };
 
-function formatDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleString() : "—";
-}
-
 function UsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
   const [status, setStatus] = useState("");
   const [kind, setKind] = useState("all");
+  const [seenLastPage, setSeenLastPage] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -73,12 +74,15 @@ function UsersPage() {
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
-  // Another admin may change the data while this page is open.
-  useEffect(() => {
-    if (data && page > lastPage) {
+  // Another admin may change the data while this page is open. Clamp an
+  // over-shoot page during render (React re-renders immediately without
+  // committing the stale frame) instead of reacting in an effect.
+  if (data && lastPage !== seenLastPage) {
+    setSeenLastPage(lastPage);
+    if (page > lastPage) {
       setPage(lastPage);
     }
-  }, [data, lastPage, page]);
+  }
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6 md:p-8">
@@ -227,10 +231,10 @@ function UsersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(user.join_at)}
+                    {user.join_at ? formatDateTime(user.join_at) : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(user.leave_at)}
+                    {user.leave_at ? formatDateTime(user.leave_at) : "—"}
                   </TableCell>
                 </TableRow>
               ))
