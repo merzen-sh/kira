@@ -43,15 +43,16 @@ pub(crate) fn details(guild: &Guild) -> GuildDetails {
     details
 }
 
-pub(crate) fn partial_details(guild: &PartialGuild) -> GuildDetails {
-    let mut details = GuildDetails::new(guild.id.to_string(), guild.name.clone());
-    details.description = guild.description.clone();
-    details.icon_url = guild.icon_url();
+pub(crate) fn partial_details(guild: PartialGuild) -> GuildDetails {
+    let icon_url = guild.icon_url();
+    let mut details = GuildDetails::new(guild.id.to_string(), guild.name);
+    details.description = guild.description;
+    details.icon_url = icon_url;
     details.owner_id = guild.owner_id.to_string();
     details.member_count = guild.approximate_member_count.unwrap_or_default();
     details.presence_count = guild.approximate_presence_count;
-    details.preferred_locale = guild.preferred_locale.clone();
-    details.features = guild.features.clone();
+    details.preferred_locale = guild.preferred_locale;
+    details.features = guild.features;
     details
 }
 

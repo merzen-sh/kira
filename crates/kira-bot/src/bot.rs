@@ -49,10 +49,15 @@ pub async fn run(
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    let initial = presence.borrow().clone();
-    let mut builder = Client::builder(config.token.expose(), intents)
-        .status(crate::presence::online_status(initial.status));
-    if let Some(activity) = crate::presence::activity(&initial) {
+    let (status, activity) = {
+        let initial = presence.borrow();
+        (
+            crate::presence::online_status(initial.status),
+            crate::presence::activity(&initial),
+        )
+    };
+    let mut builder = Client::builder(config.token.expose(), intents).status(status);
+    if let Some(activity) = activity {
         builder = builder.activity(activity);
     }
     let mut client = builder.event_handler(Handler).await?;

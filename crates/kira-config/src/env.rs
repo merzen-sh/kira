@@ -29,14 +29,11 @@ pub(crate) fn try_from_iter<T, I, K, V>(prefix: &str, iter: I) -> Result<T, Conf
 where
     T: DeserializeOwned,
     I: IntoIterator<Item = (K, V)>,
-    K: AsRef<str>,
+    K: Into<String>,
     V: Into<String>,
 {
     envy::prefixed(prefix)
-        .from_iter(
-            iter.into_iter()
-                .map(|(k, v)| (k.as_ref().to_owned(), v.into())),
-        )
+        .from_iter(iter.into_iter().map(|(k, v)| (k.into(), v.into())))
         .map_err(ConfigError::from)
 }
 

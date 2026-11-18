@@ -91,6 +91,10 @@ impl AuditRepository {
                 )
             });
 
+        // Serializing a map of JSON values cannot fail; the mapping is defensive.
+        let metadata_json = serde_json::to_string(event.metadata)
+            .map_err(|error| StoreError::InvalidData(error.to_string()))?;
+
         let row = sqlx::query_as::<_, AuditEventRow>(&sql)
             .bind(event.action)
             .bind(event.source)
@@ -100,7 +104,7 @@ impl AuditRepository {
             .bind(target_kind)
             .bind(target_id)
             .bind(target_name)
-            .bind(Value::Object(event.metadata.clone()).to_string())
+            .bind(metadata_json)
             .fetch_one(self.db.pool())
             .await?;
 

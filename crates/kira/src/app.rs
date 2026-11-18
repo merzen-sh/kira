@@ -123,7 +123,7 @@ pub async fn run_all(
         database,
         message_tx,
         presence_tx,
-        wait_flag(rx.clone()),
+        wait_flag(rx),
     );
     run_until_shutdown(&tx, async {
         tokio::pin!(bot);
@@ -164,7 +164,7 @@ pub async fn run_bot(discord: DiscordConfig, database: DatabaseConfig) -> Result
         presence_rx,
         database,
         message_rx,
-        wait_flag(rx.clone()),
+        wait_flag(rx),
     );
 
     run_until_shutdown(&tx, async move { bot.await.context("Discord bot failed") }).await

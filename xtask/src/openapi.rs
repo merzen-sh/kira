@@ -12,8 +12,10 @@ fn output_path(root: &Path) -> PathBuf {
 }
 
 fn document() -> Result<String> {
-    let yaml = kira_api_docs::yaml().context("building the OpenAPI document")?;
-    let mut output = yaml.trim_end_matches('\n').to_owned();
+    let mut output = kira_api_docs::yaml().context("building the OpenAPI document")?;
+    while output.ends_with('\n') {
+        output.pop();
+    }
     output.push('\n');
     Ok(output)
 }

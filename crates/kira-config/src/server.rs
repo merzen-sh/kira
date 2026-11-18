@@ -76,7 +76,7 @@ impl ServerConfig {
     pub fn try_from_iter<I, K, V>(iter: I) -> Result<Self, ConfigError>
     where
         I: IntoIterator<Item = (K, V)>,
-        K: AsRef<str>,
+        K: Into<String>,
         V: Into<String>,
     {
         env::try_from_iter("KIRA_", iter)

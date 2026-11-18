@@ -189,17 +189,17 @@ async fn fetch_member(http: &Http, guild_id: GuildId, user_id: &str) -> FetchOut
     for attempt in 1..=MAX_ATTEMPTS {
         match guild_id.member(http, UserId::new(id)).await {
             Ok(member) => {
-                let user = &member.user;
                 let display_name = members::display_name(
                     member.nick.as_deref(),
-                    user.global_name.as_deref(),
-                    &user.name,
+                    member.user.global_name.as_deref(),
+                    &member.user.name,
                 )
                 .to_owned();
+                let avatar_url = member.user.face();
                 return FetchOutcome::Found {
-                    user_name: user.name.clone(),
+                    user_name: member.user.name,
                     display_name,
-                    avatar_url: user.face(),
+                    avatar_url,
                 };
             }
             Err(serenity::Error::Http(error))

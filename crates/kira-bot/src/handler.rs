@@ -26,7 +26,7 @@ pub struct Handler;
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _ready: Ready) {
         if let Some(presence) = state::presence(&ctx).await {
-            let current = presence.borrow().clone();
+            let current = presence.borrow();
             crate::presence::apply(&ctx, &current);
         }
 
@@ -70,7 +70,7 @@ impl EventHandler for Handler {
             return;
         }
 
-        let details = guilds::partial_details(&new);
+        let details = guilds::partial_details(new);
         guilds::publish(&ctx, |entries| {
             let existing = entries.iter().find(|guild| guild.id == details.id);
             let details = guilds::merge_update(existing, details);
