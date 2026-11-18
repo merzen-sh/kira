@@ -33,9 +33,7 @@ where
     V: Into<String>,
 {
     envy::prefixed(prefix)
-        .from_iter(
-            iter.into_iter().map(|(k, v)| (k.into(), v.into())),
-        )
+        .from_iter(iter.into_iter().map(|(k, v)| (k.into(), v.into())))
         .map_err(ConfigError::from)
 }
 
