@@ -176,11 +176,7 @@ pub async fn send_guild_message(
     match tokio::time::timeout(MESSAGE_TIMEOUT, response).await {
         Ok(Ok(Ok(id))) => {
             let actor = dashboard_actor();
-            let target = AuditEntity::new(
-                "channel",
-                Some(channel.id.clone()),
-                Some(channel.name.clone()),
-            );
+            let target = AuditEntity::new("channel", Some(channel.id), Some(channel.name));
             let mut metadata = Map::new();
             metadata.insert("message_id".to_owned(), id.clone().into());
             metadata.insert(

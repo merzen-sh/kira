@@ -127,10 +127,10 @@ impl Auth {
     /// Returns an error when the operating system cannot provide random bytes.
     pub fn new(config: AuthConfig) -> Result<Self, ServerError> {
         let (pin, generated_pin) = match config.password {
-            Some(pin) => (pin, None),
+            Some(pin) => (digest(&SHA256, pin.expose().as_bytes()), None),
             None => {
                 let pin = generate_pin()?;
-                (SecretString::new(pin.clone()), Some(pin))
+                (digest(&SHA256, pin.as_bytes()), Some(pin))
             }
         };
 
@@ -141,7 +141,7 @@ impl Auth {
 
         Ok(Self {
             inner: Arc::new(Inner {
-                pin: digest(&SHA256, pin.expose().as_bytes()),
+                pin,
                 key: hmac::Key::new(hmac::HMAC_SHA256, &key_bytes),
                 epoch: Instant::now(),
                 generated_pin,
@@ -188,7 +188,7 @@ impl Auth {
 
     /// Read the session token from a cookie header.
     #[must_use]
-    pub fn token_from_headers(&self, headers: &HeaderMap) -> Option<String> {
+    pub fn token_from_headers<'a>(&self, headers: &'a HeaderMap) -> Option<&'a str> {
         headers
             .get_all(header::COOKIE)
             .iter()
@@ -196,7 +196,7 @@ impl Auth {
             .flat_map(|value| value.split(';'))
             .find_map(|pair| {
                 let (name, value) = pair.trim().split_once('=')?;
-                (name == COOKIE_NAME).then(|| value.to_owned())
+                (name == COOKIE_NAME).then_some(value)
             })
     }
 
@@ -328,6 +328,16 @@ mod tests {
         tampered.push('0');
         assert!(!auth.verify_token(&tampered));
         assert!(!auth.verify_token("nonsense"));
+    }
+
+    #[test]
+    fn generated_pin_logins_succeed() {
+        let auth = Auth::new(AuthConfig::default()).expect("test auth");
+        let pin = auth.generated_pin().expect("generated pin").to_owned();
+
+        assert!(auth.login(&pin, None).is_ok());
+        // A non-numeric PIN can never collide with the generated six-digit PIN.
+        assert!(auth.login("definitely-not-the-pin", None).is_err());
     }
 
     #[test]

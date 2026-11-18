@@ -58,7 +58,7 @@ pub(crate) async fn require_session(
     let authorized = state
         .auth()
         .token_from_headers(request.headers())
-        .is_some_and(|token| state.auth().verify_token(&token));
+        .is_some_and(|token| state.auth().verify_token(token));
 
     if authorized {
         next.run(request).await
