@@ -8,6 +8,7 @@ build:
 	$(CARGO) build -p kira
 
 dev: node_modules
+	@trap 'kill 0' EXIT INT TERM; \
 	mprocs --names vite,kira,kira-cli \
 		"bun run --filter @kira/dashboard dev" \
 		"cargo watch -w crates -x 'run -p kira'" \
