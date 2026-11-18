@@ -138,11 +138,7 @@ async fn save_report(
         .await?;
 
     let actor = AuditEntity::new("user", Some(user_id.to_owned()), Some(user_name.to_owned()));
-    let target = AuditEntity::new(
-        "report",
-        Some(report.id.to_string()),
-        Some(report.title.clone()),
-    );
+    let target = AuditEntity::new("report", Some(report.id.to_string()), Some(report.title));
     let metadata = Map::new();
     let event = NewAuditEvent::new(
         ACTION_REPORT_CREATED,
