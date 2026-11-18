@@ -14,7 +14,6 @@ Kira is a Rust workspace plus Bun-managed JavaScript workspaces. It produces two
 
 - `make check` — authoritative gate: fmt, clippy with `-D warnings`, workspace tests, OpenAPI drift, TypeScript type drift, typecheck, and dependency-boundary assertions. Run this before claiming work is complete.
 - `make test` or `cargo test --workspace`.
-- `make test-hooks` or `bash scripts/test-pre-commit.sh` — focused pre-commit hook tests.
 - Focused test: `cargo test -p kira-server --test health`, or `cargo test -p kira-config <filter>`.
 - `make dev` — start Vite, `kira`, and `kira-cli` together under `mprocs`; exiting or pressing Ctrl-C kills all three.
 - `make` — default target, equivalent to `make build`.

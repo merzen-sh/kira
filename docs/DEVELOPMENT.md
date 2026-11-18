@@ -18,7 +18,6 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 | `make build-all` | Build dashboard, then both release binaries |
 | `make openapi` | Generate YAML and TypeScript types |
 | `make test` | `cargo test --workspace` |
-| `make test-hooks` | Focused pre-commit hook tests |
 | `make check` | Full gate (see below) |
 | `make fmt` / `make clippy` | Formatting / lints |
 | `make clean` | Remove Cargo output, `node_modules`, and dashboard `dist` |
