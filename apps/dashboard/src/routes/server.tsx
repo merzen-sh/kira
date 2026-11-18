@@ -21,14 +21,14 @@ function ServerPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 p-6 md:p-8">
-      <header>
+      <header className="mx-auto w-full max-w-3xl">
         <h1 className="text-xl font-semibold">Server</h1>
         <p className="text-sm text-muted-foreground">
           Configured Discord server details and bot presence.
         </p>
       </header>
 
-      <Card className="max-w-3xl">
+      <Card className="mx-auto w-full max-w-3xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             {guild?.icon_url ? (
@@ -104,7 +104,7 @@ function ServerPage() {
         </CardContent>
       </Card>
 
-      <Card id="bot-presence" className="max-w-3xl">
+      <Card id="bot-presence" className="mx-auto w-full max-w-3xl">
         <CardHeader>
           <CardTitle>Bot presence</CardTitle>
           <CardDescription>
