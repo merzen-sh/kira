@@ -9,7 +9,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for environment variables and
 |---|---|
 | `make build` | `cargo build -p kira` |
 | `make release` | `cargo build --release -p kira` |
-| `make dev` | `mprocs` for Vite, `kira`, and `kira-cli`; stops all three on exit or Ctrl-C |
+| `make dev` | `mprocs` for Vite, `kira`, and `kira-cli` (requires `mprocs` and `cargo-watch`); stops all three on exit or Ctrl-C |
 | `make install` | `bun install --frozen-lockfile` (via the `node_modules` prerequisite) |
 | `make install-hooks` | Point Git at `.githooks`; checks formatting and clippy on commit |
 | `make uninstall-hooks` | Remove the Git hooks path override |
@@ -52,8 +52,8 @@ partially staged, and untracked changes are left exactly as they are.
 
 ## CI
 
-`.github/workflows/ci.yml` runs four jobs, gated by `dorny/paths-filter` and
-`.github/filters.yaml`:
+`.github/workflows/ci.yml` runs a `changes` detection job and four
+verification jobs, gated by `dorny/paths-filter` and `.github/filters.yaml`:
 
 | Job | Runs |
 |---|---|

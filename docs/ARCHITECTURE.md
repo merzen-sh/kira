@@ -1,11 +1,11 @@
 # Kira architecture
 
-Kira is a Rust monorepo with two application binaries:
+Kira is a Rust workspace plus Bun workspaces. It builds two binaries:
 
-- **`kira`** — the main service. It runs the Discord bot and the HTTP/WebSocket
-  API in one process.
-- **`kira-cli`** — a local application. It serves the built Vite dashboard and
-  proxies API/WebSocket traffic to a remote `kira` server.
+- **`kira`** — the Discord bot and the HTTP/WebSocket API in one process.
+- **`kira-cli`** — a local host for the built dashboard. Release builds serve
+  embedded assets; debug builds proxy non-API requests to Vite. The browser
+  always talks to `kira` directly for API and WebSocket traffic.
 
 A shared OpenAPI document is generated from the Rust route annotations, committed,
 and used to generate the TypeScript types consumed by the dashboard. See
@@ -25,23 +25,25 @@ flowchart TB
     GW["Discord Gateway"]
 
     subgraph KIRA["kira — single process, one Tokio runtime"]
-        BOT["kira-bot<br/>Serenity gateway + /ping, /report, and /mod"]
-        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, monitor, audit, guild, bot presence, channels, users, messages, reports, /ws echo"]
+        BOT["kira-bot<br/>Serenity gateway + /ping, /report, /mod"]
+        SERVER["kira-server<br/>Axum on 127.0.0.1:8080<br/>health, auth, guild, presence, users,<br/>reports, monitor, audit, messages, /ws"]
         STORE["kira-store<br/>SQLite + migrations"]
     end
 
     subgraph LOCAL["kira-cli — local process"]
-        CLI["Axum on 127.0.0.1:3000<br/>embedded SPA (release)<br/>Vite dev server proxy (debug)"]
+        CLI["Axum on 127.0.0.1:3000<br/>embedded SPA (release)<br/>Vite proxy (debug)"]
     end
 
-    BROWSER["Browser<br/>embedded dashboard"]
+    BROWSER["Browser<br/>dashboard"]
+    VITE["Vite :5173"]
 
     GW <--> BOT
     BOT --> STORE
     SERVER --> STORE
     SERVER <-->|"HTTP + WebSocket<br/>session cookie"| BROWSER
     CLI -->|"assets"| BROWSER
-    CLI -.->|"debug assets"| VITE["Vite :5173"]
+    CLI -.->|"debug assets"| VITE
+    BROWSER -.->|"direct in development"| VITE
 ```
 
 Ports are configurable; the defaults above are what the Makefile and Vite dev
@@ -64,19 +66,20 @@ kira/
 │   └── *.up.sql / *.down.sql     SQLx migrations applied at startup
 ├── crates/
 │   ├── kira/                     binary: bot + server composition
-│   ├── kira-cli/                 binary: local dashboard host (embedded SPA)
-│   ├── kira-core/                shared runtime utilities (logging, messaging, shutdown)
+│   ├── kira-cli/                 binary: local dashboard host
+│   ├── kira-core/                logging, shutdown, messaging, secrets
 │   ├── kira-config/              environment configuration
 │   ├── kira-protocol/            shared HTTP/WS DTOs
 │   ├── kira-store/               SQLite storage, repositories, migrations
-│   ├── kira-bot/                 Serenity client, event handler, slash commands
+│   ├── kira-bot/                 Serenity client, events, slash commands
 │   ├── kira-server/              Axum router, auth, handlers, utoipa annotations
 │   └── kira-api-docs/            OpenAPI YAML serialization (dev-only)
 ├── xtask/                        OpenAPI generate/check tooling
 ├── apps/
 │   └── dashboard/                Vite + React + TypeScript dashboard
 ├── packages/
-│   └── api-types/                generated TypeScript API types
+│   ├── api-types/                generated TypeScript API types
+│   └── ui/                       shared shadcn components and styles
 ├── scripts/
 │   └── smoke-test.sh             release binary sanity check
 └── docs/                         architecture, API, configuration, dashboard, development
@@ -91,12 +94,12 @@ Bun workspaces and are excluded from Cargo.
 flowchart RL
     subgraph L0["L0 · leaves"]
         CORE["kira-core"]
-        CONFIG["kira-config"]
         PROTOCOL["kira-protocol"]
-        STORE["kira-store"]
     end
 
     subgraph L1["L1 · libraries"]
+        CONFIG["kira-config"]
+        STORE["kira-store"]
         BOT["kira-bot"]
         SERVER["kira-server"]
     end
@@ -111,29 +114,39 @@ flowchart RL
         XTASK["xtask"]
     end
 
-    BOT --> CONFIG
-    SERVER --> CONFIG
-    SERVER --> PROTOCOL
-    BOT --> STORE
-    SERVER --> STORE
+    CONFIG --> CORE
     STORE --> PROTOCOL
+
+    BOT --> CONFIG
+    BOT --> CORE
+    BOT --> PROTOCOL
+    BOT --> STORE
+
+    SERVER --> CONFIG
+    SERVER --> CORE
+    SERVER --> PROTOCOL
+    SERVER --> STORE
 
     KIRA --> BOT
     KIRA --> SERVER
     KIRA --> CONFIG
     KIRA --> CORE
+    KIRA --> PROTOCOL
+    KIRA --> STORE
+
     CLI --> CONFIG
     CLI --> CORE
-    CLI --> PROTOCOL
+    CLI -.->|"dev-proxy only"| PROTOCOL
 
     DOCS --> SERVER
-    DOCS --> PROTOCOL
     XTASK --> DOCS
 ```
 
 Rules:
 
-1. Leaf crates never depend upward.
+1. Dependencies point toward the leaves: `kira-config` depends on `kira-core`,
+   and `kira-store` depends on `kira-protocol`. Neither leaf crate depends on a
+   higher layer.
 2. `kira-bot` and `kira-server` never depend on each other.
 3. `kira` and `kira-cli` never depend on `kira-api-docs` or `xtask`.
 4. `kira-api-docs` is a capstone over `kira-server`; it is never a dependency of
@@ -141,6 +154,9 @@ Rules:
    binaries. The document itself is assembled in `kira-server` so debug builds
    can serve it live.
 5. `xtask` is never a dependency of any shipped crate.
+6. `kira-cli` must not depend on `kira-server`, `kira-bot`, or Serenity. Its
+   `dev-proxy` feature is enabled by default for `cargo run`; release builds pass
+   `--no-default-features` to omit the proxy, `reqwest`, and `kira-protocol`.
 
 `make check` enforces the most important boundaries with `cargo tree`
 assertions.
@@ -160,8 +176,8 @@ assertions.
 
 ### 4.1 `kira`
 
-`kira` loads configuration, starts the bot, optionally starts the HTTP server,
-and waits for Ctrl-C/SIGTERM.
+`kira` handles `--version`/`--help`, loads configuration, opens storage, starts
+the bot, optionally starts the HTTP server, and waits for Ctrl-C/SIGTERM.
 
 - `kira-core::logging::init()` installs the `tracing` subscriber before any
   work; `RUST_LOG` controls the filter (default `info`) and logs go to stderr.
@@ -172,17 +188,16 @@ and waits for Ctrl-C/SIGTERM.
   bind used to derive default origins (`KIRA_CLI_BIND`).
 - `kira-config::DatabaseConfig` supplies `KIRA_DATABASE_URL` (default
   `sqlite:kira.db`).
-- `kira-store::Database::connect` opens the SQLite database and runs the SQLx
-  migrations in `migrations/`. It owns the connection pool; `reports()`,
-  `users()`, `monitor()`, and `audit()` expose independent repositories over
-  that pool.
+- `kira-store::Database::connect` opens SQLite and runs the SQLx migrations in
+  `migrations/`. It owns the connection pool; `reports()`, `users()`,
+  `monitor()`, `presence()`, and `audit()` expose independent repositories.
 - `kira-bot::run` builds the Serenity client with the
-  `GUILD_MEMBERS | GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` intents,
-  registers the config in Serenity's type map, and starts the gateway. It
-  caches only the configured guild. `/report` opens a modal and saves the
-  submission to the report repository. `/mod` exposes ban, kick, purge, lock,
-  and unlock; every subcommand re-checks the invoking member's Discord
-  permissions server-side and answers ephemerally.
+  `GUILDS | GUILD_MEMBERS | GUILD_MESSAGES | DIRECT_MESSAGES |
+  MESSAGE_CONTENT` intents, caches only the configured guild, and starts the
+  gateway. `/report` opens a modal and saves the submission to the report
+  repository. `/mod` exposes ban, kick, purge, lock, and unlock; every
+  subcommand re-checks the invoking member's Discord permissions server-side and
+  answers ephemerally. `!ping` and `/ping` reply with `Pong!`/`pong`.
 - Guild membership is event-driven: member additions and removals write the
   user state and a join/leave event in one transaction. Bot accounts are
   recorded with an `is_bot` flag at join or reconciliation time and can be
@@ -190,14 +205,16 @@ and waits for Ctrl-C/SIGTERM.
   Metadata sync refreshes names and avatars for both account types but never
   changes the flag. On every `ready`, a reconciliation pass imports the current
   member list, reactivates missed rejoins, and marks tracked active users that
-  are gone as left. A background worker refreshes active users' names in batches
-  on a three-day per-user cooldown and never changes membership status; a `404`
-  defers the user instead of retrying forever. Reports join `guild_users` when
-  queried so the dashboard can show the reporter without storing a copy on the
-  report. Member events require the `GUILD_MEMBERS` privileged intent to be
-  enabled for the bot in the Discord developer portal.
+  are gone as left. A background worker runs every 15 minutes, refreshes active
+  users in batches, and applies a three-day per-user cooldown; a `404` defers the
+  user instead of retrying forever. Member events require the `GUILD_MEMBERS`
+  privileged intent to be enabled for the bot in the Discord developer portal.
+  Reports join `guild_users` when queried so the dashboard can show the reporter
+  without storing a copy on the report.
 - `kira-server::serve` binds the configured address and runs Axum with graceful
-  shutdown. It also starts a task that samples host CPU, memory, and disk every
+  shutdown. Dashboard sessions are signed, stateless cookies with a 12-hour
+  lifetime; the signing key is generated per process, so a restart invalidates
+  outstanding tokens. A background task samples host CPU, memory, and disk every
   10 seconds, stores the samples in SQLite, and prunes rows older than 24 hours.
 - The audit log is a standalone module with no dependency on the bot or the
   other repositories. `audit_events` stores a generic action, source, actor,
@@ -236,15 +253,16 @@ test cannot accidentally start the gateway.
 - `kira-config::CliConfig` reads `KIRA_CLI_BIND` (default `127.0.0.1:3000`).
 - The local Axum router only has a fallback:
   - Release builds serve the embedded dashboard with SPA fallback and asset
-    caching.
+    caching. Only `assets/*` are looked up as files; other paths serve
+    `index.html`.
   - Debug builds proxy non-API requests to Vite on `127.0.0.1:5173`, so
     frontend changes are visible without a Rust rebuild. This uses the default
     `dev-proxy` feature.
+- `/api/*` paths always return `404`; `kira-cli` never forwards API or
+  WebSocket traffic.
 - Release builds pass `--no-default-features` (as `make build-cli` does) to
   omit the Vite proxy, `reqwest`, and `kira-protocol`; the shipped binary only
   serves embedded assets.
-- `/api/*` paths always return `404`; `kira-cli` never forwards API or
-  WebSocket traffic.
 - The process shuts down gracefully on Ctrl-C/SIGTERM.
 
 See [API.md](API.md) for the server route tables and [DASHBOARD.md](DASHBOARD.md)
@@ -254,18 +272,16 @@ for the frontend.
 
 - **One Cargo workspace.** One lockfile, one set of dependency versions, and
   per-package builds. Multiple workspaces would duplicate tooling and versions.
-- **`kira-api-docs` as a capstone.** Putting the `OpenApi` derive in
-  `kira-server` would pull document assembly and YAML serialization into
-  production binaries. Depending the other way keeps production lean while
-  still deriving the contract from live route annotations.
+- **`kira-api-docs` as a capstone.** The `OpenApi` assembly lives in
+  `kira-server` so debug builds can serve it, while YAML serialization stays in
+  a dev-only crate. Production binaries never pull it in.
 - **`server` feature on `kira`.** The main binary can be built bot-only without
   dragging Axum into the dependency tree.
 - **`rust-embed` for the dashboard.** Release binaries are self-contained;
   debug builds keep frontend iteration fast.
-- **Bun workspaces + committed lockfile.** Two frontend packages share one
-  install, and the lockfile makes generation reproducible.
-- **`openapi-typescript`.** The named `typescript-openapi` package does not
-  exist; `openapi-typescript` consumes the committed YAML and emits `.d.ts`
+- **Bun workspaces + committed lockfile.** Frontend packages share one install,
+  and the lockfile makes generation reproducible.
+- **`openapi-typescript`.** It consumes the committed YAML and emits `.d.ts`
   with no runtime dependency.
 - **Exact embedded lookups.** Serving from the embedded file set instead of
   joining a filesystem root makes path traversal impossible.
@@ -285,24 +301,29 @@ for the frontend.
 
 Implemented:
 
-- Workspace, crate boundaries, and feature topology.
-- Discord `!ping` → `Pong!`.
-- Discord `/ping` slash command → `pong` (registered per guild, or globally in
-  bot-only builds).
-- Discord `/mod` group with `ban`, `kick`, `purge`, `lock`, and `unlock`
-  subcommands, gated by server-side Discord permission checks.
-- `GET /health`, guild/channel reads, and guild message posting.
-- Local dashboard hosting, SPA fallback, asset caching, HTTP/WS proxying.
-- Dashboard navigation, health, guild header, theme toggle, and announcements.
-- OpenAPI generation and TypeScript contract checks.
-- Build, lint, test, and smoke-test workflow.
+- Cargo and Bun workspaces, crate boundaries, and the `server`/`dev-proxy`
+  feature split.
+- Discord `!ping`, `/ping`, `/report` with SQLite persistence, and the `/mod`
+  group (`ban`, `kick`, `purge`, `lock`, `unlock`) gated by server-side
+  permission checks.
+- Guild and channel caching, announcements, bot presence, member tracking with
+  join/leave events, reconciliation, and periodic metadata sync.
+- PIN authentication with signed session cookies and login rate limiting.
+- HTTP API for health, guild, channels, messages, presence, users, reports,
+  host monitoring, audit events, and the WebSocket echo scaffold.
+- Dashboard login, navigation, summary cards, reports, users, monitor, audit,
+  announcements, and server/presence pages.
+- SQLite persistence and migrations for reports, guild users and events, sync
+  state, monitor samples, audit events, and bot presence.
+- OpenAPI generation, TypeScript contract checks, dashboard tests, and the
+  build/lint/test/smoke-test workflow.
 
 Not implemented yet:
 
-- Authentication beyond the shared API token, persistence, or broader domain
-  models.
-- A WebSocket protocol beyond the echo/bridge scaffold.
-- TLS acceptance testing. The client features support `https`/`wss`, but tests
-  are localhost HTTP/WS only.
+- TLS termination inside the binaries; TLS is expected in front of `kira`.
+- Session revocation beyond cookie clearing and process restart.
+- A WebSocket protocol beyond the echo scaffold.
+- Multi-guild tenancy; the API serves the single `KIRA_GUILD_ID` server.
+- Role-based dashboard permissions; all dashboard users share the PIN.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for commands.
