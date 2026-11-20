@@ -9,36 +9,41 @@ here and [ARCHITECTURE.md](ARCHITECTURE.md) for crate placement.
 
 | Method | Path | Auth | Behavior |
 |---|---|---|---|
-| `GET` | `/health` | public | `200 application/json` with `{ "status": "ok", "version": "0.1.0" }` |
+| `GET` | `/health` | public | `200 application/json` with `{ "status": "ok", "version": "<crate version>" }` |
 | `POST` | `/auth/login` | public | `204` + session cookie; `400`/`415`/`422` malformed body; `401` wrong PIN; `403` bad origin; `429` rate limited (`Retry-After`) |
-| `POST` | `/auth/logout` | public | `204` + clearing cookie |
+| `POST` | `/auth/logout` | public | `204` + clearing cookie; `403` bad origin |
 | `GET` | `/auth/session` | cookie | `204` with a valid session, `401` otherwise |
 | `GET` | `/guild` | cookie | `200` with the `KIRA_GUILD_ID` server's details, or `503` while unavailable |
 | `GET` | `/guild/channels` | cookie | `200` with the configured server's channels, or `503` while unavailable |
 | `GET` | `/bot/presence` | cookie | `200` with the stored `BotPresence` |
-| `PUT` | `/bot/presence` | cookie | `200` with the saved `BotPresence`; `400` for invalid activity text, `422` for malformed values |
+| `PUT` | `/bot/presence` | cookie | `200` with the saved `BotPresence`; `400` for invalid activity text, `415`/`422` for malformed values |
 | `GET` | `/guild/users` | cookie | `200` with a `GuildUserList` page; accepts `page`, `page_limit` (1–100), `search`, `status` (`active` or `left`), and `kind` (`user`, `bot`, or `all`) |
 | `GET` | `/guild/users/stats` | cookie | `200` with a `GuildUserStats` summary of human total, active, left, and tracked bot counts |
 | `GET` | `/monitor` | cookie | `200` with a `MonitorReport` containing the latest sample and a bucketed history; accepts `range` (`1h`, `3h`, or `24h`; default `1h`) |
 | `GET` | `/audit/events` | cookie | `200` with an `AuditEventList` page; accepts `page`, `page_limit` (1–100), `search`, `action`, `actor_kind`, and `source` |
 | `GET` | `/audit/facets` | cookie | `200` with an `AuditFacets` list of distinct actions, actor kinds, and sources |
-| `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `502`, `503`, or `504` on failure |
-| `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), `search`, and `resolved` |
+| `POST` | `/guild/channels/{channel_id}/messages` | cookie | `201` with the sent `SentMessage`; `400`, `401`, `404`, `415`, `422`, `502`, `503`, or `504` on failure |
+| `GET` | `/reports` | cookie | `200` with a `ReportList` page; accepts `page`, `page_limit` (1–100), `search`, and `resolved` (boolean) |
 | `GET` | `/reports/stats` | cookie | `200` with a `ReportStats` summary of total, open, and resolved reports |
-| `PATCH` | `/reports/{id}` | cookie | `200` with the updated `Report`; `404` when missing |
+| `PATCH` | `/reports/{id}` | cookie | `200` with the updated `Report`; `400`/`415`/`422` for malformed bodies, `404` when missing |
 | `DELETE` | `/reports/{id}` | cookie | `204` when deleted; `404` when missing |
 | `GET` | `/ws` | cookie + origin | WebSocket echo scaffold |
 | `GET` | `/docs` | public | Scalar API Reference UI (debug builds only) |
 | `GET` | `/openapi.json` | public | Live OpenAPI document from `ApiDoc` (debug builds only) |
+
+Every route passes through the origin check: an `Origin` header that is not
+allowlisted yields `403`. Routes marked `cookie` also return `401` when the
+session is missing or invalid, and JSON endpoints may return `400`, `415`, or
+`422` for malformed bodies.
 
 The handlers and `#[utoipa::path]` annotations live in `kira-server`. The API
 reference routes are mounted only under `debug_assertions`; release builds
 return `404` for both paths.
 
 `GET /guild` returns `503` until the bot has cached the server named by
-`KIRA_GUILD_ID`. `KIRA_GUILD_ID` is required and a missing value fails at
-startup. `GET /guild/channels` follows the same availability rule and returns
-the cached channels of that server.
+`KIRA_GUILD_ID`. The variable is required in server builds and a missing value
+fails at startup. `GET /guild/channels` follows the same availability rule and
+returns the cached channels of that server.
 
 `POST /guild/channels/{channel_id}/messages` validates the channel against that
 cached list and rejects channel kinds that cannot receive messages with `400`.
@@ -89,14 +94,14 @@ working directory.
 other API domains. Each event has an `action`, a `source`, an `actor`, an
 optional `target`, a metadata JSON object, and `occurred_at`/`recorded_at`
 timestamps. Sources are `dashboard`, `bot`, and `system`. `search` is a
-case-insensitive substring match against the action, actor, and target;
-`action`, `actor_kind`, and `source` are exact filters. `GET /audit/facets`
-returns the distinct actions, actor kinds, and sources used by the dashboard
-filters. Events are retained indefinitely and are written in-process through
-the storage repository; there is no HTTP write route. Startup records
-`system.started`, and `auth.login`/`auth.login.failed` record dashboard
-authentication. Dashboard mutations record `report.resolved`,
-`report.reopened`, `report.deleted`, and `message.sent` with the shared
+case-insensitive substring match against the action, actor kind/id/name, and
+target kind/id/name; `action`, `actor_kind`, and `source` are exact filters.
+`GET /audit/facets` returns the distinct actions, actor kinds, and sources used
+by the dashboard filters. Events are retained indefinitely and are written
+in-process through the storage repository; there is no HTTP write route. Startup
+records `system.started`, and `auth.login`/`auth.login.failed` record dashboard
+authentication. Dashboard mutations record `report.resolved`, `report.reopened`,
+`report.deleted`, `message.sent`, and `bot.presence.updated` with the shared
 dashboard admin actor. The bot's `/report` modal records `report.created` with
 the submitting Discord user.
 
@@ -107,7 +112,8 @@ intentionally undocumented.
 
 ## Authentication
 
-The server is stateless: it keeps no session store and supports no revocation.
+Session handling is stateless: the server keeps no session store and supports
+no revocation beyond clearing the cookie or restarting the process.
 
 - The PIN comes from `KIRA_PASSWORD`. When unset or empty, the server generates
   a random six-digit PIN at startup and logs it once at `warn`.
@@ -116,7 +122,8 @@ The server is stateless: it keeps no session store and supports no revocation.
 - The token is `<version>.<exp>.<HMAC-SHA256>`, signed with a 32-byte key
   generated at startup. It expires 12 hours after issue. A restart invalidates
   every outstanding token.
-- `POST /auth/logout` only clears the cookie client-side.
+- `POST /auth/logout` only clears the cookie; there is no server-side session to
+  revoke.
 - Protected API routes and `/ws` validate the token signature and expiry on
   every request. A missing, malformed, tampered, or expired cookie yields
   `401`.

@@ -1,27 +1,32 @@
 # Dashboard
 
-`apps/dashboard` is a Vite + React + TypeScript dashboard. It shows server
-health, the configured guild, and an announcements composer. TanStack Router
-owns navigation; the unified TanStack Devtools panel hosts the Router and Query
+`apps/dashboard` is a Vite + React + TypeScript dashboard for the Kira API. It
+shows report and member summary cards and provides report, user, monitor, audit,
+announcement, server-detail, and bot-presence pages. TanStack Router owns
+navigation; the unified TanStack Devtools panel hosts the Router and Query
 panels in development.
 
 ## Routing
 
 Routing is file-based:
 
-- `src/routes/__root.tsx` owns the root layout and development devtools.
-- `src/routes/index.tsx`, `server.tsx`, `settings.tsx`, `announcements.tsx`,
-  `monitor.tsx`, `audit.tsx`, `reports.tsx`, and `users.tsx` are the page
-  routes. The reports and users pages open with summary cards above their
-  tables. Reports can be filtered by resolved state and show the reporter's
-  avatar, username, and ID resolved from tracked guild users. The monitor page
-  shows current CPU, memory, and disk usage with range-selected history charts,
-  and the audit page browses, filters by action, actor kind, and source, and
-  inspects generic audit events.
+- `src/routes/__root.tsx` owns the session gate, root layout, and development
+  devtools.
+- `src/routes/index.tsx`, `reports.tsx`, `users.tsx`, `monitor.tsx`,
+  `audit.tsx`, `announcements.tsx`, `server.tsx`, and `settings.tsx` are the
+  page routes.
+  - The home page shows report and tracked-user totals.
+  - Reports and users open with summary cards above paginated, searchable
+    tables. Reports can be filtered by resolved state and show the reporter's
+    avatar, username, and ID resolved from tracked guild users.
+  - Monitor shows current CPU, memory, and disk usage with range-selected
+    history charts; audit browses and filters generic audit events.
+  - Announcements composes a text announcement or raw Discord message JSON for
+    a cached channel.
+  - `/server` shows cached guild details plus the full presence editor;
+    `/settings` remains a placeholder.
 - The guild badge in the top bar opens a presence dropdown instead of
-  navigating. It contains the shared bot presence form and a link to `/server`,
-  which shows cached guild details plus the full presence editor. `/settings`
-  remains the dashboard-preferences placeholder.
+  navigating. It contains the shared bot presence form and a link to `/server`.
 - The Vite router plugin generates `src/routeTree.gen.ts`; `src/router.tsx`
   creates the router from that tree.
 
@@ -36,16 +41,10 @@ The API layer lives in `src/data/`:
   build time with `VITE_API_BASE_URL`.
 - The browser calls `kira` directly; `kira-cli` never proxies API traffic. The
   session lives in an `HttpOnly` cookie, so no token is stored in JavaScript.
-- `auth/` holds the session query plus login and logout mutations. The session
-  query treats `401` as signed out.
 - Each API domain owns `keys.ts` and `query.ts` (plus `mutation.ts` when
-  needed). `health/` is the first domain; `reports/` backs the paginated,
-  searchable bug report table, and `users/` backs the guild member list with
-  separate user and bot types.
-  `monitor/` backs the system monitor page and polls every 10 seconds.
-  `audit/` backs the audit log's paginated, searchable, and filterable event
-  table. `presence/` backs the guild-badge dropdown and the `/server` presence
-  editor.
+  needed). Domains: `auth/`, `guild/`, `channels/`, `messages/`, `users/`,
+  `reports/`, `monitor/`, `audit/`, and `presence/`. `health/` is a small
+  reference domain.
 - TanStack Query owns server state. Components consume exported query hooks;
   they do not call `fetch` directly.
 - `__templates/` holds copyable conventions for new domains.
@@ -67,11 +66,12 @@ generated with the shadcn CLI. The global stylesheet is
 
 In development, Vite serves assets on `127.0.0.1:5173` and a debug `kira-cli`
 proxies non-API requests to it. The browser still calls `kira` on `:8080`
-directly for API and WebSocket traffic, so either entrypoint works:
+directly for API and WebSocket traffic, so either asset entrypoint works:
 
 ```
-Browser → Vite :5173 (assets) ──────────────┐
-Browser → kira-cli :3000 (debug asset proxy)┴→ kira :8080 (API + WS)
+Browser → Vite :5173 (assets)
+Browser → kira-cli :3000 (debug proxy) → Vite :5173
+Browser → kira :8080 (API + WebSocket)
 ```
 
 In production, `kira-cli` serves the built assets itself and `kira` handles
@@ -96,8 +96,9 @@ all API and WebSocket traffic.
   - A real Vite build removes the marker because it empties the output
     directory.
 - `apps/dashboard/dist/` is gitignored; the built assets are not committed.
-- `bun run --filter @kira/dashboard test` runs Vitest in the dashboard workspace; test
-  files live next to the code they cover as `*.test.ts`. `make check` runs it.
+- `bun run --filter @kira/dashboard test` runs Vitest in the dashboard
+  workspace; test files live next to the code they cover as `*.test.ts`.
+  `make check` runs it.
 
 `cargo build --release -p kira-cli` is independent of the `kira` application,
 but it requires `make dashboard` first and includes the default `dev-proxy`
