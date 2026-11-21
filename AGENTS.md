@@ -21,7 +21,7 @@ Kira is a Rust workspace plus Bun-managed JavaScript workspaces. It produces two
 - `cargo run -p kira` — bot + API on `127.0.0.1:8080`.
 - `make build-cli` — builds the dashboard, then release `kira-cli`; run `target/release/kira-cli` for the local host on `:3000`.
 - `bun run --filter @kira/dashboard dev` — Vite dev server on `127.0.0.1:5173`. The browser calls `kira` on `:8080` directly; a debug `kira-cli` proxies non-API requests to Vite instead of serving embedded assets.
-- `make openapi` — regenerate `openapi/openapi.yaml` and `packages/api-types/src/schema.d.ts` after any route or DTO change.
+- `make openapi` — regenerate `packages/api-types/openapi.yaml` and `packages/api-types/src/schema.d.ts` after any route or DTO change.
 - `cargo xtask openapi generate|check` — the alias is defined in `.cargo/config.toml`.
 
 ## Build gotchas
