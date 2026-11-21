@@ -76,7 +76,6 @@ Release targets name packages explicitly.
 cargo build --release -p kira
 cargo build --release -p kira --no-default-features
 make build-cli
-bash scripts/smoke-test.sh
 ```
 
 Release builds use LTO, one codegen unit, symbol stripping, and `panic = abort`.

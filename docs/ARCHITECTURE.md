@@ -78,8 +78,6 @@ kira/
 ├── packages/
 │   ├── api-types/                OpenAPI contract + generated TypeScript types
 │   └── ui/                       shared shadcn components and styles
-├── scripts/
-│   └── smoke-test.sh             release binary sanity check
 └── docs/                         architecture, API, configuration, dashboard, development
 ```
 
@@ -314,7 +312,7 @@ Implemented:
 - SQLite persistence and migrations for reports, guild users and events, sync
   state, monitor samples, audit events, and bot presence.
 - OpenAPI generation, TypeScript contract checks, dashboard tests, and the
-  build/lint/test/smoke-test workflow.
+  build/lint/test workflow.
 
 Not implemented yet:
 
