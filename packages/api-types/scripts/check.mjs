@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
 const committedSchema = join(repoRoot, "packages/api-types/src/schema.d.ts");
-const openapiDocument = join(repoRoot, "openapi/openapi.yaml");
+const openapiDocument = join(repoRoot, "packages/api-types/openapi.yaml");
 const generator = join(
   repoRoot,
   "node_modules",
