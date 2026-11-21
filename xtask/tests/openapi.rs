@@ -6,7 +6,7 @@ use std::fs;
 fn generate_writes_the_health_path() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
     xtask::openapi::generate(dir.path())?;
-    let yaml = fs::read_to_string(dir.path().join("openapi/openapi.yaml"))?;
+    let yaml = fs::read_to_string(dir.path().join("packages/api-types/openapi.yaml"))?;
     assert!(yaml.contains("openapi: 3.1.0"));
     assert!(yaml.contains("/health:"));
     assert!(yaml.ends_with('\n'));
@@ -25,7 +25,7 @@ fn check_accepts_fresh_output() -> anyhow::Result<()> {
 fn check_rejects_drift() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
     xtask::openapi::generate(dir.path())?;
-    let path = dir.path().join("openapi/openapi.yaml");
+    let path = dir.path().join("packages/api-types/openapi.yaml");
     let mut yaml = fs::read_to_string(&path)?;
     yaml.push_str("# drift\n");
     fs::write(&path, yaml)?;

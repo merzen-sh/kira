@@ -60,8 +60,6 @@ kira/
 ├── Makefile                      build, dashboard, OpenAPI, check workflow, dev runner
 ├── package.json                  Bun workspace root
 ├── bun.lock                      committed for reproducible installs
-├── openapi/
-│   └── openapi.yaml              generated + committed API contract
 ├── migrations/
 │   └── *.up.sql / *.down.sql     SQLx migrations applied at startup
 ├── crates/
@@ -78,7 +76,7 @@ kira/
 ├── apps/
 │   └── dashboard/                Vite + React + TypeScript dashboard
 ├── packages/
-│   ├── api-types/                generated TypeScript API types
+│   ├── api-types/                OpenAPI contract + generated TypeScript types
 │   └── ui/                       shared shadcn components and styles
 ├── scripts/
 │   └── smoke-test.sh             release binary sanity check

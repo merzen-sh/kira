@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-const OPENAPI_PATH: &str = "openapi/openapi.yaml";
+const OPENAPI_PATH: &str = "packages/api-types/openapi.yaml";
 
 fn output_path(root: &Path) -> PathBuf {
     root.join(OPENAPI_PATH)
@@ -20,7 +20,7 @@ fn document() -> Result<String> {
     Ok(output)
 }
 
-/// Write the OpenAPI document to `openapi/openapi.yaml` under `root`.
+/// Write the OpenAPI document to `packages/api-types/openapi.yaml` under `root`.
 ///
 /// # Errors
 ///
